@@ -38,7 +38,7 @@ set.seed(123)
 # 1 calculate weights
 
 # as the data have been imputed, take each imputed dataset, calculate weights in them, then stack them again at the end
-temp$IPW <- temp$overlap <- NA
+temp$IPTW <- temp$overlap <- NA
 
 # take non-imputed dataset to append the imputed datasets to later on
 temp2 <- temp[temp$.imp == 0,]
@@ -82,7 +82,7 @@ for (i in 1:n.imp) {
   
   ## Add weights to data frame
   weights <- w.overlap$ps.weights # note that these do not contain an index variable but are in the same order as our data frame
-  imp.x$IPW <- weights$IPW
+  imp.x$IPTW <- weights$IPW
   imp.x$overlap <- weights$overlap
   
   # append imputed dataset with weights to dataframe with the original dataset + appended imputed datasets
@@ -108,7 +108,7 @@ summary(w.overlap, weighted.var = TRUE, metric = "ASD")
 ## 2 calculate hazard ratios (unadjusted, adjusted, weighted) and n events per study drug
 
 #outcomes to be studied:
-kf_outcomes <- c("ckd_345", "ckd_egfr40", "death")
+kf_outcomes <- c("ckd_345", "ckd_egfr40", "death", "ckd_345_pp", "ckd_egfr40_pp", "death_pp")
 
 #write function to pool HRs from multiple imputations later on
 pool.rubin.HR <- function(COEFS,SE,n.imp){
@@ -134,6 +134,8 @@ pool.rubin.HR <- function(COEFS,SE,n.imp){
 all_hrs <- data.frame()
 
 for (k in kf_outcomes) {
+  
+  print(paste0("Calculating hazard ratios for outcome ", k))
   
   censvar_var=paste0(k, "_censvar")
   censtime_var=paste0(k, "_censtime_yrs")
@@ -200,6 +202,7 @@ for (k in kf_outcomes) {
     rep(NA,n.imp)
   
   for (i in 1:n.imp) {
+    print(paste0("Analyses in imputed dataset number ", i))
     
     #unadjusted analyses first
     fit.unadj <- coxph(f, temp[temp$.imp == i,])
@@ -227,7 +230,7 @@ for (k in kf_outcomes) {
     SE.SGLT2.ow[i] <- sqrt(fit.ow$var[2,2])
     
     #inverse probability of treatment weighted analyses
-    fit.iptw <- coxph(f_adjusted, temp[temp$.imp ==i,], weights = IPW)
+    fit.iptw <- coxph(f_adjusted, temp[temp$.imp ==i,], weights = IPTW)
     
     COEFS.DPP4.iptw[i] <- fit.iptw$coefficients[1]
     COEFS.SGLT2.iptw[i] <- fit.iptw$coefficients[2]

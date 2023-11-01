@@ -32,7 +32,7 @@ rm(t2d_1stinstance_a)
 rm(t2d_1stinstance_b)
 
 
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Functions/")
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/scripts/CPRD-Thijs-CKD-scripts/Functions/")
 source("cohort_definition_kf.R")
 cohort <- define_cohort(t2d_1stinstance, t2d_all_drug_periods)
 
@@ -424,18 +424,20 @@ print(paste0("Number of subjects excluded with missing ckdpc risk scores due to 
 # create table one: this will be an average of the imputed datasets (n to be divided by n.imp)
 
 #variables to be shown
-vars <- c("dstartdate_age", "malesex", "ethnicity_qrisk2", "imd2015_10", 
-          "prebmi", "preegfr", "uacr", "preldl", "prehba1c", "presbp", "predbp",
-          "dstartdate_dm_dur_all", "qrisk2_smoking_cat", "predrug_hypertension", 
-          "predrug_dka", "osteoporosis", "predrug_acutepancreatitis", "predrug_falls", 
+vars <- c("dstartdate_age", "malesex", "ethnicity_qrisk2", "imd2015_10",           # sociodemographic variables
+          "prebmi", "preegfr", "uacr", "preldl", "prehba1c", "presbp", "predbp",   # vital signs and laboratory measurements
+          "dstartdate_dm_dur_all", "qrisk2_smoking_cat", "predrug_hypertension",   # comorbidities
+          "predrug_af", "predrug_dka", "osteoporosis", 
+          "predrug_acutepancreatitis", "predrug_falls", 
           "predrug_urinary_frequency", "predrug_volume_depletion", 
           "predrug_micturition_control", "predrug_dementia", "hosp_admission_prev_year",
-          "ncurrtx", "MFN", "TZD", "ACEi", "ARB")
+          "ncurrtx", "MFN", "TZD", "ACEi", "ARB"                                   # medications
+          )
 
 #categorical variables
 factors <- c("malesex", "ethnicity_qrisk2", "qrisk2_smoking_cat", "predrug_hypertension", 
-             "predrug_dka", "osteoporosis", "predrug_acutepancreatitis", "predrug_falls", 
-             "predrug_urinary_frequency", "predrug_volume_depletion", 
+             "predrug_af", "predrug_dka", "osteoporosis", "predrug_acutepancreatitis", 
+             "predrug_falls", "predrug_urinary_frequency", "predrug_volume_depletion", 
              "predrug_micturition_control", "predrug_dementia", "hosp_admission_prev_year",
              "ncurrtx", "MFN", "TZD", "ACEi", "ARB")
 
