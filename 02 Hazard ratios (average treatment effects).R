@@ -21,6 +21,7 @@ library(flextable)
 library(survival)
 library(survminer)
 library(rms)
+library(tidyverse)
 library(PSweight)
 
 options(dplyr.summarise.inform = FALSE)
@@ -28,7 +29,7 @@ options(dplyr.summarise.inform = FALSE)
 rm(list=ls())
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-load("2023-11-01_t2d_ckdpc_imputed_data.Rda")
+load("2023-11-08_t2d_ckdpc_imputed_data.Rda")
 
 n.imp <- 10
 set.seed(123)
@@ -49,6 +50,7 @@ ps.formula <- formula(paste("studydrug ~
                                #sociodemographic characteristics:
                                dstartdate_age + malesex + imd2015_10 + 
                                ethnicity_qrisk2 + regstartdate + 
+                               initiation_year +
                                
                                #laboratory and vital signs measurements:
                                preweight + prebmi + prehba1c + pretriglyceride + prehdl + preldl +
@@ -143,7 +145,7 @@ for (k in kf_outcomes) {
   # calculate number of subjects in each group
   count <- temp[temp$.imp > 0,] %>%
     group_by(studydrug) %>%
-    summarise(count=(n()/n.imp)) %>% # the total number of subjects in the stacked imputed datasets has to be divided by the number of imputed datasets
+    summarise(count=round(n()/n.imp, 0)) %>% # the total number of subjects in the stacked imputed datasets has to be divided by the number of imputed datasets
     pivot_wider(names_from=studydrug,
                 names_glue="{studydrug}_count",
                 values_from=count)
@@ -159,8 +161,8 @@ for (k in kf_outcomes) {
   # summarise number of events per group
   events <- temp[temp$.imp > 0,] %>%
     group_by(studydrug) %>%
-    summarise(event_count=(sum(!!sym(censvar_var))/n.imp),
-              drug_count=(n()/n.imp)) %>%
+    summarise(event_count=round(sum(!!sym(censvar_var))/n.imp, 0),
+              drug_count=round(n()/n.imp, 0)) %>%
     mutate(events_perc=round(event_count*100/drug_count, 1),
            events=paste0(event_count, " (", events_perc, "%)")) %>%
     select(studydrug, events) %>%
@@ -174,7 +176,7 @@ for (k in kf_outcomes) {
   
   f_adjusted <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  
                                  studydrug + dstartdate_age + malesex + dstartdate_dm_dur_all + 
-                                 ethnicity_qrisk2 + imd2015_10 + 
+                                 ethnicity_qrisk2 + imd2015_10 + initiation_year +
                                  ckdpc_40egfr_score + ckdpc_egfr60_confirmed_score +
                                  prebmi + prehba1c + pretriglyceride + prehdl + preldl +
                                pretotalcholesterol + prealt + preegfr + uacr + presbp + predbp + 

@@ -37,8 +37,8 @@ source("cohort_definition_kf.R")
 cohort <- define_cohort(t2d_1stinstance, t2d_all_drug_periods)
 
 table(cohort$studydrug)
-#DPP4 SGLT2    SU 
-#48387 21163 49055
+# DPP4 SGLT2    SU 
+#48095 21114 48209
 
 ## B Make variables for survival analysis of all endpoints (see survival_variables_kf function for details)
 
@@ -105,6 +105,9 @@ cohort$studydrug <- relevel(as.factor(cohort$studydrug), ref = "SU")
 # for the sake of imputation, we will class missing as "missing" (10)
 cohort <- cohort %>%
   mutate(ethnicity_qrisk2=ifelse(is.na(ethnicity_qrisk2), "10", ethnicity_qrisk2))
+
+# create variable for year of treatment initiation
+cohort$initiation_year <- substring(as.character(cohort$dstartdate), 1, 4)
 
 # select cohort with at least 1 year of data prior to start date and who did not have SGLT2 in year prior to start date
 
@@ -178,7 +181,8 @@ inlist <- c("malesex", "imd2015_10", "dstartdate_age",                # main soc
 
 #list variables that are 100% complete and are not interesting for the imputation model
 complete_vars <- names(ini$nmis[ini$nmis == 0])
-outlist1 <- complete_vars[c(1, 5:6, 10:13, 15:16, 18, 20:24, 26:30, 32:33, 35:36, 38:39, 41:42, 44:72, 75, 77:81)]
+#inspect complete_vars by printing it > print(complete_vars) then choose variables that we want to omit
+outlist1 <- complete_vars[c(1, 5:6, 10:13, 15:16, 18, 20:24, 26:30, 32:33, 35:36, 38:39, 41:42, 44:72, 77:81, 102)]
 
 #list variables with outflux <0.5 
 #outflux is an indicator of the potential usefulness for imputing other variables - 
@@ -199,9 +203,17 @@ outlist <- unique(c(outlist1, outlist2, outlist3))
 
 pred <- quickpred(cohort, include = inlist, exclude = outlist)
 
+# limit imputations to plausible range
+post <- ini$post
+post["preegfr"] <- "imp[[j]][, i] <- squeeze(imp[[j]][, i], c(60, 120))"
+post["prebmi"] <- "imp[[j]][, i] <- squeeze(imp[[j]][, i], c(20, 40))"
+post["prehba1c"] <- "imp[[j]][, i] <- squeeze(imp[[j]][, i], c(42, 97))"
+post["uacr"] <- "imp[[j]][, i] <- squeeze(imp[[j]][, i], c(0.6, 56.5))"
+post["presbp"] <- "imp[[j]][, i] <- squeeze(imp[[j]][, i], c(80, 180))"
+
 n.imp <- 10
 
-imp <- mice(data = cohort, meth = meth, pred = pred, m=n.imp, seed = 123)
+imp <- mice(data = cohort, meth = meth, pred = pred, post = post, m=n.imp, seed = 123)
 
 # check imputed vs original values
 #densityplot(x = imp, data = ~ imd2015_10 + dstartdate_dm_dur_all + preweight + height + prehba1c + prebmi + 
@@ -210,6 +222,14 @@ imp <- mice(data = cohort, meth = meth, pred = pred, m=n.imp, seed = 123)
 
 #extract imputations so we can add variables
 temp <- complete(imp, action = "long", include = T)
+
+#the post-processing of prebmi imputations does not work as the method is passive imputation
+#I will set all imputed prebmi values that are <20 at 20 which is what the post-processing procedure would otherwise do
+z <- cohort[is.na(cohort$prebmi),]$patid
+temp <- temp %>% mutate(prebmi = ifelse(
+  patid %in% z & prebmi < 20, 20, prebmi
+))
+rm(z)
 
 ########################3 CALCULATE RISK SCORES####################################################################
 
@@ -381,35 +401,31 @@ ckdpc_outofrange %>% filter(hba1c_val=="over") %>% summarise(median=median(prehb
   ## Also remove eGFR<60 score for those with sociodemographic/vital/laboratory measurements outside of range:
   ### Age: 20-80
   ### UACR: 0.6-56.5 (5-500 in mg/g)
-  ### BMI: 20-40
+  ### BMI: <20
   ### HbA1c 42-97 (6-11 in %)
   
   ## Also remove 40% decline in eGFR score for those with sociodemographic/vital/laboratory measurements outside of range:
   ### Age: 20-80
   ### UACR: 0.6-113 (5-1000 in mg/g)
   ### SBP: 80-180
-  ### BMI: 20-40
+  ### BMI: <20
   ### HbA1c 42-97 (6-11 in %)
   
 temp <- temp %>%
 
   mutate(across(starts_with("ckdpc_egfr60"),
-                ~ifelse((is.na(preckdstage) | preckdstage=="stage_1" | preckdstage=="stage_2") &
-                          (is.na(preegfr) | preegfr>=60) &
-                          dstartdate_age>=20 & dstartdate_age<=80 &
+                ~ifelse(dstartdate_age>=20 & dstartdate_age<=80 &
                           prebmi>=20, .x, NA))) %>%
   
   mutate(across(starts_with("ckdpc_40egfr"),
-                ~ifelse((is.na(preckdstage) | preckdstage=="stage_1" | preckdstage=="stage_2") &
-                          (is.na(preegfr) | preegfr>=60) &
-                          dstartdate_age>=20 & dstartdate_age<=80 &
+                ~ifelse(dstartdate_age>=20 & dstartdate_age<=80 &
                           prebmi>=20, .x, NA)))
 
 # retain those with available risk scores only
 temp <- temp %>% filter(!is.na(ckdpc_egfr60_confirmed_score) & !is.na(ckdpc_40egfr_score))
 
 # those left out:
-ckdpc_outofrange <- ckdpc_outofrange[!ckdpc_outofrange$patid %in% temp$patid,]
+ckdpc_outofrange <- ckdpc_outofrange %>% anti_join(temp, by = c("patid", ".imp"))
 
 q <- ckdpc_outofrange %>% summarise(n=n()/n.imp)
 
