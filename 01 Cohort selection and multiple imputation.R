@@ -109,15 +109,6 @@ cohort <- cohort %>%
 # create variable for year of treatment initiation
 cohort$initiation_year <- substring(as.character(cohort$dstartdate), 1, 4)
 
-# select cohort with at least 1 year of data prior to start date and who did not have SGLT2 in year prior to start date
-
-#one_year_reg_cohort <- cohort %>%
-#  mutate(reg_before_drug_start=as.numeric(difftime(dstartdate, regstartdate, units="days")),
-#         time_since_sglt2_stop=as.numeric(difftime(dstartdate, last_sglt2_stop, units="days"))) %>%
-#  filter(reg_before_drug_start>=365 & (is.na(last_sglt2_stop) | last_sglt2_stop>=365))
-
-#table(one_year_reg_cohort$studydrug)
-
 ########################2 MULTIPLE IMPUTATION####################################################################
 # 2 Impute missing data and recalculate risk scores
 
@@ -216,9 +207,9 @@ n.imp <- 10
 imp <- mice(data = cohort, meth = meth, pred = pred, post = post, m=n.imp, seed = 123)
 
 # check imputed vs original values
-#densityplot(x = imp, data = ~ imd2015_10 + dstartdate_dm_dur_all + preweight + height + prehba1c + prebmi + 
-#              prehdl + preldl + pretriglyceride + pretotalcholesterol + prealt + presbp + predbp + preegfr + 
-#              uacr + qrisk2_smoking_cat + tds_2011)
+densityplot(x = imp, data = ~ imd2015_10 + dstartdate_dm_dur_all + preweight + height + prehba1c + prebmi + 
+              prehdl + preldl + pretriglyceride + pretotalcholesterol + prealt + presbp + predbp + preegfr + 
+              uacr + qrisk2_smoking_cat + tds_2011)
 
 #extract imputations so we can add variables
 temp <- complete(imp, action = "long", include = T)
@@ -447,6 +438,7 @@ vars <- c("dstartdate_age", "malesex", "ethnicity_qrisk2", "imd2015_10",        
           "predrug_acutepancreatitis", "predrug_falls", 
           "predrug_urinary_frequency", "predrug_volume_depletion", 
           "predrug_micturition_control", "predrug_dementia", "hosp_admission_prev_year",
+          "initiation_year",
           "ncurrtx", "MFN", "TZD", "ACEi", "ARB"                                   # medications
           )
 
@@ -455,6 +447,7 @@ factors <- c("malesex", "ethnicity_qrisk2", "qrisk2_smoking_cat", "predrug_hyper
              "predrug_af", "predrug_dka", "osteoporosis", "predrug_acutepancreatitis", 
              "predrug_falls", "predrug_urinary_frequency", "predrug_volume_depletion", 
              "predrug_micturition_control", "predrug_dementia", "hosp_admission_prev_year",
+             "initiation_year",
              "ncurrtx", "MFN", "TZD", "ACEi", "ARB")
 
 table <- CreateTableOne(vars = vars, strata = "studydrug", data = temp[temp$.imp > 0,], factorVars = factors, test = F)

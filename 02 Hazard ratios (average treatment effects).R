@@ -23,6 +23,7 @@ library(survminer)
 library(rms)
 library(tidyverse)
 library(PSweight)
+library(patchwork)
 
 options(dplyr.summarise.inform = FALSE)
 
@@ -33,6 +34,7 @@ load("2023-11-08_t2d_ckdpc_imputed_data.Rda")
 
 n.imp <- 10
 set.seed(123)
+today <- as.character(Sys.Date(), format="%Y%m%d")
 
 ############################1 CALCULATE WEIGHTS################################################################
 
@@ -55,7 +57,6 @@ ps.formula <- formula(paste("studydrug ~
                                #laboratory and vital signs measurements:
                                preweight + prebmi + prehba1c + pretriglyceride + prehdl + preldl +
                                pretotalcholesterol + prealt + preegfr + uacr + presbp + predbp + 
-                               # qrisk2_5yr_score + qdiabeteshf_5yr_score + # not using qrisk scores as will be missing in some cases
                                ckdpc_egfr60_confirmed_score + ckdpc_40egfr_score +
                                
                                #medications:
@@ -105,6 +106,11 @@ plot(w.overlap, type = "density")
 
 summary(w.overlap, weighted.var = TRUE, metric = "ASD")
 
+# save dataset with weights so this can be used in subsequent scripts
+cohort <- temp
+rm(temp)
+save(cohort, file=paste0(today, "_t2d_ckdpc_imputed_data_withweights.Rda"))
+#load("2023-11-28_t2d_ckdpc_imputed_data_withweights.Rda")
 ############################2 CALCULATE HAZARD RATIOS################################################################
 
 ## 2 calculate hazard ratios (unadjusted, adjusted, weighted) and n events per study drug
@@ -133,7 +139,11 @@ pool.rubin.HR <- function(COEFS,SE,n.imp){
   return(output)}
 
 #create empty data frame to which we can append the hazard ratios once calculated
-all_hrs <- data.frame()
+all_sglt2_hrs <- 
+  all_dpp4_hrs <-
+  all_sglt2vsdpp4_hrs <- 
+  all_hrs <- 
+  data.frame()
 
 for (k in kf_outcomes) {
   
@@ -143,7 +153,7 @@ for (k in kf_outcomes) {
   censtime_var=paste0(k, "_censtime_yrs")
   
   # calculate number of subjects in each group
-  count <- temp[temp$.imp > 0,] %>%
+  count <- cohort[cohort$.imp > 0,] %>%
     group_by(studydrug) %>%
     summarise(count=round(n()/n.imp, 0)) %>% # the total number of subjects in the stacked imputed datasets has to be divided by the number of imputed datasets
     pivot_wider(names_from=studydrug,
@@ -151,7 +161,7 @@ for (k in kf_outcomes) {
                 values_from=count)
   
   # calculate median follow up time (years) per group
-  followup <- temp[temp$.imp > 0,] %>%
+  followup <- cohort[cohort$.imp > 0,] %>%
     group_by(studydrug) %>%
     summarise(time=round(median(!!sym(censtime_var)), 2)) %>%
     pivot_wider(names_from=studydrug,
@@ -159,7 +169,7 @@ for (k in kf_outcomes) {
                 values_from=time)
   
   # summarise number of events per group
-  events <- temp[temp$.imp > 0,] %>%
+  events <- cohort[cohort$.imp > 0,] %>%
     group_by(studydrug) %>%
     summarise(event_count=round(sum(!!sym(censvar_var))/n.imp, 0),
               drug_count=round(n()/n.imp, 0)) %>%
@@ -174,15 +184,30 @@ for (k in kf_outcomes) {
   # write formulas for adjusted and unadjusted analyses
   f <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug"))
   
-  f_adjusted <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  
-                                 studydrug + dstartdate_age + malesex + dstartdate_dm_dur_all + 
-                                 ethnicity_qrisk2 + imd2015_10 + initiation_year +
-                                 ckdpc_40egfr_score + ckdpc_egfr60_confirmed_score +
-                                 prebmi + prehba1c + pretriglyceride + prehdl + preldl +
+  f_adjusted <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug + 
+                               
+                               #sociodemographic characteristics:
+                               dstartdate_age + malesex + imd2015_10 + 
+                               ethnicity_qrisk2 + regstartdate + 
+                               initiation_year +
+                               
+                               #laboratory and vital signs measurements:
+                               preweight + prebmi + prehba1c + pretriglyceride + prehdl + preldl +
                                pretotalcholesterol + prealt + preegfr + uacr + presbp + predbp + 
-                                 ever_smoker + prebmi + ncurrtx + MFN + statin +
+                               ckdpc_egfr60_confirmed_score + ckdpc_40egfr_score +
+                               
+                               #medications:
+                               ncurrtx + MFN + statin +
                                ACEi + ARB + BB + CCB + ThZD + loopD + MRA + 
                                steroids + immunosuppr +
+                               
+                               #medications:
+                               ncurrtx + MFN + statin +
+                               ACEi + ARB + BB + CCB + ThZD + loopD + MRA + 
+                               steroids + immunosuppr +
+                               
+                               #Comorbidities
+                               qrisk2_smoking_cat + dstartdate_dm_dur_all + 
                                predrug_hypertension + osteoporosis + predrug_dka +
                                predrug_falls + predrug_urinary_frequency + predrug_volume_depletion +
                                predrug_acutepancreatitis +
@@ -192,22 +217,26 @@ for (k in kf_outcomes) {
   # for the unadjusted survival models
   COEFS.SGLT2.unadj <- SE.SGLT2.unadj <-
     COEFS.DPP4.unadj <- SE.DPP4.unadj <-
+    COEFS.SGLT2vsDPP4.unadj <- SE.SGLT2vsDPP4.unadj <-
   # for the adjusted survival models
     COEFS.SGLT2.adj <- SE.SGLT2.adj <-
     COEFS.DPP4.adj <- SE.DPP4.adj <-
+    COEFS.SGLT2vsDPP4.adj <- SE.SGLT2vsDPP4.adj <-
   # for the overlap weighted survival models
     COEFS.SGLT2.ow <- SE.SGLT2.ow <-
     COEFS.DPP4.ow <- SE.DPP4.ow <-
+    COEFS.SGLT2vsDPP4.ow <- SE.SGLT2vsDPP4.ow <-
   # for the inverse probability of treatment weighted survival models
     COEFS.SGLT2.iptw <- SE.SGLT2.iptw <-
     COEFS.DPP4.iptw <- SE.DPP4.iptw <-
+    COEFS.SGLT2vsDPP4.iptw <- SE.SGLT2vsDPP4.iptw <-
     rep(NA,n.imp)
   
   for (i in 1:n.imp) {
     print(paste0("Analyses in imputed dataset number ", i))
     
     #unadjusted analyses first
-    fit.unadj <- coxph(f, temp[temp$.imp == i,])
+    fit.unadj <- coxph(f, cohort[cohort$.imp == i,])
     
     #store coefficients and standard errors from this model
     COEFS.DPP4.unadj[i] <- fit.unadj$coefficients[1]
@@ -216,7 +245,7 @@ for (k in kf_outcomes) {
     SE.SGLT2.unadj[i] <- sqrt(fit.unadj$var[2,2])
     
     #adjusted analyses
-    fit.adj <- coxph(f_adjusted, temp[temp$.imp == i,])
+    fit.adj <- coxph(f_adjusted, cohort[cohort$.imp == i,])
     
     COEFS.DPP4.adj[i] <- fit.adj$coefficients[1]
     COEFS.SGLT2.adj[i] <- fit.adj$coefficients[2]
@@ -224,7 +253,7 @@ for (k in kf_outcomes) {
     SE.SGLT2.adj[i] <- sqrt(fit.adj$var[2,2])
     
     #overlap weighted analyses
-    fit.ow <- coxph(f_adjusted, temp[temp$.imp ==i,], weights = overlap)
+    fit.ow <- coxph(f_adjusted, cohort[cohort$.imp ==i,], weights = overlap)
     
     COEFS.DPP4.ow[i] <- fit.ow$coefficients[1]
     COEFS.SGLT2.ow[i] <- fit.ow$coefficients[2]
@@ -232,7 +261,7 @@ for (k in kf_outcomes) {
     SE.SGLT2.ow[i] <- sqrt(fit.ow$var[2,2])
     
     #inverse probability of treatment weighted analyses
-    fit.iptw <- coxph(f_adjusted, temp[temp$.imp ==i,], weights = IPTW)
+    fit.iptw <- coxph(f_adjusted, cohort[cohort$.imp ==i,], weights = IPTW)
     
     COEFS.DPP4.iptw[i] <- fit.iptw$coefficients[1]
     COEFS.SGLT2.iptw[i] <- fit.iptw$coefficients[2]
@@ -241,37 +270,131 @@ for (k in kf_outcomes) {
     
     rm(fit.unadj)
     rm(fit.adj)
+    rm(fit.ow)
+    rm(fit.iptw)
+    
+    #calculate HRs for SGLT2 vs DPP4
+    cohort$studydrug <- relevel(factor(cohort$studydrug), ref = "DPP4")
+    
+    #unadjusted analyses first
+    fit.unadj <- coxph(f, cohort[cohort$.imp == i,])
+    
+    #store coefficients and standard errors from this model
+    COEFS.SGLT2vsDPP4.unadj[i] <- fit.unadj$coefficients[2]
+    SE.SGLT2vsDPP4.unadj[i] <- sqrt(fit.unadj$var[2,2])
+    
+    #adjusted analyses
+    fit.adj <- coxph(f_adjusted, cohort[cohort$.imp == i,])
+    
+    COEFS.SGLT2vsDPP4.adj[i] <- fit.adj$coefficients[2]
+    SE.SGLT2vsDPP4.adj[i] <- sqrt(fit.adj$var[2,2])
+    
+    #overlap weighted analyses
+    fit.ow <- coxph(f_adjusted, cohort[cohort$.imp ==i,], weights = overlap)
+    
+    COEFS.SGLT2vsDPP4.ow[i] <- fit.ow$coefficients[2]
+    SE.SGLT2vsDPP4.ow[i] <- sqrt(fit.ow$var[2,2])
+    
+    #inverse probability of treatment weighted analyses
+    fit.iptw <- coxph(f_adjusted, cohort[cohort$.imp ==i,], weights = IPTW)
+    
+    COEFS.SGLT2vsDPP4.iptw[i] <- fit.iptw$coefficients[2]
+    SE.SGLT2vsDPP4.iptw[i] <- sqrt(fit.iptw$var[2,2])
+    
+    rm(fit.unadj)
+    rm(fit.adj)
+    rm(fit.ow)
+    rm(fit.iptw)
+    
+    cohort$studydrug <- relevel(factor(cohort$studydrug), ref = "SU")
+    
   }
   
   # pool hazard ratios
   unadjusted_sglt2 <- pool.rubin.HR(COEFS.SGLT2.unadj, SE.SGLT2.unadj, n.imp)
   unadjusted_dpp4 <- pool.rubin.HR(COEFS.DPP4.unadj, SE.DPP4.unadj, n.imp)
+  unadjusted_sglt2vsdpp4 <- pool.rubin.HR(COEFS.SGLT2vsDPP4.unadj, SE.SGLT2vsDPP4.unadj, n.imp)
+  
   adjusted_sglt2 <- pool.rubin.HR(COEFS.SGLT2.adj, SE.SGLT2.adj, n.imp)
   adjusted_dpp4 <- pool.rubin.HR(COEFS.DPP4.adj, SE.DPP4.adj, n.imp)  
+  adjusted_sglt2vsdpp4 <- pool.rubin.HR(COEFS.SGLT2vsDPP4.adj, SE.SGLT2vsDPP4.adj, n.imp)
+  
   overlapweighted_sglt2 <- pool.rubin.HR(COEFS.SGLT2.ow, SE.SGLT2.ow, n.imp)
   overlapweighted_dpp4 <- pool.rubin.HR(COEFS.DPP4.ow, SE.DPP4.ow, n.imp)
+  overlapweighted_sglt2vsdpp4 <- pool.rubin.HR(COEFS.SGLT2vsDPP4.ow, SE.SGLT2vsDPP4.ow, n.imp)
+  
   iptw_sglt2 <- pool.rubin.HR(COEFS.SGLT2.iptw, SE.SGLT2.iptw, n.imp)
   iptw_dpp4 <- pool.rubin.HR(COEFS.DPP4.iptw, SE.DPP4.iptw, n.imp)
+  iptw_sglt2vsdpp4 <- pool.rubin.HR(COEFS.SGLT2vsDPP4.iptw, SE.SGLT2vsDPP4.iptw, n.imp)
+  
   
   # save pooled HR and 95% confidence interval
-  unadjusted_sglt2 <- paste0(round(unadjusted_sglt2[1], 2), " (", round(unadjusted_sglt2[2], 2), ", ", round(unadjusted_sglt2[3], 2), ")")
-  unadjusted_dpp4 <- paste0(round(unadjusted_dpp4[1], 2), " (", round(unadjusted_dpp4[2], 2), ", ", round(unadjusted_dpp4[3], 2), ")")
-  adjusted_sglt2 <- paste0(round(adjusted_sglt2[1], 2), " (", round(adjusted_sglt2[2], 2), ", ", round(adjusted_sglt2[3], 2), ")")
-  adjusted_dpp4 <- paste0(round(adjusted_dpp4[1], 2), " (", round(adjusted_dpp4[2], 2), ", ", round(adjusted_dpp4[3], 2), ")")
-  overlapweighted_sglt2 <- paste0(round(overlapweighted_sglt2[1], 2), " (", round(overlapweighted_sglt2[2], 2), ", ", round(overlapweighted_sglt2[3], 2), ")")
-  overlapweighted_dpp4 <- paste0(round(overlapweighted_dpp4[1], 2), " (", round(overlapweighted_dpp4[2], 2), ", ", round(overlapweighted_dpp4[3], 2), ")")
-  iptw_sglt2 <- paste0(round(iptw_sglt2[1], 2), " (", round(iptw_sglt2[2], 2), ", ", round(iptw_sglt2[3], 2), ")")
-  iptw_dpp4 <- paste0(round(iptw_dpp4[1], 2), " (", round(iptw_dpp4[2], 2), ", ", round(iptw_dpp4[3], 2), ")")
+  unadjusted_sglt2_string <- paste0(round(unadjusted_sglt2[1], 2), " (", round(unadjusted_sglt2[2], 2), ", ", round(unadjusted_sglt2[3], 2), ")")
+  unadjusted_dpp4_string <- paste0(round(unadjusted_dpp4[1], 2), " (", round(unadjusted_dpp4[2], 2), ", ", round(unadjusted_dpp4[3], 2), ")")
+  unadjusted_sglt2vsdpp4_string <- paste0(round(unadjusted_sglt2vsdpp4[1], 2), " (", round(unadjusted_sglt2vsdpp4[2], 2), ", ", round(unadjusted_sglt2vsdpp4[3], 2), ")")
+
+  adjusted_sglt2_string <- paste0(round(adjusted_sglt2[1], 2), " (", round(adjusted_sglt2[2], 2), ", ", round(adjusted_sglt2[3], 2), ")")
+  adjusted_dpp4_string <- paste0(round(adjusted_dpp4[1], 2), " (", round(adjusted_dpp4[2], 2), ", ", round(adjusted_dpp4[3], 2), ")")
+  adjusted_sglt2vsdpp4_string <- paste0(round(adjusted_sglt2vsdpp4[1], 2), " (", round(adjusted_sglt2vsdpp4[2], 2), ", ", round(adjusted_sglt2vsdpp4[3], 2), ")")
+  
+  overlapweighted_sglt2_string <- paste0(round(overlapweighted_sglt2[1], 2), " (", round(overlapweighted_sglt2[2], 2), ", ", round(overlapweighted_sglt2[3], 2), ")")
+  overlapweighted_dpp4_string <- paste0(round(overlapweighted_dpp4[1], 2), " (", round(overlapweighted_dpp4[2], 2), ", ", round(overlapweighted_dpp4[3], 2), ")")
+  overlapweighted_sglt2vsdpp4_string <- paste0(round(overlapweighted_sglt2vsdpp4[1], 2), " (", round(overlapweighted_sglt2vsdpp4[2], 2), ", ", round(overlapweighted_sglt2vsdpp4[3], 2), ")")
+
+  iptw_sglt2_string <- paste0(round(iptw_sglt2[1], 2), " (", round(iptw_sglt2[2], 2), ", ", round(iptw_sglt2[3], 2), ")")
+  iptw_dpp4_string <- paste0(round(iptw_dpp4[1], 2), " (", round(iptw_dpp4[2], 2), ", ", round(iptw_dpp4[3], 2), ")")
+  iptw_sglt2vsdpp4_string <- paste0(round(iptw_sglt2vsdpp4[1], 2), " (", round(iptw_sglt2vsdpp4[2], 2), ", ", round(iptw_sglt2vsdpp4[3], 2), ")")
   
   
   # combine in dataframe that we can tabulate
-  outcome_hr <- cbind(outcome=k, count, followup, events, 
-                      unadjusted_dpp4, adjusted_dpp4, overlapweighted_dpp4, iptw_dpp4,
-                      unadjusted_sglt2, adjusted_sglt2, overlapweighted_sglt2, iptw_sglt2)
+  outcome_sglt2_hr <- cbind(outcome=k, count[c(1,3)], followup[c(1,3)], events[c(1,3)], 
+                            unadjusted_sglt2_string, adjusted_sglt2_string, overlapweighted_sglt2_string, iptw_sglt2_string)
+  
+  outcome_dpp4_hr <- cbind(outcome=k, count[1:2], followup[1:2], events[1:2], 
+                            unadjusted_dpp4_string, adjusted_dpp4_string, overlapweighted_dpp4_string, iptw_dpp4_string)
+  
+  outcome_sglt2vsdpp4_hr <- cbind(outcome=k, count[2:3], followup[2:3], events[2:3], 
+                            unadjusted_sglt2vsdpp4_string, adjusted_sglt2vsdpp4_string, overlapweighted_sglt2vsdpp4_string, iptw_sglt2vsdpp4_string)
+  
+  all_sglt2_hrs <- rbind(all_sglt2_hrs, outcome_sglt2_hr)
+  all_dpp4_hrs <- rbind(all_dpp4_hrs, outcome_dpp4_hr)
+  all_sglt2vsdpp4_hrs <- rbind(all_sglt2vsdpp4_hrs, outcome_sglt2vsdpp4_hr)
+  
+  outcome_hr <- rbind(
+    cbind(outcome = k, contrast = "SGLT2 vs SU", analysis = "unadjusted", 
+          HR = unadjusted_sglt2[1], LB = unadjusted_sglt2[2], UB = unadjusted_sglt2[3], string = unadjusted_sglt2_string),
+    cbind(outcome = k, contrast = "SGLT2 vs SU", analysis = "adjusted", 
+          HR = adjusted_sglt2[1], LB = adjusted_sglt2[2], UB = adjusted_sglt2[3], string = adjusted_sglt2_string),
+    cbind(outcome = k, contrast = "SGLT2 vs SU", analysis = "overlap-weighted", 
+          HR = overlapweighted_sglt2[1], LB = overlapweighted_sglt2[2], UB = overlapweighted_sglt2[3], string = overlapweighted_sglt2_string),
+    cbind(outcome = k, contrast = "SGLT2 vs SU", analysis = "IPTW", 
+          HR = iptw_sglt2[1], LB = iptw_sglt2[2], UB = iptw_sglt2[3], string = iptw_sglt2_string),
+    cbind(outcome = k, contrast = "DPP4 vs SU", analysis = "unadjusted", 
+          HR = unadjusted_dpp4[1], LB = unadjusted_dpp4[2], UB = unadjusted_dpp4[3], string = unadjusted_dpp4_string),
+    cbind(outcome = k, contrast = "DPP4 vs SU", analysis = "adjusted", 
+          HR = adjusted_dpp4[1], LB = adjusted_dpp4[2], UB = adjusted_dpp4[3], string = adjusted_dpp4_string),
+    cbind(outcome = k, contrast = "DPP4 vs SU", analysis = "overlap-weighted", 
+          HR = overlapweighted_dpp4[1], LB = overlapweighted_dpp4[2], UB = overlapweighted_dpp4[3], string = overlapweighted_dpp4_string),
+    cbind(outcome = k, contrast = "DPP4 vs SU", analysis = "IPTW", 
+          HR = iptw_dpp4[1], LB = iptw_dpp4[2], UB = iptw_dpp4[3], string = iptw_dpp4_string),
+    cbind(outcome = k, contrast = "SGLT2 vs DPP4", analysis = "unadjusted", 
+          HR = unadjusted_sglt2vsdpp4[1], LB = unadjusted_sglt2vsdpp4[2], UB = unadjusted_sglt2vsdpp4[3], string = unadjusted_sglt2vsdpp4_string),
+    cbind(outcome = k, contrast = "SGLT2 vs DPP4", analysis = "adjusted", 
+          HR = adjusted_sglt2vsdpp4[1], LB = adjusted_sglt2vsdpp4[2], UB = adjusted_sglt2vsdpp4[3], string = adjusted_sglt2vsdpp4_string),
+    cbind(outcome = k, contrast = "SGLT2 vs DPP4", analysis = "overlap-weighted", 
+          HR = overlapweighted_sglt2vsdpp4[1], LB = overlapweighted_sglt2vsdpp4[2], UB = overlapweighted_sglt2vsdpp4[3], string = overlapweighted_sglt2vsdpp4_string),
+    cbind(outcome = k, contrast = "SGLT2 vs DPP4", analysis = "IPTW", 
+          HR = iptw_sglt2vsdpp4[1], LB = iptw_sglt2vsdpp4[2], UB = iptw_sglt2vsdpp4[3], string = iptw_sglt2vsdpp4_string)
+  )
   
   all_hrs <- rbind(all_hrs, outcome_hr)
   
 }
 
 # show table with events, follow up time, and hazard ratios
-flextable(all_hrs)
+flextable(all_sglt2_hrs)
+flextable(all_dpp4_hrs)
+flextable(all_sglt2vsdpp4_hrs)
+
+
+save(all_hrs, file=paste0(today, "_all_hrs.Rda"))

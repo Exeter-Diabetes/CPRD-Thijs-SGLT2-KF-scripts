@@ -13,7 +13,9 @@
 ## j) Exclude if taking any of the other treatment arms concurrently (eg both SU+SGLT2, DPP4+SGLT2, SU+DPP4 etc)
 ## k) No CVD (broad definition: angina, IHD, MI, PAD, revasc, stroke, TIA (as per NICE but with TIA))
 ## l) No HF before index date
-## m) No CKD (stage 3a-5) before index date (assume coded on all, so if missing assume negative)
+## m) No CKD (stage 3a-5) before index date 
+##    (if variable preckdstage is missing but preegfr > 60 then keep subjects, 
+##     if preegfr < 60 or missing remove subject) 
 
 # Use "t2d_1stinstance" cohort_dataset which already has a)-d) applied
 # all_drug_periods_dataset is used to define later start dates of meds for censoring
@@ -26,7 +28,7 @@ define_cohort <- function(cohort_dataset, all_drug_periods_dataset) {
   cohort <- cohort_dataset %>%
     filter(dstartdate_age>=18 &
              (drugclass=="SGLT2" | drugclass=="GLP1" | drugclass=="DPP4" | drugclass=="SU") &
-             dstartdate>=as.Date("2013-01-01") #& drugline_all!=1) we will not be removing those not taking metformin
+             dstartdate>=as.Date("2013-01-01")
            ) %>%
     mutate(studydrug=ifelse(drugclass=="SGLT2", "SGLT2", ifelse(drugclass=="GLP1", "GLP1", 
                                                                 ifelse(drugclass=="DPP4", "DPP4", "SU"))))
@@ -119,14 +121,18 @@ define_cohort <- function(cohort_dataset, all_drug_periods_dataset) {
   
   print(paste0("Number of subjects excluded with established CKD: ", q))
   
-  q <- cohort %>% filter(is.na(preckdstage)) %>% summarise(n=n())
-  
-  print(paste0("Number of subjects with unknown CKD status (not excluded): ", q))
-  
-  
   cohort <- cohort %>%
     filter(is.na(preckdstage) | (preckdstage!="stage_3a" & preckdstage!="stage_3b" & preckdstage!="stage_4" & preckdstage!="stage_5"))
   
+  
+  q <- cohort %>% filter(is.na(preckdstage) & (is.na(preegfr) | preegfr < 60)) %>% summarise(n=n())
+  
+  print(paste0("Number of subjects excluded with unknown CKD status: ", q))
+  
+  cohort <- cohort %>%
+    filter(
+      !(is.na(preckdstage) & (is.na(preegfr) | preegfr < 60))
+      )
 
 
   q <- cohort %>% summarise(n=n())

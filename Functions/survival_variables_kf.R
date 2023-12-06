@@ -15,6 +15,8 @@
 ## 'narrow_mace': hospitalisation for incident MI (subset of HES codes), incident stroke (subset of HES codes, includes ischaemic only), CV death - all as primary cause for hospitalisation/death only
 ## 'narrow_hf': hospitalisation or death with HF as primary cause
 ## '{outcome}_pp': all of main analysis but per-protocol rather than intention to treat
+## intention to treat: censoring if starting an SGLT2 inhibitor (if in DPP4 or SU arm) or GLP1 agonist.
+## per-protocol: censoring if starting any other treatment arm or GLP1 agonist.
 
 
 add_surv_vars <- function(cohort_dataset, main_only=FALSE) {
@@ -27,26 +29,23 @@ add_surv_vars <- function(cohort_dataset, main_only=FALSE) {
     mutate(cens_itt=pmin(dstartdate+(365.25*5),
                          gp_record_end,
                          death_date,
-                      #   next_tzd_start,
-                      #   if_else(studydrug!="GLP1", next_glp1_start, as.Date("2050-01-01")),
-                      #   if_else(studydrug!="SGLT2", next_sglt2_start, as.Date("2050-01-01")),
+                         if_else(studydrug!="GLP1", next_glp1_start, as.Date("2050-01-01")),
+                         if_else(studydrug!="SGLT2", next_sglt2_start, as.Date("2050-01-01")),
                          na.rm=TRUE),
            
            cens_pp=pmin(dstartdate+(365.25*5),
                         gp_record_end,
                         death_date,
-                      #  next_tzd_start,
                         if_else(studydrug!="GLP1", next_glp1_start, as.Date("2050-01-01")),
-                      if_else(studydrug!="SGLT2", next_sglt2_start, as.Date("2050-01-01")),
-                      if_else(studydrug!="SU", next_su_start, as.Date("2050-01-01")),
-                      if_else(studydrug!="DPP4", next_dpp4_start, as.Date("2050-01-01")),
+                        if_else(studydrug!="SGLT2", next_sglt2_start, as.Date("2050-01-01")),
+                        if_else(studydrug!="SU", next_su_start, as.Date("2050-01-01")),
+                        if_else(studydrug!="DPP4", next_dpp4_start, as.Date("2050-01-01")),
                         dstopdate+183,
                         na.rm=TRUE),
            
            cens_itt_3_yrs=pmin(dstartdate+(365.25*3),
                                gp_record_end,
                                death_date,
-                        #       next_tzd_start,
                                if_else(studydrug!="GLP1", next_glp1_start, as.Date("2050-01-01")),
                                if_else(studydrug!="SGLT2", next_sglt2_start, as.Date("2050-01-01")),
                                na.rm=TRUE),
@@ -54,9 +53,10 @@ add_surv_vars <- function(cohort_dataset, main_only=FALSE) {
            cens_pp_3_yrs=pmin(dstartdate+(365.25*3),
                               gp_record_end,
                               death_date,
-                          #    next_tzd_start,
                               if_else(studydrug!="GLP1", next_glp1_start, as.Date("2050-01-01")),
                               if_else(studydrug!="SGLT2", next_sglt2_start, as.Date("2050-01-01")),
+                              if_else(studydrug!="SU", next_su_start, as.Date("2050-01-01")),
+                              if_else(studydrug!="DPP4", next_dpp4_start, as.Date("2050-01-01")),
                               dstopdate+183,
                               na.rm=TRUE),
                         
