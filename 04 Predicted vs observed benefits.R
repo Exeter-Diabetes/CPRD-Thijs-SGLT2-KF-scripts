@@ -30,7 +30,7 @@ n.imp <- 10
 n.quantiles <- 10
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-load("2023-12-06_t2d_ckdpc_recalibrated.Rda")
+load("2024-01-10_t2d_ckdpc_recalibrated.Rda")
 
 ############################1 COMPARE PREDICTED/OBSERVED ARR AND NNT################################################################
 

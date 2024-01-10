@@ -400,7 +400,7 @@ for (k in kf_outcomes) {
 
 # save all_hrs table
 save(all_hrs, file=paste0(today, "_all_hrs.Rda"))
-#load("2023-12-04_all_hrs.Rda")
+#load("2024-01-10_all_hrs.Rda")
 
 # show table with events, follow up time, and hazard ratios
 flextable(all_sglt2_hrs)

@@ -60,7 +60,7 @@ pool.rubin.KM <- function(EST,SE,n.imp){
 # load data
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-load("2023-11-08_t2d_ckdpc_imputed_data.Rda")
+load("2024-01-10_t2d_ckdpc_imputed_data.Rda")
 
 # select imputed data only (ie. remove non-imputed data)
 cohort <- temp[temp$.imp > 0,]
