@@ -1,4 +1,11 @@
-## select cohort, impute missing values, and save imputed dataset for further analyses
+## In this script, we will select a cohort from CPRD and make it suitable for analyses.
+## Contents:
+# 0 setup
+# 1 cohort selection
+# 2 multiple imputation of missing values
+# 3 calculate risk scores (for CKD and QRISK2)
+# 4 select subjects with valid CKD risk scores (ie. input values within range for calculation of risk scores)
+# 5 baseline table and store dataset for further analyses
  
 ########################0 SETUP####################################################################
 
@@ -73,7 +80,7 @@ cohort$later_glp1 <- !is.na(cohort$next_glp1_start)
 
 cohort <- cohort %>%
   
-  select(patid, malesex, ethnicity_qrisk2, imd2015_10, regstartdate, gp_record_end, death_date, 
+  select(patid, malesex, ethnicity_5cat, ethnicity_qrisk2, imd2015_10, regstartdate, gp_record_end, death_date, 
          drugclass, studydrug, dstartdate, dstopdate, drugline_all, drugsubstances, ncurrtx, DPP4, GLP1, 
          MFN, SGLT2, SU, TZD, INS, dstartdate_age, dstartdate_dm_dur_all, preweight, height, prehba1c, prebmi, 
          prehdl, preldl, pretriglyceride, pretotalcholesterol, prealt, presbp, predbp, preegfr, preckdstage, 
@@ -101,16 +108,23 @@ cohort$qrisk2_smoking_cat <- as.factor(cohort$qrisk2_smoking_cat)
 
 cohort$studydrug <- relevel(as.factor(cohort$studydrug), ref = "SU")
 
-# ethnicity cannot be calculated in the imputation model due to it being a constant variable
-# for the sake of imputation, we will class missing as "missing" (10)
-cohort <- cohort %>%
-  mutate(ethnicity_qrisk2=ifelse(is.na(ethnicity_qrisk2), "10", ethnicity_qrisk2))
-
 # create variable for year of treatment initiation
 cohort$initiation_year <- substring(as.character(cohort$dstartdate), 1, 4)
 
+# ethnicity cannot be calculated in the imputation model due to it being a constant variable
+# for the sake of imputation, we will class missing as a separate category "missing" (5-cat ethnicity: 5; QRISK2: 10)
+cohort <- cohort %>%
+  mutate(ethnicity_qrisk2=ifelse(is.na(ethnicity_qrisk2), "10", ethnicity_qrisk2),
+         ethnicity_5cat=ifelse(is.na(ethnicity_5cat), "5", ethnicity_5cat),
+         ethnicity_5cat=factor(ethnicity_5cat,
+                               levels = c(0, 1, 2, 3, 4, 5),
+                               labels = c("White", "South Asian", "Black", "Other", "Mixed", "Not stated/Unknown"))) %>% 
+  relocate(ethnicity_5cat, .after = last_col())
+
+
+
 ########################2 MULTIPLE IMPUTATION####################################################################
-# 2 Impute missing data and recalculate risk scores
+# 2 Impute missing data
 
 # inspect missing data
 
@@ -173,7 +187,7 @@ inlist <- c("malesex", "imd2015_10", "dstartdate_age",                # main soc
 #list variables that are 100% complete and are not interesting for the imputation model
 complete_vars <- names(ini$nmis[ini$nmis == 0])
 #inspect complete_vars by printing it > print(complete_vars) then choose variables that we want to omit
-outlist1 <- complete_vars[c(1, 5:6, 10:13, 15:16, 18, 20:24, 26:30, 32:33, 35:36, 38:39, 41:42, 44:72, 77:81, 102)]
+outlist1 <- complete_vars[c(1, 5:6, 10:13, 15:16, 18, 20:24, 26:30, 32:33, 35:36, 38:39, 41:42, 44:72, 77:81, 102:103)]
 
 #list variables with outflux <0.5 
 #outflux is an indicator of the potential usefulness for imputing other variables - 
@@ -431,7 +445,7 @@ print(paste0("Number of subjects excluded with missing ckdpc risk scores due to 
 # create table one: this will be an average of the imputed datasets (n to be divided by n.imp)
 
 #variables to be shown
-vars <- c("dstartdate_age", "malesex", "ethnicity_qrisk2", "imd2015_10",           # sociodemographic variables
+vars <- c("dstartdate_age", "malesex", "ethnicity_5cat", "imd2015_10",           # sociodemographic variables
           "prebmi", "preegfr", "uacr", "preldl", "prehba1c", "presbp", "predbp",   # vital signs and laboratory measurements
           "dstartdate_dm_dur_all", "qrisk2_smoking_cat", "predrug_hypertension",   # comorbidities
           "predrug_af", "predrug_dka", "osteoporosis", 

@@ -1,13 +1,16 @@
-## the question we try to answer here is whether we can predict baseline risk with the CKDPC risk scores
-# we will be looking at 2 risk scores for: 
-#  - developing CKD stage 3 or more (egfr60 or ckd345) 
-#  - 40% decline in eGFR/ESKD (40egfr)
+## In this script our aim is to predict baseline risk using the CKDPC risk scores.
+## we will be looking at 2 established risk scores for: 
+##  - developing CKD stage 3 or more (egfr60 or ckd345).
+##  - 40% decline in eGFR/ESKD (40egfr).
+## which we will review regarding need for recalibration in the CPRD cohort.
 
-## 1 load data
-
-## 2 uncalibrated risk scores
-
-## 3 re-calibration
+## Contents
+# 0 setup
+# 1A review uncalibrated risk score (new CKD)
+# 1B review uncalibrated risk score (40% decline in eGFR)
+# 2A recalibration of risk score (new CKD)
+# 2B recalibration of risk score (40% decline in eGFR)
+# 3 store dataset with recalibrated risk scores
 
 ############################0 SETUP################################################################
 
@@ -30,42 +33,10 @@ n.imp <- 10
 # number of quantiles (for risk scores later on)
 n.quantiles <- 10
 
+# today's date
 today <- as.character(Sys.Date(), format="%Y%m%d")
-############################1 LOAD DATA################################################################
 
-# 1 load data
-
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-load("2023-11-08_t2d_ckdpc_imputed_data.Rda")
-
-cohort <- temp[temp$.imp > 0,]
-
-cohort$studydrug <- relevel(as.factor(cohort$studydrug), ref = "SU")
-
-table(cohort$studydrug)
-#    SU   DPP4  SGLT2 
-#463810  459650  209640   # 10 imputations therefore number of subjects per group appears 10 times larger
-
-
-# select calibration cohort and non-calibration cohort 
-
-## Assign random 20% (SU/DPP4) as recalibration cohort and remove from main cohort
-
-cal_cohort <- data.frame()
-
-for (i in 1:n.imp) {
-  temp <- cohort[cohort$.imp == i & !cohort$studydrug == "SGLT2",] %>% slice_sample(prop=0.2)
-  cal_cohort <- rbind(cal_cohort, temp)
-  rm(temp)
-}
-
-noncal_cohort <- cohort %>%
-  anti_join(cal_cohort, by=c("patid", "dstartdate", "studydrug", ".imp"))
-table(noncal_cohort$studydrug)
-#    SU   DPP4  SGLT2 
-#371095 367675 209640 
-
-# function to pool estimates further down
+# function to pool estimates from multiple imputations further down
 pool.rubin.KM <- function(EST,SE,n.imp){
   mean.est <- mean(EST)
   W <- mean(SE^2)
@@ -85,26 +56,67 @@ pool.rubin.KM <- function(EST,SE,n.imp){
   names(output) <- c('observed survival', 'lower bound', 'upper bound', 'df', 'F', 'P')
   return(output)}
 
-############################2A UNCALIBRATED SCORES - NEW CKD################################################################
 
-# 2 How well do uncalibrated risk scores predict incidence?
+# load data
 
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
+load("2023-11-08_t2d_ckdpc_imputed_data.Rda")
+
+# select imputed data only (ie. remove non-imputed data)
+cohort <- temp[temp$.imp > 0,]
+
+# set reference level for variable studydrug
+cohort$studydrug <- relevel(as.factor(cohort$studydrug), ref = "SU")
+
+# check number of subjects
+table(cohort$studydrug)
+#    SU   DPP4  SGLT2 
+#463810  459650  209640   # 10 imputations therefore number of subjects per group appears 10 times larger
+
+# select calibration cohort and non-calibration cohort 
+
+# assign random 20% (SU/DPP4) as recalibration cohort and remove from main cohort
+# we will do this in each imputation and combine 
+cal_cohort <- data.frame()
+for (i in 1:n.imp) {
+  temp <- cohort[cohort$.imp == i & !cohort$studydrug == "SGLT2",] %>% slice_sample(prop=0.2)
+  cal_cohort <- rbind(cal_cohort, temp)
+  rm(temp)
+}
+
+# select those not in the calibration cohort
+noncal_cohort <- cohort %>%
+  anti_join(cal_cohort, by=c("patid", "dstartdate", "studydrug", ".imp"))
+
+# check number of subjects
+table(noncal_cohort$studydrug)
+#    SU   DPP4  SGLT2 
+#371095 367675 209640 
+
+
+
+############################1A UNCALIBRATED SCORES - NEW CKD################################################################
+
+## 1 How well do uncalibrated risk scores predict incidence?
 
 # CKD <60
-# note that there is a "total" and "confirmed score" - the confirmed score means that in the original study the lower eGFR was confirmed by a second measurement (which is what we do here) therefore we need to stick with the confirmed score.
+# note that the data contain a "total" and "confirmed score" (ckdpc_egfr60_total_score & ckdpc_egfr60_confirmed_score).
+# the confirmed score means that the lower eGFR was confirmed by a second measurement in the original study.
+# this is also how we define new-onset CKD with eGFR <60 mL/min, therefore we will be using the confirmed score.
 
 cohort$ckd60_risk_decile <- ntile(cohort$ckdpc_egfr60_confirmed_score, n.quantiles)
 
-## Get mean predicted probabilities by studydrug
+## Get mean predicted probabilities by risk decile and studydrug
 predicted <- cohort %>%
   group_by(ckd60_risk_decile, studydrug) %>%
   summarise(mean_ckd60_pred=mean(ckdpc_egfr60_confirmed_score)/100)
 
+# also get mean predicted probability per risk decile overall (not by studydrug)
 predicted_all <- cohort %>%
   group_by(ckd60_risk_decile) %>%
   summarise(mean_ckd60_pred=mean(ckdpc_egfr60_confirmed_score)/100)
 
-## Find actual observed probabilities by risk score category and studydrug
+## Find actual observed probabilities by risk decile and studydrug
 
 EST.su <- SE.su <-
   EST.dpp4 <- SE.dpp4 <-
@@ -370,17 +382,19 @@ paste0("C statistic: ", round(cstat_est, 4), ", 95% CI ", round(cstat_est_ll, 4)
 # the above clearly shows the risk score overestimates risk
 
 
-############################2B UNCALIBRATED SCORES - CKD PROGRESSION################################################################
+############################1B UNCALIBRATED SCORES - 40% DECLINE IN EGFR################################################################
 
 # 40% decline in eGFR / ESKD
 
+# make variable for risk deciles
 cohort$ckd40_risk_decile <- ntile(cohort$ckdpc_40egfr_score, n.quantiles)
 
-## Get mean predicted probabilities by studydrug
+## Get mean predicted probabilities by risk decile and studydrug
 predicted <- cohort %>%
   group_by(ckd40_risk_decile, studydrug) %>%
   summarise(mean_ckd40_pred=mean(ckdpc_40egfr_score)/100)
 
+# get mean predicted probabilities by risk decile (not by studydrug)
 predicted_all <- cohort %>%
   group_by(ckd40_risk_decile) %>%
   summarise(mean_ckd40_pred=mean(ckdpc_40egfr_score)/100)
@@ -650,7 +664,7 @@ paste0("C statistic: ", round(cstat_est, 4), ", 95% CI ", round(cstat_est_ll, 4)
 # similarly, this risk score also overestimates risk.
 # both will need some recalibration.
 
-############################3A RECALIBRATION - NEW CKD################################################################
+############################2A RECALIBRATION - NEW CKD################################################################
 
 # 3 Recalibration
 
@@ -665,7 +679,8 @@ EHRBiomarkr::ckdpcEgfr60RiskConstants$new_surv_confirmed %>% as.numeric()
 as.numeric(EHRBiomarkr::ckdpcEgfr60RiskConstants$new_surv_confirmed) %>% log() %>% abs() %>% log(base=5) 
 #0.9212477
 
-#Now we will recalculate a survival constant in the calibration cohort that we will use to recalibrate in the non-calibration cohort.
+# now we will recalculate a survival constant in the calibration cohort
+# we will then use this to recalibrate in the non-calibration cohort.
 new_ckd60_surv <- rep(NA, n.imp)
 for (i in 1:n.imp) {
 recal_mod <- coxph(Surv(ckd_345_censtime_yrs, ckd_345_censvar) ~ offset(ckdpc_egfr60_confirmed_lin_predictor), 
@@ -688,10 +703,12 @@ cohort <- cohort %>%
   ungroup() %>%
   mutate(ckdpc_egfr60_confirmed_score_cal=(1-(new_ckd60_surv^exp(centred_egfr60_lin_predictor)))*100)
 
-## Plot
+## Make plots
+
+# new risk deciles
 noncal_cohort$ckd60_risk_decile <- ntile(noncal_cohort$ckdpc_egfr60_confirmed_score_cal, n.quantiles)
 
-### Get mean predicted probabilities by studydrug
+### Get mean predicted probabilities
 predicted <- noncal_cohort %>%
   group_by(ckd60_risk_decile, studydrug) %>%
   summarise(mean_ckd60_pred=mean(ckdpc_egfr60_confirmed_score_cal)/100)
@@ -965,7 +982,7 @@ paste0("C statistic: ", round(cstat_est, 4), ", 95% CI ", round(cstat_est_ll, 4)
 
 
 
-############################3B RECALIBRATION - CKD PROGRESSION################################################################
+############################2B RECALIBRATION - 40% DECLINE IN EGFR################################################################
 
 # 40% decline in eGFR / CKD 5
 # risk equation uses a logistic model. There are several ways to update these models.
@@ -1574,7 +1591,7 @@ cstat_est_ul <- summary(surv_mod_ckd40)$concordance[1]+(1.96*summary(surv_mod_ck
 paste0("C statistic: ", round(cstat_est, 4), ", 95% CI ", round(cstat_est_ll, 4), "-", round(cstat_est_ul,4))
 # C statistic: 0.734, 95% CI 0.7262-0.7419
 
-
+############################3 STORE RECALIBRATED SCORES################################################################
 # save dataset with calibrated risk score so this can be used in the subsequent scripts
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
 save(noncal_cohort, file=paste0(today, "_t2d_ckdpc_recalibrated.Rda"))

@@ -1,12 +1,17 @@
 
-# Compare predicted benefit with observed benefit
+## In this script our aim is to compare risk-score predicted SGLT2i benefit with (pseudo-)observed in our data.
+# we will estimate the (pseudo-)observed or counterfactual absolute risk reduction (ARR or "benefit") with SGLT2i,
+# and compare this to the risk-score predicted SGLT2i benefit (risk-score predicted baseline risk * overal relative risk [HR]).
+# we will also make graphs as display items.
 
-## 1 ARR, NNT, and calibration plots of observed vs predicted ARR with SGLT2i
-## 2 survival curves
-## 3 (in progress) adjusted curves
+## Contents
+# 0 setup
+# 1 ARR, NNT, and calibration plots of observed vs predicted ARR with SGLT2i
+# 2 survival curves
+# 3 (in progress) adjusted curves
 
 
-############################################################################################
+############################0 SETUP################################################################
 
 # Setup
 library(tidyverse)
@@ -26,13 +31,11 @@ n.quantiles <- 10
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
 load("2023-12-06_t2d_ckdpc_recalibrated.Rda")
-# essentially continuation of previous script - need to figure out whether to save those data
 
+############################1 COMPARE PREDICTED/OBSERVED ARR AND NNT################################################################
 
-############################################################################################
-
-# 1 Look at survival benefit from SGLT2s when adding hazard ratio from trials meta-analysis
-# Lancet. 2022 Nov 19; 400(10365): 1788–1801
+# 1 compare ARR from SGLT2i vs SU as predicted by risk scores (multiplied by relative risk) versus (pseudo-)observed in data
+# hazard ratio from trials meta-analysis: Lancet. 2022 Nov 19; 400(10365): 1788–1801
 
 trial_hr_kf_sglt2 <- 0.62
 
@@ -344,7 +347,8 @@ obs_v_pred <- obs_v_pred %>%
          nnt_observed=1/(surv_diff))
 obs_v_pred
 
-############################################################################################
+############################2 SURVIVAL CURVES################################################################
+
 
 ## 2 survival curves
 
@@ -443,3 +447,5 @@ for (i in 1:3) {
     )
   )))
 }
+
+############################3 ADJUSTED CURVES################################################################
