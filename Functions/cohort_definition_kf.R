@@ -8,14 +8,13 @@
 ## e) Aged 18+
 ## f) SGLT2/DPP4/SU
 ## g) Initiated between 01/01/2013 and end of data (31/10/2020)
-## h) Exclude if also on insulin
-## i) Exclude if also on GLP1 agonist
-## j) Exclude if taking any of the other treatment arms concurrently (eg both SU+SGLT2, DPP4+SGLT2, SU+DPP4 etc)
-## k) No CVD (broad definition: angina, IHD, MI, PAD, revasc, stroke, TIA (as per NICE but with TIA))
-## l) No HF before index date
-## m) No CKD (stage 3a-5) before index date 
-##    (if variable preckdstage is missing but preegfr > 60 then keep subjects, 
-##     if preegfr < 60 or missing remove subject) 
+## h) No CVD (broad definition: angina, IHD, MI, PAD, revasc, stroke, TIA (as per NICE but with TIA))
+## i) No HF before index date
+## j) No missing eGFR/uACR
+## k) No advanced CKD (egfr < 20 mL/min or stage 5 CKD) before index date 
+## l) Exclude if also on GLP1 agonist
+## m) Remove further episodes of starting DPP4/SU if already taking SGLT2i in previous episode (these episodes would overlap)
+
 
 # Use "t2d_1stinstance" cohort_dataset which already has a)-d) applied
 # all_drug_periods_dataset is used to define later start dates of meds for censoring
@@ -29,117 +28,124 @@ define_cohort <- function(cohort_dataset, all_drug_periods_dataset) {
     filter(dstartdate_age>=18 &
              (drugclass=="SGLT2" | drugclass=="GLP1" | drugclass=="DPP4" | drugclass=="SU") &
              dstartdate>=as.Date("2013-01-01")
-           ) %>%
+    ) %>%
     mutate(studydrug=ifelse(drugclass=="SGLT2", "SGLT2", ifelse(drugclass=="GLP1", "GLP1", 
                                                                 ifelse(drugclass=="DPP4", "DPP4", "SU"))))
   
   # remove if in GLP1 group
-  q <- cohort %>% filter(studydrug == "GLP1") %>% summarise(n=n())
+  q <- cohort %>% filter(studydrug == "GLP1") %>% nrow()
   
-  print(paste0("Number of subjects that started a GLP1 receptor agonist (not included): ", q))
+  print(paste0("Number of drug episodes of starting a GLP1 receptor agonist (not included): ", q))
   
   cohort <- cohort %>% filter(!studydrug == "GLP1")
   
-  # n) , some people will be in dataset twice - choose earliest period
+  # create variables that denote whether this is first/only/last episode
   cohort <- cohort %>%
     group_by(patid) %>%
-    mutate(earliest_start=min(dstartdate, na.rm=TRUE)) 
+    mutate(earliest_start = min(dstartdate, na.rm=TRUE),
+           latest_start   = max(dstartdate, na.rm=TRUE),
+           episode_order  = ifelse(earliest_start == latest_start, "only", 
+                                   ifelse(earliest_start == dstartdate, "first", 
+                                          ifelse(latest_start == dstartdate, "last", "other")))) 
   
   
-  q <- cohort %>% group_by(patid) %>%
-    filter(!earliest_start==dstartdate) %>% ungroup() %>% summarise(n=n())
+  q <- cohort %>% .$patid %>% unique() %>% length()
+  print(paste0("Number of subjects of starting an SGLT2/DPP4/SU between 2013-2020: ", q))
   
-  print(paste0("If multiple episodes per subject, earliest episode retained. Number of episodes removed to avoid multiple episodes per subject: ", q))
+  q <- cohort %>% nrow()
+  print(paste0("Number of drug episodes of starting an SGLT2/DPP4/SU between 2013-2020: ", q))
   
-  cohort <- cohort %>% group_by(patid) %>%
-    filter(dstartdate==earliest_start) %>%
-    mutate(id=row_number()) %>%
-    filter(id==min(id, na.rm=TRUE)) %>%
-    ungroup()
-  
-  ##
-  
-  q <- cohort %>% filter(!studydrug == "GLP1") %>% summarise(n=n())
-  
-  print(paste0("Number of adult subjects with T2DM that started an SGLT2/DPP4/SU between 2013-2020: ", q))
-  
-  # h) Remove if on insulin at start 
-  q <- cohort %>% filter(INS==1) %>% summarise(n=n())
-  
-  print(paste0("Number of subjects excluded on insulin: ", q))
-  
-  cohort <- cohort %>%
-    filter(INS==0)
-  
-  # i) Remove if on GLP1 agonist at start 
-  q <- cohort %>% filter(GLP1==1) %>% summarise(n=n())
-  
-  print(paste0("Number of subjects excluded that were on concurrent treatment with GLP1 receptor agonist: ", q))
-  
-  cohort <- cohort %>%
-    filter(GLP1==0)
-  
-  
-  # j) Remove if taking other study drugs concurrently
-  q <- cohort %>% filter((drugclass == "SU" & (DPP4==1 | SGLT2==1)) | 
-                           (drugclass == "DPP4" & (SU==1 | SGLT2==1)) |
-                           (drugclass == "SGLT2" & (SU==1 | DPP4==1))
-  ) %>% summarise(n=n())
-  
-  print(paste0("Number of subjects excluded taking combinations of treatment arms at start date: ", q))
-  
-  cohort <- cohort %>%
-    filter((drugclass=="DPP4" | DPP4==0) & (drugclass=="SGLT2" | SGLT2==0) & (drugclass=="SU" | SU==0))
-  
-  
-  # k) Remove if CVD before index date
+
+  # h) Remove if CVD before index date
   
   cohort <- cohort %>%
     mutate(predrug_cvd=ifelse(predrug_angina==1 | predrug_ihd==1 | predrug_myocardialinfarction==1 | predrug_pad==1 | predrug_revasc==1 | predrug_stroke==1 | predrug_tia==1, 1, 0)) 
   
-  q <- cohort %>% filter(predrug_cvd == 1) %>% summarise(n=n())
+  q <- cohort %>% filter(predrug_cvd == 1) %>% nrow()
   
-  print(paste0("Number of subjects excluded with established CVD: ", q))
+  print(paste0("Number of drug episodes excluded with established CVD: ", q))
   
   cohort <- cohort %>%
     filter(predrug_cvd==0)
   
   
-  # l) Remove if HF before index date
-  q <- cohort %>% filter(predrug_heartfailure == 1) %>% summarise(n=n())
+  # i) Remove if HF before index date
+  q <- cohort %>% filter(predrug_heartfailure == 1) %>% nrow()
   
-  print(paste0("Number of subjects excluded with established HF: ", q))
+  print(paste0("Number of drug episodes excluded with established HF: ", q))
   
   cohort <- cohort %>%
     filter(predrug_heartfailure==0)
   
-
-  # m) Remove if CKD before index date
+  # j) Remove if missing CKD status
   
-  q <- cohort %>% filter(preckdstage=="stage_3a" | preckdstage=="stage_3b" | 
-                           preckdstage=="stage_4" | preckdstage=="stage_5") %>% summarise(n=n())
+   # create acr variable for ckdpc risk scores that uses further source of acr if acr not available
+  cohort <- cohort %>% 
+    mutate(uacr=ifelse(!is.na(preacr), preacr, ifelse(!is.na(preacr_from_separate), preacr_from_separate, NA)),
+           uacr=ifelse(uacr<0.6, 0.6, uacr))
+             
+  q <- cohort %>% filter(is.na(preckdstage) | is.na(preegfr) | is.na(uacr)) %>% nrow()
   
-  print(paste0("Number of subjects excluded with established CKD: ", q))
-  
-  cohort <- cohort %>%
-    filter(is.na(preckdstage) | (preckdstage!="stage_3a" & preckdstage!="stage_3b" & preckdstage!="stage_4" & preckdstage!="stage_5"))
-  
-  
-  q <- cohort %>% filter(is.na(preckdstage) & (is.na(preegfr) | preegfr < 60)) %>% summarise(n=n())
-  
-  print(paste0("Number of subjects excluded with unknown CKD status: ", q))
+  print(paste0("Number of drug episodes excluded with unknown CKD status: ", q))
   
   cohort <- cohort %>%
     filter(
-      !(is.na(preckdstage) & (is.na(preegfr) | preegfr < 60))
-      )
+      !(is.na(preckdstage) & is.na(preegfr) | is.na(uacr))
+    )
 
-
-  q <- cohort %>% summarise(n=n())
+  # k) Remove if CKD before index date
   
-  print(paste0("Number of subjects included: ", q))
-  rm(q)
+  q <- cohort %>% filter(preckdstage=="stage_5" | predrug_ckd5_code == 1 | preegfr < 20) %>% nrow()
+  
+  print(paste0("Number of drug episodes excluded with established eGFR <20 mL/min: ", q))
+  
+  cohort <- cohort %>%
+    filter(!(preegfr < 20 | preckdstage=="stage_5" | predrug_ckd5_code == 1) )
 
+  
+  # # l) Remove if on insulin at start 
+  # q <- cohort %>% filter(INS==1) %>% nrow()  
+  # 
+  # print(paste0("Number of drug episodes with concurrent insulin treatment (excluded): ", q))
+  # 
+  # cohort <- cohort %>%
+  #   filter(INS==0)
+  
+  # l) Remove if on GLP1 agonist at start 
+  q <- cohort %>% filter(GLP1==1) %>% nrow()
+  
+  print(paste0("Number of drug episodes with concurrent treatment with GLP1 receptor agonist (excluded): ", q))
+  
+  cohort <- cohort %>%
+    filter(GLP1==0)
+  
+  
+  # m) Remove further episodes of starting DPP4/SU if already taking SGLT2i in previous episode (these episodes would overlap)
+  #    or episodes of taking DPP4 following episode of SU and vice versa
+  q <- cohort %>% filter(episode_order %in% c("last", "other") & (
+    ((drugclass == "DPP4" | drugclass == "SU") & SGLT2 == 1) |
+      (drugclass == "DPP4" & SU == 1) |
+      (drugclass == "SU" & DPP4 == 1))
+  ) %>% nrow()
+  
+  print(paste0("Number of drug episodes removed (e.g. subsequent episode of starting DPP4/SU after episode of SGLT2): ", q))
+  
+  cohort <- cohort %>%
+    filter(!(episode_order %in% c("last", "other") & (
+      ((drugclass == "DPP4" | drugclass == "SU") & SGLT2 == 1) |
+        (drugclass == "DPP4" & SU == 1) |
+        (drugclass == "SU" & DPP4 == 1))))
+  
+  
+  
+  q <- cohort %>% .$patid %>% unique() %>% length()
+  print(paste0("Number of subjects included: ", q))
+  
+  q <- cohort %>% nrow()
+  print(paste0("Number of drug episodes included: ", q))
+  
+  rm(q)
+  
   ## Use all SGLT2, GLP1 + TZD starts to code up later censoring
   
   #
@@ -185,8 +191,8 @@ define_cohort <- function(cohort_dataset, all_drug_periods_dataset) {
     group_by(patid, dstartdate) %>%
     summarise(next_glp1_start=min(next_glp1, na.rm=TRUE)) %>%
     ungroup()
-
-
+  
+  
   later_tzd <- cohort %>%
     select(patid, dstartdate) %>%
     inner_join((all_drug_periods_dataset %>%
@@ -279,5 +285,5 @@ define_cohort <- function(cohort_dataset, all_drug_periods_dataset) {
            hf_death_date_primary_cause=if_else(!is.na(death_date) & !is.na(hf_death_primary_cause) & hf_death_primary_cause==1, death_date, as.Date(NA)))
   
   return(cohort)
-
+  
 }
