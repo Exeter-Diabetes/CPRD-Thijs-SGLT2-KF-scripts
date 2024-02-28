@@ -6,7 +6,7 @@
 # 3 calculate risk scores (for CKD and QRISK2)
 # 4 select subjects with valid CKD risk scores (ie. input values within range for calculation of risk scores)
 # 5 baseline table and store dataset for further analyses
- 
+
 ########################0 SETUP####################################################################
 
 # 0 Setup
@@ -30,9 +30,9 @@ set.seed(123)
 ## A Cohort selection (see cohort_definition_kf function for details)
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-load("2023-10-31_t2d_1stinstance_a.Rda")
-load("2023-10-31_t2d_1stinstance_b.Rda")
-load("2023-10-31_t2d_all_drug_periods.Rda")
+load("2024-02-26_t2d_1stinstance_a.Rda")
+load("2024-02-26_t2d_1stinstance_b.Rda")
+load("2024-02-26_t2d_all_drug_periods.Rda")
 
 t2d_1stinstance <- rbind(t2d_1stinstance_a, t2d_1stinstance_b)
 rm(t2d_1stinstance_a)
@@ -45,14 +45,14 @@ cohort <- define_cohort(t2d_1stinstance, t2d_all_drug_periods)
 
 table(cohort$studydrug)
 # DPP4 SGLT2    SU 
-#48095 21114 48209
+# 69132 50637 43434
 
 ## B Make variables for survival analysis of all endpoints (see survival_variables_kf function for details)
 
 source("survival_variables_kf.R")
 
 cohort <- add_surv_vars(cohort, main_only=FALSE) # add per-protocol survival variables as well
-         
+
 
 ## C Just keep variables of interest
 
@@ -79,7 +79,8 @@ cohort$osteoporosis <- !is.na(cohort$predrug_latest_osteoporosis)
 cohort$later_glp1 <- !is.na(cohort$next_glp1_start)
 
 cohort <- cohort %>%
-  
+  #for hba1c take closest result to index date within window of 2 years prior and 7 days post, similar as other biomarkers
+  mutate(prehba1c = prehba1c2yrs) %>%
   select(patid, malesex, ethnicity_5cat, ethnicity_qrisk2, imd2015_10, regstartdate, gp_record_end, death_date, 
          drugclass, studydrug, dstartdate, dstopdate, drugline_all, drugsubstances, ncurrtx, DPP4, GLP1, 
          MFN, SGLT2, SU, TZD, INS, dstartdate_age, dstartdate_dm_dur_all, preweight, height, prehba1c, prebmi, 
@@ -98,7 +99,7 @@ cohort <- cohort %>%
          predrug_dka, predrug_falls, predrug_urinary_frequency, predrug_volume_depletion, 
          predrug_micturition_control, predrug_dementia, hosp_admission_prev_year, 
          statin, ACEi, ARB, BB, CCB, ThZD, loopD, MRA, steroids, immunosuppr, osteoporosis
-         )
+  )
 
 rm(list=setdiff(ls(), "cohort"))
 
@@ -128,30 +129,30 @@ cohort <- cohort %>%
 
 # inspect missing data
 
-#table with n missing and % missing per variable
-miss_data <- cohort %>% 
-  gather(key, value) %>% 
-  group_by(key) %>% 
-  count(na = is.na(value)) %>% 
-  pivot_wider(names_from = na, values_from = n, values_fill = 0) %>% 
-  mutate(pct_missing = (`TRUE`/sum(`TRUE`, `FALSE`))*100) %>% 
-  ungroup()
-
-miss_data %>% 
-  gt()
-
-#graph with proportion missing per variable
-miss_data %>% 
-  mutate(Present = 100 - pct_missing) %>% 
-  gather(Key, value, 4:5) %>% 
-  mutate(Key = recode(Key, pct_missing = "Missing")) %>% 
-  ggplot(aes(x = reorder(key, `TRUE`), y = value, fill = Key)) +
-  geom_col(alpha = 0.85) +
-  scale_fill_manual(name = "", 
-                    values = c('tomato3', 'steelblue'), 
-                    labels = c("Missing", "Present")) +
-  coord_flip() +
-  labs(x = NULL, y = "Missing (%)")
+# #table with n missing and % missing per variable
+# miss_data <- cohort %>% 
+#   gather(key, value) %>% 
+#   group_by(key) %>% 
+#   count(na = is.na(value)) %>% 
+#   pivot_wider(names_from = na, values_from = n, values_fill = 0) %>% 
+#   mutate(pct_missing = (`TRUE`/sum(`TRUE`, `FALSE`))*100) %>% 
+#   ungroup()
+# 
+# miss_data %>% 
+#   gt()
+# 
+# #graph with proportion missing per variable
+# miss_data %>% 
+#   mutate(Present = 100 - pct_missing) %>% 
+#   gather(Key, value, 4:5) %>% 
+#   mutate(Key = recode(Key, pct_missing = "Missing")) %>% 
+#   ggplot(aes(x = reorder(key, `TRUE`), y = value, fill = Key)) +
+#   geom_col(alpha = 0.85) +
+#   scale_fill_manual(name = "", 
+#                     values = c('tomato3', 'steelblue'), 
+#                     labels = c("Missing", "Present")) +
+#   coord_flip() +
+#   labs(x = NULL, y = "Missing (%)")
 
 
 #dry run
@@ -167,7 +168,7 @@ meth[c("death_date", "preacr", "last_sglt2_stop", "preckdstage", "predrug_earlie
        "predrug_latest_arb",
        "predrug_latest_beta_blockers", "predrug_latest_calcium_channel_blockers",
        "ethnicity_qrisk2", 
-       "predrug_latest_thiazide_diuretics", "preacr", "next_glp1_start" )] <- ""
+       "predrug_latest_thiazide_diuretics", "next_glp1_start" )] <- ""
 
 meth["qrisk2_smoking_cat"] <- "polyreg"
 
@@ -180,14 +181,24 @@ inlist <- c("malesex", "imd2015_10", "dstartdate_age",                # main soc
             "studydrug",                                              # treatment variable
             "dstartdate_dm_dur_all", "prebmi", "pretotalcholesterol", # laboratory and vital sign measurements
             "presbp", "preegfr", "uacr", "qrisk2_smoking_cat", 
-            "mace_censvar", "ckd_egfr40_censvar", "death_censvar"     # outcome variables
-            )
+            "ckd_egfr40_censvar", "death_censvar"     # outcome variables
+)
 
 
 #list variables that are 100% complete and are not interesting for the imputation model
 complete_vars <- names(ini$nmis[ini$nmis == 0])
 #inspect complete_vars by printing it > print(complete_vars) then choose variables that we want to omit
-outlist1 <- complete_vars[c(1, 5:6, 10:13, 15:16, 18, 20:24, 26:30, 32:33, 35:36, 38:39, 41:42, 44:72, 77:81, 102:103)]
+outlist1 <- c("patid", "gp_record_end", "drugclass", "drugline_all", "ncurrtx", 
+              "DPP4", "GLP1", "SGLT2", "SU", "INS", 
+              "cens_itt", "cens_pp", "cens_itt_3_yrs", "cens_pp_3_yrs", 
+              "ckd_345_censdate", "ckd_345_censtime_yrs", 
+              "ckd_egfr40_censdate", "ckd_egfr40_censtime_yrs", 
+              "death_censdate", "death_censtime_yrs", 
+              "ckd_345_pp_censdate", "ckd_345_pp_censvar", "ckd_345_pp_censtime_yrs", 
+              "ckd_egfr40_pp_censdate", "ckd_egfr40_pp_censvar", "ckd_egfr40_pp_censtime_yrs", 
+              "death_pp_censdate", "death_pp_censvar", "death_pp_censtime_yrs", 
+              "oha", "predrug_angina", "predrug_myocardialinfarction", "predrug_stroke", 
+              "predrug_revasc", "predrug_heartfailure", "initiation_year", "ethnicity_5cat")
 
 #list variables with outflux <0.5 
 #outflux is an indicator of the potential usefulness for imputing other variables - 
@@ -208,6 +219,7 @@ outlist <- unique(c(outlist1, outlist2, outlist3))
 
 pred <- quickpred(cohort, include = inlist, exclude = outlist)
 
+
 # limit imputations to plausible range
 post <- ini$post
 post["preegfr"] <- "imp[[j]][, i] <- squeeze(imp[[j]][, i], c(60, 120))"
@@ -218,12 +230,17 @@ post["presbp"] <- "imp[[j]][, i] <- squeeze(imp[[j]][, i], c(80, 180))"
 
 n.imp <- 10
 
-imp <- mice(data = cohort, meth = meth, pred = pred, post = post, m=n.imp, seed = 123)
+imp <- mice(data = cohort, 
+            meth = meth, 
+            pred = pred, 
+            post = post, 
+            m=n.imp, 
+            seed = 123)
 
-# check imputed vs original values
-densityplot(x = imp, data = ~ imd2015_10 + dstartdate_dm_dur_all + preweight + height + prehba1c + prebmi + 
-              prehdl + preldl + pretriglyceride + pretotalcholesterol + prealt + presbp + predbp + preegfr + 
-              uacr + qrisk2_smoking_cat + tds_2011)
+# check imputed vs original values (disabled as time-consuming)
+#densityplot(x = imp, data = ~ imd2015_10 + dstartdate_dm_dur_all + preweight + height + prehba1c + prebmi + 
+#              prehdl + preldl + pretriglyceride + pretotalcholesterol + prealt + presbp + predbp + preegfr + 
+#              uacr + qrisk2_smoking_cat + tds_2011)
 
 #extract imputations so we can add variables
 temp <- complete(imp, action = "long", include = T)
@@ -240,10 +257,6 @@ rm(z)
 
 # 3 using imputed data, calculate risk scores (qrisk2, qhdf, ckdpc risk of CKD, kidney disease progression)
 
-# for the sake of risk score calculation, class missing ethnicity as other (9)
-temp$ethnicity_qrisk2_2 <- NA
-temp[temp$.imp >0,] <- temp[temp$.imp >0,] %>%
-  mutate(ethnicity_qrisk2_2=ifelse(ethnicity_qrisk2 == "10", "9", ethnicity_qrisk2))
 
 # for qrisk2/qhdf scores
 temp <- temp %>% mutate(precholhdl=pretotalcholesterol/prehdl,
@@ -278,7 +291,7 @@ temp <- temp %>% mutate(precholhdl=pretotalcholesterol/prehdl,
                         type2=1L,
                         surv_5yr=5L,
                         surv_10yr=10L)
-  # for ckcpc risk scores:
+# for ckcpc risk scores:
 temp <- temp %>%
   
   mutate(preckdstage=ifelse(is.na(preckdstage), ifelse(preegfr<15, "stage_5", 
@@ -288,12 +301,12 @@ temp <- temp %>%
                                                                             ifelse(preegfr<90, "stage_2", 
                                                                                    "stage_1"))))), preckdstage),
          
-         black_ethnicity=ifelse(!is.na(ethnicity_qrisk2_2) & (ethnicity_qrisk2_2 == 6 | ethnicity_qrisk2_2 == 7), 
+         black_ethnicity=ifelse(!is.na(ethnicity_qrisk2) & (ethnicity_qrisk2 == 6 | ethnicity_qrisk2 == 7), 
                                 1L, 
-                                ifelse(is.na(ethnicity_qrisk2_2), NA, 0L)),
+                                ifelse(is.na(ethnicity_qrisk2), NA, 0L)),
          
          cvd=predrug_myocardialinfarction==1 | predrug_revasc==1 | predrug_heartfailure==1 | predrug_stroke==1,
-
+         
          ever_smoker=ifelse(!qrisk2_smoking_cat == 0, 1L, 0L),
          
          bp_meds_ckdpc=ifelse(latest_bp_med!=as.Date("1900-01-01") & difftime(dstartdate, latest_bp_med, units="days")<=183, 1L, 0L),
@@ -314,17 +327,17 @@ temp <- temp %>%
   
   mutate(sex2=ifelse(sex=="male", "male", ifelse(sex=="female", "female", NA))) %>%
   
-  calculate_qdiabeteshf(sex=sex2, age=dstartdate_age, ethrisk=ethnicity_qrisk2_2, smoking=qrisk2_smoking_cat, duration=dm_duration_cat, type1=type1, cvd=cvd, renal=ckd45, af=predrug_af, hba1c=prehba1c, cholhdl=precholhdl, sbp=presbp, bmi=prebmi, town=tds_2011, surv=surv_5yr) %>%
-
+  calculate_qdiabeteshf(sex=sex2, age=dstartdate_age, ethrisk=ethnicity_qrisk2, smoking=qrisk2_smoking_cat, duration=dm_duration_cat, type1=type1, cvd=cvd, renal=ckd45, af=predrug_af, hba1c=prehba1c, cholhdl=precholhdl, sbp=presbp, bmi=prebmi, town=tds_2011, surv=surv_5yr) %>%
+  
   mutate(sex2=ifelse(sex=="male", "male", ifelse(sex=="female", "female", NA))) %>%
   
-  calculate_qrisk2(sex=sex2, age=dstartdate_age, ethrisk=ethnicity_qrisk2_2, smoking=qrisk2_smoking_cat, type1=type1, type2=type2, fh_cvd=predrug_fh_premature_cvd, renal=ckd45, af=predrug_af, rheumatoid_arth=predrug_rheumatoidarthritis, cholhdl=precholhdl, sbp=presbp, bmi=prebmi, bp_med=bp_meds_qrisk2, town=tds_2011, surv=surv_5yr) %>%
+  calculate_qrisk2(sex=sex2, age=dstartdate_age, ethrisk=ethnicity_qrisk2, smoking=qrisk2_smoking_cat, type1=type1, type2=type2, fh_cvd=predrug_fh_premature_cvd, renal=ckd45, af=predrug_af, rheumatoid_arth=predrug_rheumatoidarthritis, cholhdl=precholhdl, sbp=presbp, bmi=prebmi, bp_med=bp_meds_qrisk2, town=tds_2011, surv=surv_5yr) %>%
   
   rename(qrisk2_score_5yr=qrisk2_score) %>%
   
   select(-qrisk2_lin_predictor) %>%
   
-  calculate_qrisk2(sex=sex2, age=dstartdate_age, ethrisk=ethnicity_qrisk2_2, smoking=qrisk2_smoking_cat, type1=type1, type2=type2, fh_cvd=predrug_fh_premature_cvd, renal=ckd45, af=predrug_af, rheumatoid_arth=predrug_rheumatoidarthritis, cholhdl=precholhdl, sbp=presbp, bmi=prebmi, bp_med=bp_meds_qrisk2, town=tds_2011, surv=surv_10yr) %>%
+  calculate_qrisk2(sex=sex2, age=dstartdate_age, ethrisk=ethnicity_qrisk2, smoking=qrisk2_smoking_cat, type1=type1, type2=type2, fh_cvd=predrug_fh_premature_cvd, renal=ckd45, af=predrug_af, rheumatoid_arth=predrug_rheumatoidarthritis, cholhdl=precholhdl, sbp=presbp, bmi=prebmi, bp_med=bp_meds_qrisk2, town=tds_2011, surv=surv_10yr) %>%
   
   rename(qrisk2_score_10yr=qrisk2_score) 
 
@@ -364,60 +377,60 @@ ckdpc_outofrange %>% filter(hba1c_val=="over") %>% summarise(median=median(prehb
 
 
 
-  ## Remove QDiabetes-HF score for those with biomarker values outside of range:
-  ### CholHDL: missing or 1-11 (NOT 12)
-  ### HbA1c: 40-150
-  ### SBP: missing or 70-210
-  ### Age: 25-84
-  ### Also exclude if BMI<20 as v. different from development cohort
-  
-  ## Remove QRISK2 score for those with biomarker values outside of range:
-  ### CholHDL: missing or 1-12
-  ### SBP: missing or 70-210
-  ### Age: 25-84
-  ### Also exclude if BMI<20 as v. different from development cohort
-  temp <- temp %>% mutate(qdiabeteshf_5yr_score=ifelse((is.na(precholhdl) | (precholhdl>=1 & precholhdl<=11)) &
-                                        prehba1c>=40 & prehba1c<=150 &
-                                        (is.na(presbp) | (presbp>=70 & presbp<=210)) &
-                                        dstartdate_age>=25 & dstartdate_age<=84 &
-                                        prebmi>=20, qdiabeteshf_score, NA),
-         
-         qdiabeteshf_lin_predictor=ifelse((is.na(precholhdl) | (precholhdl>=1 & precholhdl<=11)) &
-                                            prehba1c>=40 & prehba1c<=150 &
-                                            (is.na(presbp) | (presbp>=70 & presbp<=210)) &
-                                            dstartdate_age>=25 & dstartdate_age<=84 &
-                                            prebmi>=20, qdiabeteshf_lin_predictor, NA),
-         
-         qrisk2_5yr_score=ifelse((is.na(precholhdl) | (precholhdl>=1 & precholhdl<=12)) &
-                                   (is.na(presbp) | (presbp>=70 & presbp<=210)) &
-                                   dstartdate_age>=25 & dstartdate_age<=84 &
-                                   prebmi>=20, qrisk2_score_5yr, NA),
-         
-         qrisk2_10yr_score=ifelse((is.na(precholhdl) | (precholhdl>=1 & precholhdl<=12)) &
-                                    (is.na(presbp) | (presbp>=70 & presbp<=210)) &
-                                    dstartdate_age>=25 & dstartdate_age<=84 &
-                                    prebmi>=20, qrisk2_score_10yr, NA),
-         
-         qrisk2_lin_predictor=ifelse((is.na(precholhdl) | (precholhdl>=1 & precholhdl<=12)) &
-                                       (is.na(presbp) | (presbp>=70 & presbp<=210)) &
-                                       dstartdate_age>=25 & dstartdate_age<=84 &
-                                       prebmi>=20, qrisk2_lin_predictor, NA))
-  
-  ## Also remove eGFR<60 score for those with sociodemographic/vital/laboratory measurements outside of range:
-  ### Age: 20-80
-  ### UACR: 0.6-56.5 (5-500 in mg/g)
-  ### BMI: <20
-  ### HbA1c 42-97 (6-11 in %)
-  
-  ## Also remove 40% decline in eGFR score for those with sociodemographic/vital/laboratory measurements outside of range:
-  ### Age: 20-80
-  ### UACR: 0.6-113 (5-1000 in mg/g)
-  ### SBP: 80-180
-  ### BMI: <20
-  ### HbA1c 42-97 (6-11 in %)
-  
-temp <- temp %>%
+## Remove QDiabetes-HF score for those with biomarker values outside of range:
+### CholHDL: missing or 1-11 (NOT 12)
+### HbA1c: 40-150
+### SBP: missing or 70-210
+### Age: 25-84
+### Also exclude if BMI<20 as v. different from development cohort
 
+## Remove QRISK2 score for those with biomarker values outside of range:
+### CholHDL: missing or 1-12
+### SBP: missing or 70-210
+### Age: 25-84
+### Also exclude if BMI<20 as v. different from development cohort
+temp <- temp %>% mutate(qdiabeteshf_5yr_score=ifelse((is.na(precholhdl) | (precholhdl>=1 & precholhdl<=11)) &
+                                                       prehba1c>=40 & prehba1c<=150 &
+                                                       (is.na(presbp) | (presbp>=70 & presbp<=210)) &
+                                                       dstartdate_age>=25 & dstartdate_age<=84 &
+                                                       prebmi>=20, qdiabeteshf_score, NA),
+                        
+                        qdiabeteshf_lin_predictor=ifelse((is.na(precholhdl) | (precholhdl>=1 & precholhdl<=11)) &
+                                                           prehba1c>=40 & prehba1c<=150 &
+                                                           (is.na(presbp) | (presbp>=70 & presbp<=210)) &
+                                                           dstartdate_age>=25 & dstartdate_age<=84 &
+                                                           prebmi>=20, qdiabeteshf_lin_predictor, NA),
+                        
+                        qrisk2_5yr_score=ifelse((is.na(precholhdl) | (precholhdl>=1 & precholhdl<=12)) &
+                                                  (is.na(presbp) | (presbp>=70 & presbp<=210)) &
+                                                  dstartdate_age>=25 & dstartdate_age<=84 &
+                                                  prebmi>=20, qrisk2_score_5yr, NA),
+                        
+                        qrisk2_10yr_score=ifelse((is.na(precholhdl) | (precholhdl>=1 & precholhdl<=12)) &
+                                                   (is.na(presbp) | (presbp>=70 & presbp<=210)) &
+                                                   dstartdate_age>=25 & dstartdate_age<=84 &
+                                                   prebmi>=20, qrisk2_score_10yr, NA),
+                        
+                        qrisk2_lin_predictor=ifelse((is.na(precholhdl) | (precholhdl>=1 & precholhdl<=12)) &
+                                                      (is.na(presbp) | (presbp>=70 & presbp<=210)) &
+                                                      dstartdate_age>=25 & dstartdate_age<=84 &
+                                                      prebmi>=20, qrisk2_lin_predictor, NA))
+
+## Also remove eGFR<60 score for those with sociodemographic/vital/laboratory measurements outside of range:
+### Age: 20-80
+### UACR: 0.6-56.5 (5-500 in mg/g)
+### BMI: <20
+### HbA1c 42-97 (6-11 in %)
+
+## Also remove 40% decline in eGFR score for those with sociodemographic/vital/laboratory measurements outside of range:
+### Age: 20-80
+### UACR: 0.6-113 (5-1000 in mg/g)
+### SBP: 80-180
+### BMI: <20
+### HbA1c 42-97 (6-11 in %)
+
+temp <- temp %>%
+  
   mutate(across(starts_with("ckdpc_egfr60"),
                 ~ifelse(dstartdate_age>=20 & dstartdate_age<=80 &
                           prebmi>=20, .x, NA))) %>%
@@ -427,34 +440,63 @@ temp <- temp %>%
                           prebmi>=20, .x, NA)))
 
 # retain those with available risk scores only
-temp <- temp %>% filter(!is.na(ckdpc_egfr60_confirmed_score) & !is.na(ckdpc_40egfr_score))
+temp <- temp %>% filter(!is.na(ckdpc_40egfr_score))
 
 # those left out:
 ckdpc_outofrange <- ckdpc_outofrange %>% anti_join(temp, by = c("patid", ".imp"))
 
-q <- ckdpc_outofrange %>% summarise(n=n()/n.imp)
-
+q <- ckdpc_outofrange %>% .$patid %>% unique() %>% length()
 print(paste0("Number of subjects excluded with missing ckdpc risk scores due to age/BMI/HbA1c/uACR/SBP out of range: ", q))
 
+q <- ckdpc_outofrange %>% nrow()
+print(paste0("Number of drug episodes excluded with missing ckdpc risk scores due to age/BMI/HbA1c/uACR/SBP out of range: ", q/n.imp))
+
+q <- temp %>% .$patid %>% unique() %>% length()
+print(paste0("Number of subjects in study population ", q))
+q <- temp %>% nrow()
+print(paste0("Number of drug episodes in study population ", q/n.imp))
 
 ########################5 SAVE DATASET####################################################################
 
 # 5 tabulate and save imputed dataset for further analyses
 
 
+# add variable for "high CV risk" according to ADA
+
+temp <- temp %>% mutate(
+  obesity = ifelse(prebmi < 30, F, T),
+  smoking_hx = ifelse(qrisk2_smoking_cat == 0, F, T),
+  albuminuria = ifelse(uacr < 3, F, T),
+  dyslipidaemia = ifelse(pretotalcholesterol < 5 &
+                           preldl < 4 &
+                           pretriglyceride < 2.3, F, T),
+  cv_high_risk = ifelse(dstartdate_age >= 55 & 
+                          obesity + predrug_hypertension + 
+                          smoking_hx + dyslipidaemia +
+                          albuminuria > 1, T, F),
+  qrisk2_above_10_pct = ifelse(qrisk2_10yr_score >= 10, T, F),
+  egfr_below_60 = ifelse(preckdstage %in% c("stage_1", "stage_2") & preegfr >=60, F, T),
+  ACEi_or_ARB = ifelse(temp$ACEi + temp$ARB > 0, T, F),
+  macroalbuminuria = ifelse(uacr < 30, F, T),
+  microalbuminuria = ifelse(uacr <3, F, ifelse(macroalbuminuria == T, F, T))
+)
+
 # create table one: this will be an average of the imputed datasets (n to be divided by n.imp)
 
 #variables to be shown
-vars <- c("dstartdate_age", "malesex", "ethnicity_5cat", "imd2015_10",           # sociodemographic variables
-          "prebmi", "preegfr", "uacr", "preldl", "prehba1c", "presbp", "predbp",   # vital signs and laboratory measurements
+vars <- c("dstartdate_age", "malesex", "ethnicity_5cat", "imd2015_10",             # sociodemographic variables
+          "prebmi", "preldl", "prehba1c", "presbp", "predbp", "preegfr",           # vital signs and laboratory measurements
+          "preckdstage", "uacr", "albuminuria", "microalbuminuria", "macroalbuminuria",
           "dstartdate_dm_dur_all", "qrisk2_smoking_cat", "predrug_hypertension",   # comorbidities
           "predrug_af", "predrug_dka", "osteoporosis", 
           "predrug_acutepancreatitis", "predrug_falls", 
           "predrug_urinary_frequency", "predrug_volume_depletion", 
           "predrug_micturition_control", "predrug_dementia", "hosp_admission_prev_year",
           "initiation_year",
-          "ncurrtx", "MFN", "TZD", "ACEi", "ARB"                                   # medications
-          )
+          "ncurrtx", "MFN", "TZD", "INS", "ACEi_or_ARB",                                   # medications
+          "cv_high_risk", "qrisk2_above_10_pct"                                     # CV risk
+          
+)
 
 #categorical variables
 factors <- c("malesex", "ethnicity_qrisk2", "qrisk2_smoking_cat", "predrug_hypertension", 
@@ -462,14 +504,22 @@ factors <- c("malesex", "ethnicity_qrisk2", "qrisk2_smoking_cat", "predrug_hyper
              "predrug_falls", "predrug_urinary_frequency", "predrug_volume_depletion", 
              "predrug_micturition_control", "predrug_dementia", "hosp_admission_prev_year",
              "initiation_year",
-             "ncurrtx", "MFN", "TZD", "ACEi", "ARB")
+             "ncurrtx", "MFN", "TZD", "INS", "ACEi_or_ARB",
+             "cv_high_risk", "qrisk2_above_10_pct", 
+             "preckdstage", "albuminuria", "microalbuminuria", "macroalbuminuria")
 
-table <- CreateTableOne(vars = vars, strata = "studydrug", data = temp[temp$.imp > 0,], factorVars = factors, test = F)
-print(table)
+nonnormal <- c("imd2015_10", "uacr", "dstartdate_dm_dur_all")
 
+table <- CreateTableOne(vars = vars, strata = "studydrug", data = temp[temp$.imp > 0,], 
+                        factorVars = factors, test = F)
 
+tabforprint <- print(table, nonnormal = nonnormal, quote = FALSE, noSpaces = TRUE, printToggle = T)
+## Save to a CSV file
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/output/")
+#my computer is set to continental settings, therefore I am using write.csv2 instead of write.csv
+today <- as.character(Sys.Date(), format="%Y%m%d")
+write.csv2(tabforprint, file = paste0(today, "_baseline_table_incl_egfr_below_60.csv"))
 
 # save imputed dataset so this can be used in the subsequent scripts
-today <- as.character(Sys.Date(), format="%Y%m%d")
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-save(temp, file=paste0(today, "_t2d_ckdpc_imputed_data.Rda"))
+save(temp, file=paste0(today, "_t2d_ckdpc_imputed_data_incl_egfr_below_60.Rda"))

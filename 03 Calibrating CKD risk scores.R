@@ -22,7 +22,7 @@ library(broom)
 library(patchwork)
 library(rms)
 
-options(dplyr.summarise.inform = FALSE)
+options(dplyr.dpp4isummarise.inform = FALSE)
 
 # set seed
 set.seed(123)
@@ -60,327 +60,303 @@ pool.rubin.KM <- function(EST,SE,n.imp){
 # load data
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-load("2024-01-10_t2d_ckdpc_imputed_data.Rda")
+load("2024-02-26_t2d_ckdpc_imputed_data_withweights_incl_egfr_below_60.Rda")
 
 # select imputed data only (ie. remove non-imputed data)
-cohort <- temp[temp$.imp > 0,]
+cohort <- cohort[cohort$.imp > 0,]
 
 # set reference level for variable studydrug
 cohort$studydrug <- relevel(as.factor(cohort$studydrug), ref = "SU")
 
+## remove double overlapping entries for DPP4i and SU that overlap (take one only)
+cohort <- cohort %>% group_by(.imp, patid) %>% filter(
+  !duplicated(studydrug2)
+) %>% ungroup()
+
 # check number of subjects
 table(cohort$studydrug)
-#    SU   DPP4  SGLT2 
-#463810  459650  209640   # 10 imputations therefore number of subjects per group appears 10 times larger
+# SU  DPP4i SGLT2i 
+# 385790 595080 499270   # 10 imputations therefore number of subjects per group appears 10 times larger
 
 # select calibration cohort and non-calibration cohort 
 
 # assign random 20% (SU/DPP4) as recalibration cohort and remove from main cohort
 # we will do this in each imputation and combine 
-cal_cohort <- data.frame()
-for (i in 1:n.imp) {
-  temp <- cohort[cohort$.imp == i & !cohort$studydrug == "SGLT2",] %>% slice_sample(prop=0.2)
-  cal_cohort <- rbind(cal_cohort, temp)
-  rm(temp)
-}
+cal_cohort <- cohort %>% filter(!studydrug2 == "SGLT2i") %>% group_by(.imp) %>% slice_sample(prop=0.2)
 
 # select those not in the calibration cohort
 noncal_cohort <- cohort %>%
-  anti_join(cal_cohort, by=c("patid", "dstartdate", "studydrug", ".imp"))
+  anti_join(cal_cohort, by=c("patid", "dstartdate", "studydrug2", ".imp"))
 
 # check number of subjects
 table(noncal_cohort$studydrug)
-#    SU   DPP4  SGLT2 
-#371095 367675 209640 
+# SU  DPP4i SGLT2i 
+# 308945 475755 499270 
 
 
+# set default colour-blind accessible colours for figures later on
+cols <- c("SGLT2i" = "#E69F00", "GLP1" = "#56B4E9", "SU" = "#CC79A7", "DPP4i" = "#0072B2", "TZD" = "#D55E00")
+#in further analyses, the dpp4/su group will be combined, and we will use the dpp4 colour for this (strongest contrast)
+cols <- c(cols, "DPP4i/SU" = "#0072B2")
+cols <- cols[names(cols) %in% cohort$studydrug2]
+cols <- cols[order(names(cols))]
 
 ############################1A UNCALIBRATED SCORES - NEW CKD################################################################
-
-## 1 How well do uncalibrated risk scores predict incidence?
-
-# CKD <60
-# note that the data contain a "total" and "confirmed score" (ckdpc_egfr60_total_score & ckdpc_egfr60_confirmed_score).
-# the confirmed score means that the lower eGFR was confirmed by a second measurement in the original study.
-# this is also how we define new-onset CKD with eGFR <60 mL/min, therefore we will be using the confirmed score.
-
-cohort$ckd60_risk_decile <- ntile(cohort$ckdpc_egfr60_confirmed_score, n.quantiles)
-
-## Get mean predicted probabilities by risk decile and studydrug
-predicted <- cohort %>%
-  group_by(ckd60_risk_decile, studydrug) %>%
-  summarise(mean_ckd60_pred=mean(ckdpc_egfr60_confirmed_score)/100)
-
-# also get mean predicted probability per risk decile overall (not by studydrug)
-predicted_all <- cohort %>%
-  group_by(ckd60_risk_decile) %>%
-  summarise(mean_ckd60_pred=mean(ckdpc_egfr60_confirmed_score)/100)
-
-## Find actual observed probabilities by risk decile and studydrug
-
-EST.su <- SE.su <-
-  EST.dpp4 <- SE.dpp4 <-
-  EST.sglt2 <- SE.sglt2 <- 
-  EST.all <- SE.all <-
-  matrix(data = NA, nrow = n.quantiles, ncol = n.imp)
-
-observed_su <- tibble() %>% mutate(
-  observed_su=NA,
-  lower_ci_su=NA,
-  upper_ci_su=NA,
-  strata=NA
-)
-
-observed_dpp4 <- tibble() %>% mutate(
-  observed_dpp4=NA,
-  lower_ci_dpp4=NA,
-  upper_ci_dpp4=NA,
-  strata=NA
-)
-
-observed_sglt2 <- tibble() %>% mutate(
-  observed_sglt2=NA,
-  lower_ci_sglt2=NA,
-  upper_ci_sglt2=NA,
-  strata=NA
-)
-
-observed_all <- tibble() %>% mutate(
-    observed=NA,
-    lower_ci=NA,
-    upper_ci=NA,
-    strata=NA
-)
-
-for (k in 1:n.quantiles) {
-for (i in 1:n.imp) {
-  
-  observed_su_ckd60 <- survfit(Surv(ckd_345_censtime_yrs, ckd_345_censvar) ~ ckd60_risk_decile, 
-                               data=cohort[cohort$.imp == i & 
-                                                   cohort$ckd60_risk_decile == k &
-                                                   cohort$studydrug=="SU",]) %>%
-    tidy() %>%
-    # group_by(strata) %>%
-    filter(time==max(time))
-  
-  EST.su[k,i] <- observed_su_ckd60$estimate
-  SE.su[k,i] <- observed_su_ckd60$std.error
-  
-  observed_dpp4_ckd60 <- survfit(Surv(ckd_345_censtime_yrs, ckd_345_censvar) ~ ckd60_risk_decile, 
-                               data=cohort[cohort$.imp == i & 
-                                                   cohort$ckd60_risk_decile == k &
-                                                   cohort$studydrug=="DPP4",]) %>%
-    tidy() %>%
-    # group_by(strata) %>%
-    filter(time==max(time))
-  
-  EST.dpp4[k,i] <- observed_dpp4_ckd60$estimate
-  SE.dpp4[k,i] <- observed_dpp4_ckd60$std.error
-  
-  observed_sglt2_ckd60 <- survfit(Surv(ckd_345_censtime_yrs, ckd_345_censvar) ~ ckd60_risk_decile, 
-                                  data=cohort[cohort$.imp == i & 
-                                                      cohort$ckd60_risk_decile == k &
-                                                      cohort$studydrug=="SGLT2",]) %>%
-    tidy() %>%
-    # group_by(strata) %>%
-    filter(time==max(time))
-  
-  EST.sglt2[k,i] <- observed_sglt2_ckd60$estimate
-  SE.sglt2[k,i] <- observed_sglt2_ckd60$std.error
-  
-  observed_all_ckd60 <- survfit(Surv(ckd_345_censtime_yrs, ckd_345_censvar) ~ ckd60_risk_decile, 
-                                  data=cohort[cohort$.imp == i & 
-                                                      cohort$ckd60_risk_decile == k,]) %>%
-    tidy() %>%
-    # group_by(strata) %>%
-    filter(time==max(time))
-  
-  EST.all[k,i] <- observed_all_ckd60$estimate
-  SE.all[k,i] <- observed_all_ckd60$std.error
-}
-  
-  est.su <- pool.rubin.KM(EST.su[k,], SE.su[k,], n.imp)
-  observed_su[k,] <- observed_su[k,] %>% 
-    mutate(
-      observed_su=est.su[1],
-      lower_ci_su=est.su[2],
-      upper_ci_su=est.su[3],
-      strata=k
-    )
-  
-  est.dpp4 <- pool.rubin.KM(EST.dpp4[k,], SE.dpp4[k,], n.imp)
-  observed_dpp4[k,] <- observed_dpp4[k,] %>% 
-    mutate(
-      observed_dpp4=est.dpp4[1],
-      lower_ci_dpp4=est.dpp4[2],
-      upper_ci_dpp4=est.dpp4[3],
-      strata=k
-    )
-  
-  est.sglt2 <- pool.rubin.KM(EST.sglt2[k,], SE.sglt2[k,], n.imp)
-  observed_sglt2[k,] <- observed_sglt2[k,] %>% 
-    mutate(
-      observed_sglt2=est.sglt2[1],
-      lower_ci_sglt2=est.sglt2[2],
-      upper_ci_sglt2=est.sglt2[3],
-      strata=k
-    )
-  
-  est.all <- pool.rubin.KM(EST.all[k,], SE.all[k,], n.imp)
-  observed_all[k,] <- observed_all[k,] %>% 
-    mutate(
-      observed=est.all[1],
-      lower_ci=est.all[2],
-      upper_ci=est.all[3],
-      strata=k
-    )
-  
-}
-
-
-su_events <- cohort %>%
-  filter(studydrug=="SU" & ckd_345_censvar==1) %>%
-  group_by(ckd60_risk_decile) %>%
-  summarise(SU=round(n()/n.imp, 0))
-
-dpp4_events <- cohort %>%
-  filter(studydrug=="DPP4" & ckd_345_censvar==1) %>%
-  group_by(ckd60_risk_decile) %>%
-  summarise(DPP4=round(n()/n.imp, 0))
-
-sglt2_events <- cohort %>%
-  filter(studydrug=="SGLT2" & ckd_345_censvar==1) %>%
-  group_by(ckd60_risk_decile) %>%
-  summarise(SGLT2=round(n()/n.imp, 0))
-
-obs_v_pred <- rbind(
-  cbind((predicted %>% filter(studydrug=="SU")), observed_su),
-  cbind((predicted %>% filter(studydrug=="DPP4")), observed_dpp4),
-  cbind((predicted %>% filter(studydrug=="SGLT2")), observed_sglt2)
-) %>%
-  mutate(observed=coalesce(observed_su, observed_dpp4, observed_sglt2),
-         lower_ci=coalesce(lower_ci_su, lower_ci_dpp4, lower_ci_sglt2),
-         upper_ci=coalesce(upper_ci_su, upper_ci_dpp4, upper_ci_sglt2))
-
-events_table <- data.frame(t(su_events %>%
-  inner_join(sglt2_events) %>% 
-    inner_join(dpp4_events))) %>%
-  rownames_to_column() %>%
-  filter(rowname!="ckd60_risk_decile")
-
-dodge <- position_dodge(width=0.3)
-
-empty_tick <- obs_v_pred %>%
-  filter(ckd60_risk_decile==1) %>%
-  mutate(observed=NA, lower_ci=NA, upper_ci=NA, mean_ckd60_pred=NA, ckd60_risk_decile=0)
-
-p1 <- ggplot(data=bind_rows(empty_tick,obs_v_pred), aes(x=ckd60_risk_decile, group=studydrug, color=studydrug)) +
-  geom_point(aes(y = observed*100), position=dodge) +
-  geom_errorbar(aes(ymax=upper_ci*100,ymin=lower_ci*100),width=0.25,size=1, position=dodge) +
-  geom_point(aes(y = mean_ckd60_pred*100), position=dodge, shape=17, size=2) +
-  theme_bw() +
-  xlab("Risk score decile") + ylab("Risk (%)")+
-  scale_x_continuous(breaks=c(seq(0,10,by=1)))+
-  scale_y_continuous(breaks=c(seq(0,60,by=10)), limits=c(-10,75)) +
-  theme(panel.border=element_blank(), panel.grid.major=element_blank(),panel.grid.minor=element_blank(),
-        axis.line.x=element_line(colour = "black"), axis.line.y=element_line(colour="black"),
-        plot.title = element_text(size = rel(1.5), face = "bold")) + theme(plot.margin = margin()) +
-  theme(axis.text=element_text(size=rel(1.5)))+ theme(axis.title=element_text(size=rel(1.5))) +
-  ggtitle("Uncalibrated risk score vs CKD incidence (5 year)") +
-  coord_cartesian(ylim = c(0,60))
-
-p2 <- gridExtra::tableGrob(events_table, rows = NULL, cols = NULL)
-p2$widths <- unit(rep(1, ncol(p2)), "null")
-p2$heights <- unit(rep(1, nrow(p2)), "null")
-
-p3 <- ggplot() +
-  annotation_custom(p2)
-
-p_ckd60_uncal_bydeciles_bydrug <- p1 + p3 + plot_layout(ncol = 1, heights=c(5,1))
-p_ckd60_uncal_bydeciles_bydrug
-
-
-## obs vs pred calibration plot with loess smoother
-p1 <- ggplot(data=bind_rows(empty_tick,obs_v_pred), aes(x=mean_ckd60_pred*100)) +
-  #geom_errorbar(aes(ymax=upper_ci*100,ymin=lower_ci*100),width=0.25,size=1, position=dodge) +
-  geom_point(aes(y = observed*100, group=studydrug, color=studydrug), position=dodge, shape=17, size=2) +
-  geom_abline(intercept = 0, slope = 1) +
-  theme_bw() +
-  xlab("Predicted risk (%)") + ylab("Observed risk (%)")+
-  scale_x_continuous(limits=c(0,33))+
-  scale_y_continuous(limits=c(-10,40)) +
-  theme(panel.border=element_blank(), panel.grid.major=element_blank(),panel.grid.minor=element_blank(),
-        axis.line.x=element_line(colour = "black"), axis.line.y=element_line(colour="black"),
-        plot.title = element_text(size = rel(1.5), face = "bold")) + theme(plot.margin = margin()) +
-  theme(axis.text=element_text(size=rel(1.5)))+ theme(axis.title=element_text(size=rel(1.5))) +
-  ggtitle("Predicted versus observed CKD incidence (5 year)") +
-  coord_cartesian(ylim = c(0,33))
-
-p_ckd60_uncal_bydrug <- p1 + geom_smooth(aes(y=observed*100, x=mean_ckd60_pred*100), colour = "black", data = obs_v_pred)
-p_ckd60_uncal_bydrug
-
-
-## like first plot but then not grouped by studydrug
-
-obs_v_pred <- rbind(
-  (predicted_all %>% mutate(
-    lower_ci = NA,
-    upper_ci = NA,
-    risk_type = "predicted"
-  ) %>%
-    select(strata=ckd60_risk_decile, estimate=mean_ckd60_pred, lower_ci, upper_ci, risk_type)
-  ),
-  (observed_all %>% mutate(
-    risk_type = "observed"
-  ) %>% 
-    relocate(strata, .before = observed) %>%
-    relocate(risk_type, .after = upper_ci) %>%
-    select(strata, estimate=observed, lower_ci, upper_ci, risk_type)
-    )
-)
-
-p_ckd60_uncal_bydeciles <- ggplot(data=obs_v_pred, aes(x=strata, y=estimate*100)) +
-  geom_errorbar(aes(ymax=upper_ci*100,ymin=lower_ci*100),width=0.1,size=.75) +
-  geom_point(aes(fill = risk_type, size = risk_type), shape = 21, colour = "black", stroke = 1.5) +
-  scale_fill_manual("",
-                    breaks = c("predicted", "observed"),
-                    labels = c("Uncalibrated risk score", "CKD incidence (Kaplan-Meier estimate)"),
-                    values = c("white", "cadetblue3")) +
-  scale_size_manual(breaks = c("predicted", "observed"),
-                    values = c(4,3),
-                    guide = "none") +
-  guides(fill = guide_legend(override.aes = list(size = 4))) +
-  theme_bw() +  
-  theme(legend.position = c(0.05,0.95),
-        legend.justification = c(0,1),
-        legend.key.size = unit(1, "cm"),
-        legend.text=element_text(size=rel(1))) +
-  xlab("Risk score decile") + ylab("Risk (%)")+
-  scale_x_continuous(breaks=c(seq(0,10,by=1)))+
-  scale_y_continuous(breaks=c(seq(0,60,by=10)), limits=c(-2,75)) +
-  theme(panel.border=element_blank(), panel.grid.major=element_blank(),panel.grid.minor=element_blank(),
-        axis.line.x=element_line(colour = "black"), axis.line.y=element_line(colour="black"),
-        plot.title = element_text(size = rel(1.5), face = "bold")) + theme(plot.margin = margin()) +
-  theme(axis.text=element_text(size=rel(1.5)))+ theme(axis.title=element_text(size=rel(1.5))) +
-  ggtitle("Uncalibrated risk score vs CKD incidence (5-year)") +
-  coord_cartesian(ylim = c(0,60))
-
-p_ckd60_uncal_bydeciles
-
-## C-stat
-cohort <- cohort %>%
-  mutate(ckdpc_egfr60_confirmed_survival=(100-ckdpc_egfr60_confirmed_score)/100)
-
-surv_mod_ckd60 <- coxph(Surv(ckd_345_censtime_yrs, ckd_345_censvar)~ckdpc_egfr60_confirmed_survival, data=cohort, method="breslow")
-
-cstat_est <- summary(surv_mod_ckd60)$concordance[1]
-cstat_est_ll <- summary(surv_mod_ckd60)$concordance[1]-(1.96*summary(surv_mod_ckd60)$concordance[2])
-cstat_est_ul <- summary(surv_mod_ckd60)$concordance[1]+(1.96*summary(surv_mod_ckd60)$concordance[2])
-paste0("C statistic: ", round(cstat_est, 4), ", 95% CI ", round(cstat_est_ll, 4), "-", round(cstat_est_ul,4))
-# C statistic: 0.9043, 95% CI 0.9027-0.9059
-
-# the above clearly shows the risk score overestimates risk
-
+# 
+# ## 1 How well do uncalibrated risk scores predict incidence?
+# 
+# # CKD <60
+# # note that the data contain a "total" and "confirmed score" (ckdpc_egfr60_total_score & ckdpc_egfr60_confirmed_score).
+# # the confirmed score means that the lower eGFR was confirmed by a second measurement in the original study.
+# # this is also how we define new-onset CKD with eGFR <60 mL/min, therefore we will be using the confirmed score.
+# 
+# cohort$ckd60_risk_decile <- ntile(cohort$ckdpc_egfr60_confirmed_score, n.quantiles)
+# 
+# ## Get mean predicted probabilities by risk decile and studydrug
+# predicted <- cohort %>%
+#   group_by(ckd60_risk_decile, studydrug2) %>%
+#   summarise(mean_ckd60_pred=mean(ckdpc_egfr60_confirmed_score)/100)
+# 
+# # also get mean predicted probability per risk decile overall (not by studydrug)
+# predicted_all <- cohort %>%
+#   group_by(ckd60_risk_decile) %>%
+#   summarise(mean_ckd60_pred=mean(ckdpc_egfr60_confirmed_score)/100)
+# 
+# ## Find actual observed probabilities by risk decile and studydrug
+# 
+# EST.dpp4isu <- SE.dpp4isu <-
+#   EST.sglt2i <- SE.sglt2i <- 
+#   EST.all <- SE.all <-
+#   matrix(data = NA, nrow = n.quantiles, ncol = n.imp)
+# 
+# observed_dpp4isu <- tibble() %>% mutate(
+#   observed_dpp4isu=NA,
+#   lower_ci_dpp4isu=NA,
+#   upper_ci_dpp4isu=NA,
+#   strata=NA
+# )
+# 
+# observed_sglt2i <- tibble() %>% mutate(
+#   observed_sglt2i=NA,
+#   lower_ci_sglt2i=NA,
+#   upper_ci_sglt2i=NA,
+#   strata=NA
+# )
+# 
+# observed_all <- tibble() %>% mutate(
+#   observed=NA,
+#   lower_ci=NA,
+#   upper_ci=NA,
+#   strata=NA
+# )
+# 
+# for (k in 1:n.quantiles) {
+#   for (i in 1:n.imp) {
+#     
+#     observed_dpp4isu_ckd60 <- survfit(Surv(ckd_345_censtime_yrs, ckd_345_censvar) ~ ckd60_risk_decile, 
+#                                  data=cohort[cohort$.imp == i & 
+#                                                cohort$ckd60_risk_decile == k &
+#                                                cohort$studydrug2=="DPP4i/SU",]) %>%
+#       tidy() %>%
+#       # group_by(strata) %>%
+#       filter(time==max(time))
+#     
+#     EST.dpp4isu[k,i] <- observed_dpp4isu_ckd60$estimate
+#     SE.dpp4isu[k,i] <- observed_dpp4isu_ckd60$std.error
+#     
+#     
+#     
+#     observed_sglt2i_ckd60 <- survfit(Surv(ckd_345_censtime_yrs, ckd_345_censvar) ~ ckd60_risk_decile, 
+#                                     data=cohort[cohort$.imp == i & 
+#                                                   cohort$ckd60_risk_decile == k &
+#                                                   cohort$studydrug2=="SGLT2i",]) %>%
+#       tidy() %>%
+#       # group_by(strata) %>%
+#       filter(time==max(time))
+#     
+#     EST.sglt2i[k,i] <- observed_sglt2i_ckd60$estimate
+#     SE.sglt2i[k,i] <- observed_sglt2i_ckd60$std.error
+#     
+#     observed_all_ckd60 <- survfit(Surv(ckd_345_censtime_yrs, ckd_345_censvar) ~ ckd60_risk_decile, 
+#                                   data=cohort[cohort$.imp == i & 
+#                                                 cohort$ckd60_risk_decile == k,]) %>%
+#       tidy() %>%
+#       # group_by(strata) %>%
+#       filter(time==max(time))
+#     
+#     EST.all[k,i] <- observed_all_ckd60$estimate
+#     SE.all[k,i] <- observed_all_ckd60$std.error
+#   }
+#   
+#   est.dpp4isu <- pool.rubin.KM(EST.dpp4isu[k,], SE.dpp4isu[k,], n.imp)
+#   observed_dpp4isu[k,] <- observed_dpp4isu[k,] %>% 
+#     mutate(
+#       observed_dpp4isu=est.dpp4isu[1],
+#       lower_ci_dpp4isu=est.dpp4isu[2],
+#       upper_ci_dpp4isu=est.dpp4isu[3],
+#       strata=k
+#     )
+#   
+#   
+#   est.sglt2i <- pool.rubin.KM(EST.sglt2i[k,], SE.sglt2i[k,], n.imp)
+#   observed_sglt2i[k,] <- observed_sglt2i[k,] %>% 
+#     mutate(
+#       observed_sglt2i=est.sglt2i[1],
+#       lower_ci_sglt2i=est.sglt2i[2],
+#       upper_ci_sglt2i=est.sglt2i[3],
+#       strata=k
+#     )
+#   
+#   est.all <- pool.rubin.KM(EST.all[k,], SE.all[k,], n.imp)
+#   observed_all[k,] <- observed_all[k,] %>% 
+#     mutate(
+#       observed=est.all[1],
+#       lower_ci=est.all[2],
+#       upper_ci=est.all[3],
+#       strata=k
+#     )
+#   
+# }
+# 
+# 
+# dpp4isu_events <- cohort %>%
+#   filter(studydrug2=="DPP4i/SU" & ckd_345_censvar==1) %>%
+#   group_by(ckd60_risk_decile) %>%
+#   summarise(DPP4iSU=round(n()/n.imp, 0))
+# 
+# sglt2_events <- cohort %>%
+#   filter(studydrug2=="SGLT2i" & ckd_345_censvar==1) %>%
+#   group_by(ckd60_risk_decile) %>%
+#   summarise(SGLTi=round(n()/n.imp, 0))
+# 
+# obs_v_pred <- rbind(
+#   cbind((predicted %>% filter(studydrug2=="DPP4i/SU")), observed_dpp4isu),
+#   cbind((predicted %>% filter(studydrug2=="SGLT2i")), observed_sglt2i)
+# ) %>%
+#   mutate(observed=coalesce(observed_dpp4isu, observed_sglt2i),
+#          lower_ci=coalesce(lower_ci_dpp4isu, lower_ci_sglt2i),
+#          upper_ci=coalesce(upper_ci_dpp4isu, upper_ci_sglt2i))
+# 
+# events_table <- data.frame(t(dpp4isu_events %>%
+#                                inner_join(sglt2_events))) %>%
+#   rownames_to_column() %>%
+#   filter(rowname!="ckd60_risk_decile")
+# 
+# dodge <- position_dodge(width=0.3)
+# 
+# empty_tick <- obs_v_pred %>%
+#   filter(ckd60_risk_decile==1) %>%
+#   mutate(observed=NA, lower_ci=NA, upper_ci=NA, mean_ckd60_pred=NA, ckd60_risk_decile=0)
+# 
+# p1 <- ggplot(data=bind_rows(empty_tick,obs_v_pred), aes(x=ckd60_risk_decile, group=studydrug2, color=studydrug2)) +
+#   geom_point(aes(y = observed*100), position=dodge) +
+#   geom_errorbar(aes(ymax=upper_ci*100,ymin=lower_ci*100),width=0.25,size=1, position=dodge) +
+#   geom_point(aes(y = mean_ckd60_pred*100), position=dodge, shape=17, size=2) +
+#   theme_bw() +
+#   xlab("Risk score decile") + ylab("Risk (%)")+
+#   scale_x_continuous(breaks=c(seq(0,10,by=1)))+
+#   scale_y_continuous(breaks=c(seq(0,60,by=10)), limits=c(-10,75)) +
+#   scale_colour_manual(values = cols) +
+#   theme(panel.border=element_blank(), panel.grid.major=element_blank(),panel.grid.minor=element_blank(),
+#         axis.line.x=element_line(colour = "black"), axis.line.y=element_line(colour="black"),
+#         plot.title = element_text(size = rel(1.5), face = "bold")) + theme(plot.margin = margin()) +
+#   theme(axis.text=element_text(size=rel(1.5)))+ theme(axis.title=element_text(size=rel(1.5))) +
+#   ggtitle("Uncalibrated risk score vs CKD incidence (5 year)") +
+#   coord_cartesian(ylim = c(0,60))
+# 
+# p2 <- gridExtra::tableGrob(events_table, rows = NULL, cols = NULL)
+# p2$widths <- unit(rep(1, ncol(p2)), "null")
+# p2$heights <- unit(rep(1, nrow(p2)), "null")
+# 
+# p3 <- ggplot() +
+#   annotation_custom(p2)
+# 
+# p_ckd60_uncal_bydeciles_bydrug <- p1 + p3 + plot_layout(ncol = 1, heights=c(5,1))
+# p_ckd60_uncal_bydeciles_bydrug
+# 
+# 
+# ## obs vs pred calibration plot with loess smoother
+# p1 <- ggplot(data=bind_rows(empty_tick,obs_v_pred), aes(x=mean_ckd60_pred*100)) +
+#   #geom_errorbar(aes(ymax=upper_ci*100,ymin=lower_ci*100),width=0.25,size=1, position=dodge) +
+#   geom_point(aes(y = observed*100, group=studydrug2, color=studydrug2), position=dodge, shape=17, size=2) +
+#   geom_abline(intercept = 0, slope = 1) +
+#   theme_bw() +
+#   xlab("Predicted risk (%)") + ylab("Observed risk (%)")+
+#   scale_x_continuous(limits=c(0,33))+
+#   scale_y_continuous(limits=c(-10,40)) +
+#   scale_colour_manual(values = cols) +
+#   theme(panel.border=element_blank(), panel.grid.major=element_blank(),panel.grid.minor=element_blank(),
+#         axis.line.x=element_line(colour = "black"), axis.line.y=element_line(colour="black"),
+#         plot.title = element_text(size = rel(1.5), face = "bold")) + theme(plot.margin = margin()) +
+#   theme(axis.text=element_text(size=rel(1.5)))+ theme(axis.title=element_text(size=rel(1.5))) +
+#   ggtitle("Predicted versus observed CKD incidence (5 year)") +
+#   coord_cartesian(ylim = c(0,33))
+# 
+# p_ckd60_uncal_bydrug <- p1 + geom_smooth(aes(y=observed*100, x=mean_ckd60_pred*100), colour = "black", data = obs_v_pred)
+# p_ckd60_uncal_bydrug
+# 
+# 
+# ## like first plot but then not grouped by studydrug
+# 
+# obs_v_pred <- rbind(
+#   (predicted_all %>% mutate(
+#     lower_ci = NA,
+#     upper_ci = NA,
+#     risk_type = "predicted"
+#   ) %>%
+#     select(strata=ckd60_risk_decile, estimate=mean_ckd60_pred, lower_ci, upper_ci, risk_type)
+#   ),
+#   (observed_all %>% mutate(
+#     risk_type = "observed"
+#   ) %>% 
+#     relocate(strata, .before = observed) %>%
+#     relocate(risk_type, .after = upper_ci) %>%
+#     select(strata, estimate=observed, lower_ci, upper_ci, risk_type)
+#   )
+# )
+# 
+# p_ckd60_uncal_bydeciles <- ggplot(data=obs_v_pred, aes(x=strata, y=estimate*100)) +
+#   geom_errorbar(aes(ymax=upper_ci*100,ymin=lower_ci*100),width=0.1,size=.75) +
+#   geom_point(aes(fill = risk_type, size = risk_type), shape = 21, colour = "black", stroke = 1.5) +
+#   scale_fill_manual("",
+#                     breaks = c("predicted", "observed"),
+#                     labels = c("Uncalibrated risk score", "CKD incidence (Kaplan-Meier estimate)"),
+#                     values = c("white", "cadetblue3")) +
+#   scale_size_manual(breaks = c("predicted", "observed"),
+#                     values = c(4,3),
+#                     guide = "none") +
+#   guides(fill = guide_legend(override.aes = list(size = 4))) +
+#   theme_bw() +  
+#   theme(legend.position = c(0.05,0.95),
+#         legend.justification = c(0,1),
+#         legend.key.size = unit(1, "cm"),
+#         legend.text=element_text(size=rel(1))) +
+#   xlab("Risk score decile") + ylab("Risk (%)")+
+#   scale_x_continuous(breaks=c(seq(0,10,by=1)))+
+#   scale_y_continuous(breaks=c(seq(0,60,by=10)), limits=c(-2,75)) +
+#   theme(panel.border=element_blank(), panel.grid.major=element_blank(),panel.grid.minor=element_blank(),
+#         axis.line.x=element_line(colour = "black"), axis.line.y=element_line(colour="black"),
+#         plot.title = element_text(size = rel(1.5), face = "bold")) + theme(plot.margin = margin()) +
+#   theme(axis.text=element_text(size=rel(1.5)))+ theme(axis.title=element_text(size=rel(1.5))) +
+#   ggtitle("Uncalibrated risk score vs CKD incidence (5-year)") +
+#   coord_cartesian(ylim = c(0,60))
+# 
+# p_ckd60_uncal_bydeciles
+# 
+# ## C-stat
+# cohort <- cohort %>%
+#   mutate(ckdpc_egfr60_confirmed_survival=(100-ckdpc_egfr60_confirmed_score)/100)
+# 
+# surv_mod_ckd60 <- coxph(Surv(ckd_345_censtime_yrs, ckd_345_censvar)~ckdpc_egfr60_confirmed_survival, data=cohort, method="breslow")
+# 
+# cstat_est <- summary(surv_mod_ckd60)$concordance[1]
+# cstat_est_ll <- summary(surv_mod_ckd60)$concordance[1]-(1.96*summary(surv_mod_ckd60)$concordance[2])
+# cstat_est_ul <- summary(surv_mod_ckd60)$concordance[1]+(1.96*summary(surv_mod_ckd60)$concordance[2])
+# paste0("C statistic: ", round(cstat_est, 4), ", 95% CI ", round(cstat_est_ll, 4), "-", round(cstat_est_ul,4))
+# # C statistic: 0.9039, 95% CI 0.9026-0.9052
+# 
+# # the above clearly shows the risk score overestimates risk
+# 
 
 ############################1B UNCALIBRATED SCORES - 40% DECLINE IN EGFR################################################################
 
@@ -391,7 +367,7 @@ cohort$ckd40_risk_decile <- ntile(cohort$ckdpc_40egfr_score, n.quantiles)
 
 ## Get mean predicted probabilities by risk decile and studydrug
 predicted <- cohort %>%
-  group_by(ckd40_risk_decile, studydrug) %>%
+  group_by(ckd40_risk_decile, studydrug2) %>%
   summarise(mean_ckd40_pred=mean(ckdpc_40egfr_score)/100)
 
 # get mean predicted probabilities by risk decile (not by studydrug)
@@ -401,30 +377,22 @@ predicted_all <- cohort %>%
 
 ## Find actual observed probabilities by risk score category and studydrug
 
-EST.su <- SE.su <-
-  EST.dpp4 <- SE.dpp4 <-
-  EST.sglt2 <- SE.sglt2 <- 
+EST.dpp4isu <- SE.dpp4isu <-
+  EST.sglt2i <- SE.sglt2i <- 
   EST.all <- SE.all <-
   matrix(data = NA, nrow = n.quantiles, ncol = n.imp)
 
-observed_su <- tibble() %>% mutate(
-  observed_su=NA,
-  lower_ci_su=NA,
-  upper_ci_su=NA,
+observed_dpp4isu <- tibble() %>% mutate(
+  observed_dpp4isu=NA,
+  lower_ci_dpp4isu=NA,
+  upper_ci_dpp4isu=NA,
   strata=NA
 )
 
-observed_dpp4 <- tibble() %>% mutate(
-  observed_dpp4=NA,
-  lower_ci_dpp4=NA,
-  upper_ci_dpp4=NA,
-  strata=NA
-)
-
-observed_sglt2 <- tibble() %>% mutate(
-  observed_sglt2=NA,
-  lower_ci_sglt2=NA,
-  upper_ci_sglt2=NA,
+observed_sglt2i <- tibble() %>% mutate(
+  observed_sglt2i=NA,
+  lower_ci_sglt2i=NA,
+  upper_ci_sglt2i=NA,
   strata=NA
 )
 
@@ -438,42 +406,32 @@ observed_all <- tibble() %>% mutate(
 for (k in 1:n.quantiles) {
   for (i in 1:n.imp) {
     
-    observed_su_ckd40 <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ ckd40_risk_decile, 
+    observed_dpp4isu_ckd40 <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ ckd40_risk_decile, 
                                  data=cohort[cohort$.imp == i & 
-                                                     cohort$ckd40_risk_decile == k &
-                                                     cohort$studydrug=="SU",]) %>%
+                                               cohort$ckd40_risk_decile == k &
+                                               cohort$studydrug2=="DPP4i/SU",]) %>%
       tidy() %>%
       # group_by(strata) %>%
       filter(time==max(time))
     
-    EST.su[k,i] <- observed_su_ckd40$estimate
-    SE.su[k,i] <- observed_su_ckd40$std.error
+    EST.dpp4isu[k,i] <- observed_dpp4isu_ckd40$estimate
+    SE.dpp4isu[k,i] <- observed_dpp4isu_ckd40$std.error
     
-    observed_dpp4_ckd40 <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ ckd40_risk_decile, 
-                                   data=cohort[cohort$.imp == i & 
-                                                       cohort$ckd40_risk_decile == k &
-                                                       cohort$studydrug=="DPP4",]) %>%
-      tidy() %>%
-      # group_by(strata) %>%
-      filter(time==max(time))
     
-    EST.dpp4[k,i] <- observed_dpp4_ckd40$estimate
-    SE.dpp4[k,i] <- observed_dpp4_ckd40$std.error
-    
-    observed_sglt2_ckd40 <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ ckd40_risk_decile, 
+    observed_sglt2i_ckd40 <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ ckd40_risk_decile, 
                                     data=cohort[cohort$.imp == i & 
-                                                        cohort$ckd40_risk_decile == k &
-                                                        cohort$studydrug=="SGLT2",]) %>%
+                                                  cohort$ckd40_risk_decile == k &
+                                                  cohort$studydrug2=="SGLT2i",]) %>%
       tidy() %>%
       # group_by(strata) %>%
       filter(time==max(time))
     
-    EST.sglt2[k,i] <- observed_sglt2_ckd40$estimate
-    SE.sglt2[k,i] <- observed_sglt2_ckd40$std.error
+    EST.sglt2i[k,i] <- observed_sglt2i_ckd40$estimate
+    SE.sglt2i[k,i] <- observed_sglt2i_ckd40$std.error
     
     observed_all_ckd40 <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ ckd40_risk_decile, 
-                                    data=cohort[cohort$.imp == i & 
-                                                        cohort$ckd40_risk_decile == k,]) %>%
+                                  data=cohort[cohort$.imp == i & 
+                                                cohort$ckd40_risk_decile == k,]) %>%
       tidy() %>%
       # group_by(strata) %>%
       filter(time==max(time))
@@ -482,30 +440,21 @@ for (k in 1:n.quantiles) {
     SE.all[k,i] <- observed_all_ckd40$std.error
   }
   
-  est.su <- pool.rubin.KM(EST.su[k,], SE.su[k,], n.imp)
-  observed_su[k,] <- observed_su[k,] %>% 
+  est.dpp4isu <- pool.rubin.KM(EST.dpp4isu[k,], SE.dpp4isu[k,], n.imp)
+  observed_dpp4isu[k,] <- observed_dpp4isu[k,] %>% 
     mutate(
-      observed_su=est.su[1],
-      lower_ci_su=est.su[2],
-      upper_ci_su=est.su[3],
+      observed_dpp4isu=est.dpp4isu[1],
+      lower_ci_dpp4isu=est.dpp4isu[2],
+      upper_ci_dpp4isu=est.dpp4isu[3],
       strata=k
     )
   
-  est.dpp4 <- pool.rubin.KM(EST.dpp4[k,], SE.dpp4[k,], n.imp)
-  observed_dpp4[k,] <- observed_dpp4[k,] %>% 
+  est.sglt2i <- pool.rubin.KM(EST.sglt2i[k,], SE.sglt2i[k,], n.imp)
+  observed_sglt2i[k,] <- observed_sglt2i[k,] %>% 
     mutate(
-      observed_dpp4=est.dpp4[1],
-      lower_ci_dpp4=est.dpp4[2],
-      upper_ci_dpp4=est.dpp4[3],
-      strata=k
-    )
-  
-  est.sglt2 <- pool.rubin.KM(EST.sglt2[k,], SE.sglt2[k,], n.imp)
-  observed_sglt2[k,] <- observed_sglt2[k,] %>% 
-    mutate(
-      observed_sglt2=est.sglt2[1],
-      lower_ci_sglt2=est.sglt2[2],
-      upper_ci_sglt2=est.sglt2[3],
+      observed_sglt2i=est.sglt2i[1],
+      lower_ci_sglt2i=est.sglt2i[2],
+      upper_ci_sglt2i=est.sglt2i[3],
       strata=k
     )
   
@@ -521,32 +470,26 @@ for (k in 1:n.quantiles) {
 }
 
 
-su_events <- cohort %>%
-  filter(studydrug=="SU" & ckd_egfr40_censvar==1) %>%
+dpp4isu_events <- cohort %>%
+  filter(studydrug2=="DPP4i/SU" & ckd_egfr40_censvar==1) %>%
   group_by(ckd40_risk_decile) %>%
-  summarise(SU=round(n()/n.imp, 0))
-
-dpp4_events <- cohort %>%
-  filter(studydrug=="DPP4" & ckd_egfr40_censvar==1) %>%
-  group_by(ckd40_risk_decile) %>%
-  summarise(DPP4=round(n()/n.imp, 0))
+  summarise(DPP4iSU=round(n()/n.imp, 0))
 
 sglt2_events <- cohort %>%
-  filter(studydrug=="SGLT2" & ckd_egfr40_censvar==1) %>%
+  filter(studydrug2=="SGLT2i" & ckd_egfr40_censvar==1) %>%
   group_by(ckd40_risk_decile) %>%
-  summarise(SGLT2=round(n()/n.imp, 0))
+  summarise(SGLTi=round(n()/n.imp, 0))
 
 
 obs_v_pred <- rbind(
-  cbind((predicted %>% filter(studydrug=="SU")), observed_su),
-  cbind((predicted %>% filter(studydrug=="DPP4")), observed_dpp4),
-  cbind((predicted %>% filter(studydrug=="SGLT2")), observed_sglt2)
+  cbind((predicted %>% filter(studydrug2=="DPP4i/SU")), observed_dpp4isu),
+  cbind((predicted %>% filter(studydrug2=="SGLT2i")), observed_sglt2i)
 ) %>%
-  mutate(observed=coalesce(observed_su, observed_dpp4, observed_sglt2),
-         lower_ci=coalesce(lower_ci_su, lower_ci_dpp4, lower_ci_sglt2),
-         upper_ci=coalesce(upper_ci_su, upper_ci_dpp4, upper_ci_sglt2))
+  mutate(observed=coalesce(observed_dpp4isu, observed_sglt2i),
+         lower_ci=coalesce(lower_ci_dpp4isu, lower_ci_sglt2i),
+         upper_ci=coalesce(upper_ci_dpp4isu, upper_ci_sglt2i))
 
-events_table <- data.frame(t(su_events %>% inner_join(dpp4_events) %>%
+events_table <- data.frame(t(dpp4isu_events %>% 
                                inner_join(sglt2_events))) %>%
   rownames_to_column() %>%
   filter(rowname!="ckd40_risk_decile")
@@ -557,7 +500,7 @@ empty_tick <- obs_v_pred %>%
   filter(ckd40_risk_decile==1) %>%
   mutate(observed=NA, lower_ci=NA, upper_ci=NA, mean_ckd40_pred=NA, ckd40_risk_decile=0)
 
-p1 <- ggplot(data=bind_rows(empty_tick,obs_v_pred), aes(x=ckd40_risk_decile, group=studydrug, color=studydrug)) +
+p1 <- ggplot(data=bind_rows(empty_tick,obs_v_pred), aes(x=ckd40_risk_decile, group=studydrug2, color=studydrug2)) +
   geom_point(aes(y = observed*100), position=dodge) +
   geom_errorbar(aes(ymax=upper_ci*100,ymin=lower_ci*100),width=0.25,size=1, position=dodge) +
   geom_point(aes(y = mean_ckd40_pred*100), position=dodge, shape=17, size=2) +
@@ -565,6 +508,7 @@ p1 <- ggplot(data=bind_rows(empty_tick,obs_v_pred), aes(x=ckd40_risk_decile, gro
   xlab("Risk score decile") + ylab("Risk (%)")+
   scale_x_continuous(breaks=c(seq(0,10,by=1)))+
   scale_y_continuous(breaks=c(seq(0,7,by=1)), limits=c(-10,10)) +
+  scale_colour_manual(values = cols) +
   theme(panel.border=element_blank(), panel.grid.major=element_blank(),panel.grid.minor=element_blank(),
         axis.line.x=element_line(colour = "black"), axis.line.y=element_line(colour="black"),
         plot.title = element_text(size = rel(1.5), face = "bold")) + theme(plot.margin = margin()) +
@@ -586,12 +530,13 @@ p_ckd40_uncal_bydeciles_bydrug
 
 p1 <- ggplot(data=bind_rows(empty_tick,obs_v_pred), aes(x=mean_ckd40_pred*100)) +
   #geom_errorbar(aes(ymax=upper_ci*100,ymin=lower_ci*100),width=0.25,size=1, position=dodge) +
-  geom_point(aes(y = observed*100, group=studydrug, color=studydrug), position=dodge, shape=17, size=2) +
+  geom_point(aes(y = observed*100, group=studydrug2, color=studydrug2), position=dodge, shape=17, size=2) +
   geom_abline(intercept = 0, slope = 1) +
   theme_bw() +
   xlab("Predicted risk (%)") + ylab("Observed risk (%)")+
   scale_x_continuous(limits=c(0,6))+
   scale_y_continuous(limits=c(-5,10)) +
+  scale_colour_manual(values = cols) +
   theme(panel.border=element_blank(), panel.grid.major=element_blank(),panel.grid.minor=element_blank(),
         axis.line.x=element_line(colour = "black"), axis.line.y=element_line(colour="black"),
         plot.title = element_text(size = rel(1.5), face = "bold")) + theme(plot.margin = margin()) +
@@ -604,7 +549,7 @@ p_ckd40_uncal_bydrug
 
 ## first plot with all observed combined (not grouped by studydrug) vs predicted
 
-obs_v_pred <- rbind(
+obs_v_pred2 <- rbind(
   (predicted_all %>% mutate(
     lower_ci = NA,
     upper_ci = NA,
@@ -621,7 +566,7 @@ obs_v_pred <- rbind(
   )
 )
 
-p_ckd40_uncal_bydeciles <- ggplot(data=obs_v_pred, aes(x=strata, y=estimate*100)) +
+p_ckd40_uncal_bydeciles <- ggplot(data=obs_v_pred2, aes(x=strata, y=estimate*100)) +
   geom_errorbar(aes(ymax=upper_ci*100,ymin=lower_ci*100),width=0.1,size=.75) +
   geom_point(aes(fill = risk_type, size = risk_type), shape = 21, colour = "black", stroke = 1.5) +
   scale_fill_manual("",
@@ -649,6 +594,30 @@ p_ckd40_uncal_bydeciles <- ggplot(data=obs_v_pred, aes(x=strata, y=estimate*100)
 
 p_ckd40_uncal_bydeciles
 
+## FINAL PLOT
+p_ckd40_uncal_bydeciles_dpp4isu <- ggplot(data=bind_rows(empty_tick,obs_v_pred), aes(x=mean_ckd40_pred*100)) +
+  geom_errorbar(aes(ymax=upper_ci_dpp4isu*100,ymin=lower_ci_dpp4isu*100, color=studydrug2),width=0.1,size=1) +
+  geom_point(aes(y = observed_dpp4isu*100, group=studydrug2, color=studydrug2), shape=18, size=3) +
+  geom_abline(intercept = 0, slope = 1, lty = 2) +
+  theme_bw() +
+  xlab("Predicted risk (%)") + ylab("Observed risk (%)")+
+  scale_x_continuous(limits=c(0,8))+
+  scale_y_continuous(limits=c(-1,7)) +
+  scale_colour_manual(values = cols) +
+  theme(panel.border=element_blank(), panel.grid.major=element_blank(),panel.grid.minor=element_blank(),
+        axis.line.x=element_line(colour = "black"), axis.line.y=element_line(colour="black"),
+        plot.title = element_text(size = rel(1.5), face = "bold")) + theme(plot.margin = margin()) +
+  theme(axis.text=element_text(size=rel(1.5)),
+        axis.title=element_text(size=rel(1.5)),
+        plot.title=element_text(hjust = 0.5),
+        plot.subtitle=element_text(hjust = 0.5,size=rel(1.2)),
+        legend.position = "none") +
+  ggtitle("Predicted vs observed risk of 40% eGFR decline or ESRD", subtitle = "Uncalibrated score, binned by risk decile") +
+  coord_cartesian(xlim = c(0,7.5), ylim = c(0,7.5))
+
+
+p_ckd40_uncal_bydeciles_dpp4isu
+
 ## C-stat
 cohort <- cohort %>%
   mutate(ckdpc_40egfr_survival=(100-ckdpc_40egfr_score)/100)
@@ -658,329 +627,295 @@ cstat_est <- summary(surv_mod_ckd40)$concordance[1]
 cstat_est_ll <- summary(surv_mod_ckd40)$concordance[1]-(1.96*summary(surv_mod_ckd40)$concordance[2])
 cstat_est_ul <- summary(surv_mod_ckd40)$concordance[1]+(1.96*summary(surv_mod_ckd40)$concordance[2])
 paste0("C statistic: ", round(cstat_est, 4), ", 95% CI ", round(cstat_est_ll, 4), "-", round(cstat_est_ul,4))
-# C statistic: 0.7377, 95% CI 0.7306-0.7447
+# C statistic: 0.7531, 95% CI 0.7475-0.7586
 
 
 # similarly, this risk score also overestimates risk.
 # both will need some recalibration.
 
 ############################2A RECALIBRATION - NEW CKD################################################################
-
-# 3 Recalibration
-
-# CKD < 60
-
-## Original survival constant: 
-#baseline hazard:
-EHRBiomarkr::ckdpcEgfr60RiskConstants$new_surv_confirmed %>% as.numeric()
-#0.01221876
-#Baseline hazard (BH) = exp(-5^survival constant)
-#therefore original survival constant was (log(-log(BH)))/log(5)
-as.numeric(EHRBiomarkr::ckdpcEgfr60RiskConstants$new_surv_confirmed) %>% log() %>% abs() %>% log(base=5) 
-#0.9212477
-
-# now we will recalculate a survival constant in the calibration cohort
-# we will then use this to recalibrate in the non-calibration cohort.
-new_ckd60_surv <- rep(NA, n.imp)
-for (i in 1:n.imp) {
-recal_mod <- coxph(Surv(ckd_345_censtime_yrs, ckd_345_censvar) ~ offset(ckdpc_egfr60_confirmed_lin_predictor), 
-                   data=cal_cohort[cal_cohort$.imp == i,])
-new_ckd60_surv[i] <- summary(survfit(recal_mod),time=5)$surv
-sprintf("%.15f", new_ckd60_surv[i])
-}
-new_ckd60_surv2 <- mean(new_ckd60_surv)
-# 0.9659779
-## new surv constant=exp(-5^new_ckd60_surv2)
-
-## Recalculate scores in rest of cohort
-noncal_cohort <- noncal_cohort %>%
-  mutate(centred_egfr60_lin_predictor=ckdpc_egfr60_confirmed_lin_predictor-mean(ckdpc_egfr60_confirmed_lin_predictor)) %>%
-  ungroup() %>%
-  mutate(ckdpc_egfr60_confirmed_score_cal=(1-(new_ckd60_surv2^exp(centred_egfr60_lin_predictor)))*100)
-
-cohort <- cohort %>%
-  mutate(centred_egfr60_lin_predictor=ckdpc_egfr60_confirmed_lin_predictor-mean(ckdpc_egfr60_confirmed_lin_predictor, na.rm = T)) %>%
-  ungroup() %>%
-  mutate(ckdpc_egfr60_confirmed_score_cal=(1-(new_ckd60_surv^exp(centred_egfr60_lin_predictor)))*100)
-
-## Make plots
-
-# new risk deciles
-noncal_cohort$ckd60_risk_decile <- ntile(noncal_cohort$ckdpc_egfr60_confirmed_score_cal, n.quantiles)
-
-### Get mean predicted probabilities
-predicted <- noncal_cohort %>%
-  group_by(ckd60_risk_decile, studydrug) %>%
-  summarise(mean_ckd60_pred=mean(ckdpc_egfr60_confirmed_score_cal)/100)
-
-predicted_all <- noncal_cohort %>%
-  group_by(ckd60_risk_decile) %>%
-  summarise(mean_ckd60_pred=mean(ckdpc_egfr60_confirmed_score_cal)/100)
-
-### Find actual observed probabilities by risk score category and studydrug
-
-EST.su <- SE.su <-
-  EST.dpp4 <- SE.dpp4 <-
-  EST.sglt2 <- SE.sglt2 <- 
-  EST.all <- SE.all <-
-  matrix(data = NA, nrow = n.quantiles, ncol = n.imp)
-
-observed_su <- tibble() %>% mutate(
-  observed_su=NA,
-  lower_ci_su=NA,
-  upper_ci_su=NA,
-  strata=NA
-)
-
-observed_dpp4 <- tibble() %>% mutate(
-  observed_dpp4=NA,
-  lower_ci_dpp4=NA,
-  upper_ci_dpp4=NA,
-  strata=NA
-)
-
-observed_sglt2 <- tibble() %>% mutate(
-  observed_sglt2=NA,
-  lower_ci_sglt2=NA,
-  upper_ci_sglt2=NA,
-  strata=NA
-)
-
-observed_all <- tibble() %>% mutate(
-  observed=NA,
-  lower_ci=NA,
-  upper_ci=NA,
-  strata=NA
-)
-
-for (k in 1:n.quantiles) {
-  for (i in 1:n.imp) {
-    
-    observed_su_ckd60 <- survfit(Surv(ckd_345_censtime_yrs, ckd_345_censvar) ~ ckd60_risk_decile, 
-                                 data=noncal_cohort[noncal_cohort$.imp == i & 
-                                                     noncal_cohort$ckd60_risk_decile == k &
-                                                     noncal_cohort$studydrug=="SU",]) %>%
-      tidy() %>%
-      # group_by(strata) %>%
-      filter(time==max(time))
-    
-    EST.su[k,i] <- observed_su_ckd60$estimate
-    SE.su[k,i] <- observed_su_ckd60$std.error
-    
-    observed_dpp4_ckd60 <- survfit(Surv(ckd_345_censtime_yrs, ckd_345_censvar) ~ ckd60_risk_decile, 
-                                   data=noncal_cohort[noncal_cohort$.imp == i & 
-                                                       noncal_cohort$ckd60_risk_decile == k &
-                                                       noncal_cohort$studydrug=="DPP4",]) %>%
-      tidy() %>%
-      # group_by(strata) %>%
-      filter(time==max(time))
-    
-    EST.dpp4[k,i] <- observed_dpp4_ckd60$estimate
-    SE.dpp4[k,i] <- observed_dpp4_ckd60$std.error
-    
-    observed_sglt2_ckd60 <- survfit(Surv(ckd_345_censtime_yrs, ckd_345_censvar) ~ ckd60_risk_decile, 
-                                    data=noncal_cohort[noncal_cohort$.imp == i & 
-                                                               noncal_cohort$ckd60_risk_decile == k &
-                                                               noncal_cohort$studydrug=="SGLT2",]) %>%
-      tidy() %>%
-      # group_by(strata) %>%
-      filter(time==max(time))
-    
-    EST.sglt2[k,i] <- observed_sglt2_ckd60$estimate
-    SE.sglt2[k,i] <- observed_sglt2_ckd60$std.error
-    
-    observed_all_ckd60 <- survfit(Surv(ckd_345_censtime_yrs, ckd_345_censvar) ~ ckd60_risk_decile, 
-                                    data=noncal_cohort[noncal_cohort$.imp == i & 
-                                                               noncal_cohort$ckd60_risk_decile == k,]) %>%
-      tidy() %>%
-      # group_by(strata) %>%
-      filter(time==max(time))
-    
-    EST.all[k,i] <- observed_all_ckd60$estimate
-    SE.all[k,i] <- observed_all_ckd60$std.error
-  }
-  
-  est.su <- pool.rubin.KM(EST.su[k,], SE.su[k,], n.imp)
-  observed_su[k,] <- observed_su[k,] %>% 
-    mutate(
-      observed_su=est.su[1],
-      lower_ci_su=est.su[2],
-      upper_ci_su=est.su[3],
-      strata=k
-    )
-  
-  est.dpp4 <- pool.rubin.KM(EST.dpp4[k,], SE.dpp4[k,], n.imp)
-  observed_dpp4[k,] <- observed_dpp4[k,] %>% 
-    mutate(
-      observed_dpp4=est.dpp4[1],
-      lower_ci_dpp4=est.dpp4[2],
-      upper_ci_dpp4=est.dpp4[3],
-      strata=k
-    )
-  
-  est.sglt2 <- pool.rubin.KM(EST.sglt2[k,], SE.sglt2[k,], n.imp)
-  observed_sglt2[k,] <- observed_sglt2[k,] %>% 
-    mutate(
-      observed_sglt2=est.sglt2[1],
-      lower_ci_sglt2=est.sglt2[2],
-      upper_ci_sglt2=est.sglt2[3],
-      strata=k
-    )
-  
-  est.all <- pool.rubin.KM(EST.all[k,], SE.all[k,], n.imp)
-  observed_all[k,] <- observed_all[k,] %>% 
-    mutate(
-      observed=est.all[1],
-      lower_ci=est.all[2],
-      upper_ci=est.all[3],
-      strata=k
-    )
-  
-}
-
-
-su_events <- noncal_cohort %>%
-  filter(studydrug=="SU" & ckd_345_censvar==1) %>%
-  group_by(ckd60_risk_decile) %>%
-  summarise(SU=round(n()/n.imp, 0))
-
-dpp4_events <- noncal_cohort %>%
-  filter(studydrug=="DPP4" & ckd_345_censvar==1) %>%
-  group_by(ckd60_risk_decile) %>%
-  summarise(DPP4=round(n()/n.imp, 0))
-
-sglt2_events <- noncal_cohort %>%
-  filter(studydrug=="SGLT2" & ckd_345_censvar==1) %>%
-  group_by(ckd60_risk_decile) %>%
-  summarise(SGLT2=round(n()/n.imp, 0))
-
-obs_v_pred <- rbind(
-  cbind((predicted %>% filter(studydrug=="SU")), observed_su),
-  cbind((predicted %>% filter(studydrug=="DPP4")), observed_dpp4),
-  cbind((predicted %>% filter(studydrug=="SGLT2")), observed_sglt2)
-) %>%
-  mutate(observed=coalesce(observed_su, observed_dpp4, observed_sglt2),
-         lower_ci=coalesce(lower_ci_su, lower_ci_dpp4, lower_ci_sglt2),
-         upper_ci=coalesce(upper_ci_su, upper_ci_dpp4, upper_ci_sglt2))
-
-events_table <- data.frame(t(su_events %>%
-                               inner_join(sglt2_events) %>% 
-                               inner_join(dpp4_events))) %>%
-  rownames_to_column() %>%
-  filter(rowname!="ckd60_risk_decile")
-
-dodge <- position_dodge(width=0.3)
-
-empty_tick <- obs_v_pred %>%
-  filter(ckd60_risk_decile==1) %>%
-  mutate(observed=NA, lower_ci=NA, upper_ci=NA, mean_ckd60_pred=NA, ckd60_risk_decile=0)
-
-p1 <- ggplot(data=bind_rows(empty_tick,obs_v_pred), aes(x=ckd60_risk_decile, group=studydrug, color=studydrug)) +
-  geom_point(aes(y = observed*100), position=dodge) +
-  geom_errorbar(aes(ymax=upper_ci*100,ymin=lower_ci*100),width=0.25,size=1, position=dodge) +
-  geom_point(aes(y = mean_ckd60_pred*100), position=dodge, shape=17, size=2) +
-  theme_bw() +
-  xlab("Risk score decile") + ylab("Risk (%)")+
-  scale_x_continuous(breaks=c(seq(0,10,by=1)))+
-  scale_y_continuous(breaks=c(seq(0,60,by=10)), limits=c(-2,75)) +
-  theme(panel.border=element_blank(), panel.grid.major=element_blank(),panel.grid.minor=element_blank(),
-        axis.line.x=element_line(colour = "black"), axis.line.y=element_line(colour="black"),
-        plot.title = element_text(size = rel(1.5), face = "bold")) + theme(plot.margin = margin()) +
-  theme(axis.text=element_text(size=rel(1.5)))+ theme(axis.title=element_text(size=rel(1.5))) +
-  ggtitle("Recalibrated risk score vs CKD incidence (5 year)") +
-  coord_cartesian(ylim = c(0,60))
-
-p2 <- gridExtra::tableGrob(events_table, rows = NULL, cols = NULL)
-p2$widths <- unit(rep(1, ncol(p2)), "null")
-p2$heights <- unit(rep(1, nrow(p2)), "null")
-
-p3 <- ggplot() +
-  annotation_custom(p2)
-
-p_ckd60_cal_bydeciles_bydrug <- p1 + p3 + plot_layout(ncol = 1, heights=c(5,1))
-p_ckd60_cal_bydeciles_bydrug
-
-## obs vs pred calibration plot with loess smoother:
-p1 <- ggplot(data=bind_rows(empty_tick,obs_v_pred), aes(x=mean_ckd60_pred*100)) +
-  #geom_errorbar(aes(ymax=upper_ci*100,ymin=lower_ci*100),width=0.25,size=1, position=dodge) +
-  geom_point(aes(y = observed*100, group=studydrug, color=studydrug), position=dodge, shape=17, size=2) +
-  geom_abline(intercept = 0, slope = 1) +
-  theme_bw() +
-  xlab("Predicted risk (%)") + ylab("Observed risk (%)")+
-  scale_x_continuous(limits=c(0,33))+
-  scale_y_continuous(limits=c(0,50)) +
-  theme(panel.border=element_blank(), panel.grid.major=element_blank(),panel.grid.minor=element_blank(),
-        axis.line.x=element_line(colour = "black"), axis.line.y=element_line(colour="black"),
-        plot.title = element_text(size = rel(1.5), face = "bold")) + theme(plot.margin = margin()) +
-  theme(axis.text=element_text(size=rel(1.5)))+ theme(axis.title=element_text(size=rel(1.5))) +
-  ggtitle("Predicted versus observed CKD incidence (5 year)") +
-  coord_cartesian(ylim = c(0,33))
-
-p_ckd60_cal_bydrug <- p1 + geom_smooth(aes(y=observed*100, x=mean_ckd60_pred*100), colour = "black", data = obs_v_pred)
-p_ckd60_cal_bydrug
-
-## plot with all observed combined (not by drug) vs predicted
-
-
-obs_v_pred <- rbind(
-  (predicted_all %>% mutate(
-    lower_ci = NA,
-    upper_ci = NA,
-    risk_type = "predicted"
-  ) %>%
-    select(strata=ckd60_risk_decile, estimate=mean_ckd60_pred, lower_ci, upper_ci, risk_type)
-  ),
-  (observed_all %>% mutate(
-    risk_type = "observed"
-  ) %>% 
-    relocate(strata, .before = observed) %>%
-    relocate(risk_type, .after = upper_ci) %>%
-    select(strata, estimate=observed, lower_ci, upper_ci, risk_type)
-  )
-)
-
-p_ckd60_cal_bydeciles <- ggplot(data=obs_v_pred, aes(x=strata, y=estimate*100)) +
-  geom_errorbar(aes(ymax=upper_ci*100,ymin=lower_ci*100),width=0.1,size=.75) +
-  geom_point(aes(fill = risk_type, size = risk_type), shape = 21, colour = "black", stroke = 1.5) +
-  scale_fill_manual("",
-                    breaks = c("predicted", "observed"),
-                    labels = c("Recalibrated risk score", "CKD incidence (Kaplan-Meier estimate)"),
-                    values = c("white", "cadetblue3")) +
-  scale_size_manual(breaks = c("predicted", "observed"),
-                    values = c(4,3),
-                    guide = "none") +
-  guides(fill = guide_legend(override.aes = list(size = 4))) +
-  theme_bw() +
-  theme(legend.position = c(0.05,0.95),
-        legend.justification = c(0,1),
-        legend.key.size = unit(1, "cm"),
-        legend.text=element_text(size=rel(1))) +
-  xlab("Risk score decile") + ylab("Risk (%)")+
-  scale_x_continuous(breaks=c(seq(0,10,by=1)))+
-  scale_y_continuous(breaks=c(seq(0,60,by=10)), limits=c(-2,75)) +
-  theme(panel.border=element_blank(), panel.grid.major=element_blank(),panel.grid.minor=element_blank(),
-        axis.line.x=element_line(colour = "black"), axis.line.y=element_line(colour="black"),
-        plot.title = element_text(size = rel(1.5), face = "bold")) + theme(plot.margin = margin()) +
-  theme(axis.text=element_text(size=rel(1.5)))+ theme(axis.title=element_text(size=rel(1.5))) +
-  ggtitle("Recalibrated risk score vs CKD incidence (5-year)") +
-  coord_cartesian(ylim = c(0,40))
-
-p_ckd60_cal_bydeciles
-
-
-## C-stat
-noncal_cohort <- noncal_cohort %>%
-  mutate(ckdpc_egfr60_confirmed_survival=(100-ckdpc_egfr60_confirmed_score_cal)/100)
-
-surv_mod_ckd60 <- coxph(Surv(ckd_345_censtime_yrs, ckd_345_censvar)~ckdpc_egfr60_confirmed_survival, data=noncal_cohort, method="breslow")
-
-cstat_est <- summary(surv_mod_ckd60)$concordance[1]
-cstat_est_ll <- summary(surv_mod_ckd60)$concordance[1]-(1.96*summary(surv_mod_ckd60)$concordance[2])
-cstat_est_ul <- summary(surv_mod_ckd60)$concordance[1]+(1.96*summary(surv_mod_ckd60)$concordance[2])
-paste0("C statistic: ", round(cstat_est, 4), ", 95% CI ", round(cstat_est_ll, 4), "-", round(cstat_est_ul,4))
-# C statistic: 0.9046, 95% CI 0.9028-0.9064
-
-
+# 
+# # CKD < 60
+# 
+# ## Original survival constant: 
+# #baseline hazard:
+# EHRBiomarkr::ckdpcEgfr60RiskConstants$new_surv_confirmed %>% as.numeric()
+# #0.01221876
+# #Baseline hazard (BH) = exp(-5^survival constant)
+# #therefore original survival constant was (log(-log(BH)))/log(5)
+# as.numeric(EHRBiomarkr::ckdpcEgfr60RiskConstants$new_surv_confirmed) %>% log() %>% abs() %>% log(base=5) 
+# #0.9212477
+# 
+# # now we will recalculate a survival constant in the calibration cohort
+# # we will then use this to recalibrate in the non-calibration cohort.
+# new_ckd60_surv <- rep(NA, n.imp)
+# for (i in 1:n.imp) {
+#   recal_mod <- coxph(Surv(ckd_345_censtime_yrs, ckd_345_censvar) ~ offset(ckdpc_egfr60_confirmed_lin_predictor), 
+#                      data=cal_cohort[cal_cohort$.imp == i,])
+#   new_ckd60_surv[i] <- summary(survfit(recal_mod),time=5)$surv
+#   sprintf("%.15f", new_ckd60_surv[i])
+# }
+# new_ckd60_surv2 <- mean(new_ckd60_surv)
+# # 0.9659779
+# ## new surv constant=exp(-5^new_ckd60_surv2)
+# 
+# ## Recalculate scores in rest of cohort
+# noncal_cohort <- noncal_cohort %>%
+#   mutate(centred_egfr60_lin_predictor=ckdpc_egfr60_confirmed_lin_predictor-mean(ckdpc_egfr60_confirmed_lin_predictor)) %>%
+#   ungroup() %>%
+#   mutate(ckdpc_egfr60_confirmed_score_cal=(1-(new_ckd60_surv2^exp(centred_egfr60_lin_predictor)))*100)
+# 
+# cohort <- cohort %>%
+#   mutate(centred_egfr60_lin_predictor=ckdpc_egfr60_confirmed_lin_predictor-mean(ckdpc_egfr60_confirmed_lin_predictor, na.rm = T)) %>%
+#   ungroup() %>%
+#   mutate(ckdpc_egfr60_confirmed_score_cal=(1-(new_ckd60_surv^exp(centred_egfr60_lin_predictor)))*100)
+# 
+# ## Make plots
+# 
+# # new risk deciles
+# noncal_cohort$ckd60_risk_decile <- ntile(noncal_cohort$ckdpc_egfr60_confirmed_score_cal, n.quantiles)
+# 
+# ### Get mean predicted probabilities
+# predicted <- noncal_cohort %>%
+#   group_by(ckd60_risk_decile, studydrug2) %>%
+#   summarise(mean_ckd60_pred=mean(ckdpc_egfr60_confirmed_score_cal)/100)
+# 
+# predicted_all <- noncal_cohort %>%
+#   group_by(ckd60_risk_decile) %>%
+#   summarise(mean_ckd60_pred=mean(ckdpc_egfr60_confirmed_score_cal)/100)
+# 
+# ### Find actual observed probabilities by risk score category and studydrug
+# 
+# EST.dpp4isu <- SE.dpp4isu <-
+#   EST.sglt2i <- SE.sglt2i <- 
+#   EST.all <- SE.all <-
+#   matrix(data = NA, nrow = n.quantiles, ncol = n.imp)
+# 
+# observed_dpp4isu <- tibble() %>% mutate(
+#   observed_dpp4isu=NA,
+#   lower_ci_dpp4isu=NA,
+#   upper_ci_dpp4isu=NA,
+#   strata=NA
+# )
+# 
+# observed_sglt2i <- tibble() %>% mutate(
+#   observed_sglt2i=NA,
+#   lower_ci_sglt2i=NA,
+#   upper_ci_sglt2i=NA,
+#   strata=NA
+# )
+# 
+# observed_all <- tibble() %>% mutate(
+#   observed=NA,
+#   lower_ci=NA,
+#   upper_ci=NA,
+#   strata=NA
+# )
+# 
+# for (k in 1:n.quantiles) {
+#   for (i in 1:n.imp) {
+#     
+#     observed_dpp4isu_ckd60 <- survfit(Surv(ckd_345_censtime_yrs, ckd_345_censvar) ~ ckd60_risk_decile, 
+#                                  data=noncal_cohort[noncal_cohort$.imp == i & 
+#                                                       noncal_cohort$ckd60_risk_decile == k &
+#                                                       noncal_cohort$studydrug2=="DPP4i/SU",]) %>%
+#       tidy() %>%
+#       # group_by(strata) %>%
+#       filter(time==max(time))
+#     
+#     EST.dpp4isu[k,i] <- observed_dpp4isu_ckd60$estimate
+#     SE.dpp4isu[k,i] <- observed_dpp4isu_ckd60$std.error
+#     
+# 
+#     observed_sglt2i_ckd60 <- survfit(Surv(ckd_345_censtime_yrs, ckd_345_censvar) ~ ckd60_risk_decile, 
+#                                     data=noncal_cohort[noncal_cohort$.imp == i & 
+#                                                          noncal_cohort$ckd60_risk_decile == k &
+#                                                          noncal_cohort$studydrug2=="SGLT2i",]) %>%
+#       tidy() %>%
+#       # group_by(strata) %>%
+#       filter(time==max(time))
+#     
+#     EST.sglt2i[k,i] <- observed_sglt2i_ckd60$estimate
+#     SE.sglt2i[k,i] <- observed_sglt2i_ckd60$std.error
+#     
+#     observed_all_ckd60 <- survfit(Surv(ckd_345_censtime_yrs, ckd_345_censvar) ~ ckd60_risk_decile, 
+#                                   data=noncal_cohort[noncal_cohort$.imp == i & 
+#                                                        noncal_cohort$ckd60_risk_decile == k,]) %>%
+#       tidy() %>%
+#       # group_by(strata) %>%
+#       filter(time==max(time))
+#     
+#     EST.all[k,i] <- observed_all_ckd60$estimate
+#     SE.all[k,i] <- observed_all_ckd60$std.error
+#   }
+#   
+#   est.dpp4isu <- pool.rubin.KM(EST.dpp4isu[k,], SE.dpp4isu[k,], n.imp)
+#   observed_dpp4isu[k,] <- observed_dpp4isu[k,] %>% 
+#     mutate(
+#       observed_dpp4isu=est.dpp4isu[1],
+#       lower_ci_dpp4isu=est.dpp4isu[2],
+#       upper_ci_dpp4isu=est.dpp4isu[3],
+#       strata=k
+#     )
+#   
+#   est.sglt2i <- pool.rubin.KM(EST.sglt2i[k,], SE.sglt2i[k,], n.imp)
+#   observed_sglt2i[k,] <- observed_sglt2i[k,] %>% 
+#     mutate(
+#       observed_sglt2i=est.sglt2i[1],
+#       lower_ci_sglt2i=est.sglt2i[2],
+#       upper_ci_sglt2i=est.sglt2i[3],
+#       strata=k
+#     )
+#   
+#   est.all <- pool.rubin.KM(EST.all[k,], SE.all[k,], n.imp)
+#   observed_all[k,] <- observed_all[k,] %>% 
+#     mutate(
+#       observed=est.all[1],
+#       lower_ci=est.all[2],
+#       upper_ci=est.all[3],
+#       strata=k
+#     )
+#   
+# }
+# 
+# 
+# dpp4isu_events <- noncal_cohort %>%
+#   filter(studydrug2=="DPP4i/SU" & ckd_345_censvar==1) %>%
+#   group_by(ckd60_risk_decile) %>%
+#   summarise(DPP4iSU=round(n()/n.imp, 0))
+# 
+# sglt2_events <- noncal_cohort %>%
+#   filter(studydrug2=="SGLT2i" & ckd_345_censvar==1) %>%
+#   group_by(ckd60_risk_decile) %>%
+#   summarise(SGLTi=round(n()/n.imp, 0))
+# 
+# obs_v_pred <- rbind(
+#   cbind((predicted %>% filter(studydrug2=="DPP4i/SU")), observed_dpp4isu),
+#   cbind((predicted %>% filter(studydrug2=="SGLT2i")), observed_sglt2i)
+# ) %>%
+#   mutate(observed=coalesce(observed_dpp4isu, observed_sglt2i),
+#          lower_ci=coalesce(lower_ci_dpp4isu, lower_ci_sglt2i),
+#          upper_ci=coalesce(upper_ci_dpp4isu, upper_ci_sglt2i))
+# 
+# events_table <- data.frame(t(dpp4isu_events %>%
+#                                inner_join(sglt2_events))) %>% 
+#   rownames_to_column() %>%
+#   filter(rowname!="ckd60_risk_decile")
+# 
+# dodge <- position_dodge(width=0.3)
+# 
+# empty_tick <- obs_v_pred %>%
+#   filter(ckd60_risk_decile==1) %>%
+#   mutate(observed=NA, lower_ci=NA, upper_ci=NA, mean_ckd60_pred=NA, ckd60_risk_decile=0)
+# 
+# p1 <- ggplot(data=bind_rows(empty_tick,obs_v_pred), aes(x=ckd60_risk_decile, group=studydrug2, color=studydrug2)) +
+#   geom_point(aes(y = observed*100), position=dodge) +
+#   geom_errorbar(aes(ymax=upper_ci*100,ymin=lower_ci*100),width=0.25,size=1, position=dodge) +
+#   geom_point(aes(y = mean_ckd60_pred*100), position=dodge, shape=17, size=2) +
+#   theme_bw() +
+#   xlab("Risk score decile") + ylab("Risk (%)")+
+#   scale_x_continuous(breaks=c(seq(0,10,by=1)))+
+#   scale_y_continuous(breaks=c(seq(0,60,by=10)), limits=c(-2,75)) +
+#   scale_colour_manual(values = cols) +
+#   theme(panel.border=element_blank(), panel.grid.major=element_blank(),panel.grid.minor=element_blank(),
+#         axis.line.x=element_line(colour = "black"), axis.line.y=element_line(colour="black"),
+#         plot.title = element_text(size = rel(1.5), face = "bold")) + theme(plot.margin = margin()) +
+#   theme(axis.text=element_text(size=rel(1.5)))+ theme(axis.title=element_text(size=rel(1.5))) +
+#   ggtitle("Recalibrated risk score vs CKD incidence (5 year)") +
+#   coord_cartesian(ylim = c(0,60))
+# 
+# p2 <- gridExtra::tableGrob(events_table, rows = NULL, cols = NULL)
+# p2$widths <- unit(rep(1, ncol(p2)), "null")
+# p2$heights <- unit(rep(1, nrow(p2)), "null")
+# 
+# p3 <- ggplot() +
+#   annotation_custom(p2)
+# 
+# p_ckd60_cal_bydeciles_bydrug <- p1 + p3 + plot_layout(ncol = 1, heights=c(5,1))
+# p_ckd60_cal_bydeciles_bydrug
+# 
+# ## obs vs pred calibration plot with loess smoother:
+# p1 <- ggplot(data=bind_rows(empty_tick,obs_v_pred), aes(x=mean_ckd60_pred*100)) +
+#   #geom_errorbar(aes(ymax=upper_ci*100,ymin=lower_ci*100),width=0.25,size=1, position=dodge) +
+#   geom_point(aes(y = observed*100, group=studydrug2, color=studydrug2), position=dodge, shape=17, size=2) +
+#   geom_abline(intercept = 0, slope = 1) +
+#   theme_bw() +
+#   xlab("Predicted risk (%)") + ylab("Observed risk (%)")+
+#   scale_x_continuous(limits=c(0,33))+
+#   scale_y_continuous(limits=c(0,50)) +
+#   scale_colour_manual(values = cols) +
+#   theme(panel.border=element_blank(), panel.grid.major=element_blank(),panel.grid.minor=element_blank(),
+#         axis.line.x=element_line(colour = "black"), axis.line.y=element_line(colour="black"),
+#         plot.title = element_text(size = rel(1.5), face = "bold")) + theme(plot.margin = margin()) +
+#   theme(axis.text=element_text(size=rel(1.5)))+ theme(axis.title=element_text(size=rel(1.5))) +
+#   ggtitle("Predicted versus observed CKD incidence (5 year)") +
+#   coord_cartesian(ylim = c(0,33))
+# 
+# p_ckd60_cal_bydrug <- p1 + geom_smooth(aes(y=observed*100, x=mean_ckd60_pred*100), colour = "black", data = obs_v_pred)
+# p_ckd60_cal_bydrug
+# 
+# ## plot with all observed combined (not by drug) vs predicted
+# 
+# 
+# obs_v_pred <- rbind(
+#   (predicted_all %>% mutate(
+#     lower_ci = NA,
+#     upper_ci = NA,
+#     risk_type = "predicted"
+#   ) %>%
+#     select(strata=ckd60_risk_decile, estimate=mean_ckd60_pred, lower_ci, upper_ci, risk_type)
+#   ),
+#   (observed_all %>% mutate(
+#     risk_type = "observed"
+#   ) %>% 
+#     relocate(strata, .before = observed) %>%
+#     relocate(risk_type, .after = upper_ci) %>%
+#     select(strata, estimate=observed, lower_ci, upper_ci, risk_type)
+#   )
+# )
+# 
+# p_ckd60_cal_bydeciles <- ggplot(data=obs_v_pred, aes(x=strata, y=estimate*100)) +
+#   geom_errorbar(aes(ymax=upper_ci*100,ymin=lower_ci*100),width=0.1,size=.75) +
+#   geom_point(aes(fill = risk_type, size = risk_type), shape = 21, colour = "black", stroke = 1.5) +
+#   scale_fill_manual("",
+#                     breaks = c("predicted", "observed"),
+#                     labels = c("Recalibrated risk score", "CKD incidence (Kaplan-Meier estimate)"),
+#                     values = c("white", "cadetblue3")) +
+#   scale_size_manual(breaks = c("predicted", "observed"),
+#                     values = c(4,3),
+#                     guide = "none") +
+#   guides(fill = guide_legend(override.aes = list(size = 4))) +
+#   theme_bw() +
+#   theme(legend.position = c(0.05,0.95),
+#         legend.justification = c(0,1),
+#         legend.key.size = unit(1, "cm"),
+#         legend.text=element_text(size=rel(1))) +
+#   xlab("Risk score decile") + ylab("Risk (%)")+
+#   scale_x_continuous(breaks=c(seq(0,10,by=1)))+
+#   scale_y_continuous(breaks=c(seq(0,60,by=10)), limits=c(-2,75)) +
+#   theme(panel.border=element_blank(), panel.grid.major=element_blank(),panel.grid.minor=element_blank(),
+#         axis.line.x=element_line(colour = "black"), axis.line.y=element_line(colour="black"),
+#         plot.title = element_text(size = rel(1.5), face = "bold")) + theme(plot.margin = margin()) +
+#   theme(axis.text=element_text(size=rel(1.5)))+ theme(axis.title=element_text(size=rel(1.5))) +
+#   ggtitle("Recalibrated risk score vs CKD incidence (5-year)") +
+#   coord_cartesian(ylim = c(0,40))
+# 
+# p_ckd60_cal_bydeciles
+# 
+# 
+# ## C-stat
+# noncal_cohort <- noncal_cohort %>%
+#   mutate(ckdpc_egfr60_confirmed_survival=(100-ckdpc_egfr60_confirmed_score_cal)/100)
+# 
+# surv_mod_ckd60 <- coxph(Surv(ckd_345_censtime_yrs, ckd_345_censvar)~ckdpc_egfr60_confirmed_survival, data=noncal_cohort, method="breslow")
+# 
+# cstat_est <- summary(surv_mod_ckd60)$concordance[1]
+# cstat_est_ll <- summary(surv_mod_ckd60)$concordance[1]-(1.96*summary(surv_mod_ckd60)$concordance[2])
+# cstat_est_ul <- summary(surv_mod_ckd60)$concordance[1]+(1.96*summary(surv_mod_ckd60)$concordance[2])
+# paste0("C statistic: ", round(cstat_est, 4), ", 95% CI ", round(cstat_est_ll, 4), "-", round(cstat_est_ul,4))
+# # C statistic: 0.9054, 95% CI 0.9039-0.9068
+# 
+# 
 
 ############################2B RECALIBRATION - 40% DECLINE IN EGFR################################################################
 
@@ -996,11 +931,11 @@ EHRBiomarkr::ckdpc40EgfrRiskConstants$intercept %>% as.numeric()
 #calculate correction factor for intercept = ln(observed outcome frequency/1-observed outcome frequency / predicted outcome frequency/1-predicted outcome frequency)
 correction_factor <- rep(NA, n.imp)
 for (i in 1:n.imp) {
-correction_factor[i] <- ((mean(cal_cohort[cal_cohort$.imp == i,]$ckd_egfr40_censvar) / 
-                         (1-mean(cal_cohort[cal_cohort$.imp == i,]$ckd_egfr40_censvar))) /
-                        (mean(cal_cohort[cal_cohort$.imp == i,]$ckdpc_40egfr_score*0.01) / 
-                           (1-mean(cal_cohort[cal_cohort$.imp == i,]$ckdpc_40egfr_score*0.01))) ) %>% 
-  log()
+  correction_factor[i] <- ((mean(cal_cohort[cal_cohort$.imp == i,]$ckd_egfr40_censvar) / 
+                              (1-mean(cal_cohort[cal_cohort$.imp == i,]$ckd_egfr40_censvar))) /
+                             (mean(cal_cohort[cal_cohort$.imp == i,]$ckdpc_40egfr_score*0.01) / 
+                                (1-mean(cal_cohort[cal_cohort$.imp == i,]$ckdpc_40egfr_score*0.01))) ) %>% 
+    log()
 }
 
 #new intercept = original intercept + correction factor
@@ -1018,7 +953,7 @@ noncal_cohort$ckd40_risk_decile <- ntile(noncal_cohort$ckdpc_40egfr_score_cal, n
 
 ### Get mean predicted probabilities by studydrug
 predicted <- noncal_cohort %>%
-  group_by(ckd40_risk_decile, studydrug) %>%
+  group_by(ckd40_risk_decile, studydrug2) %>%
   summarise(mean_ckd40_pred=mean(ckdpc_40egfr_score_cal)/100)
 
 predicted_all <- noncal_cohort %>%
@@ -1027,30 +962,22 @@ predicted_all <- noncal_cohort %>%
 
 ### Find actual observed probabilities by risk score category and studydrug
 
-EST.su <- SE.su <-
-  EST.dpp4 <- SE.dpp4 <-
-  EST.sglt2 <- SE.sglt2 <- 
+EST.dpp4isu <- SE.dpp4isu <-
+  EST.sglt2i <- SE.sglt2i <- 
   EST.all <- SE.all <-
   matrix(data = NA, nrow = n.quantiles, ncol = n.imp)
 
-observed_su <- tibble() %>% mutate(
-  observed_su=NA,
-  lower_ci_su=NA,
-  upper_ci_su=NA,
+observed_dpp4isu <- tibble() %>% mutate(
+  observed_dpp4isu=NA,
+  lower_ci_dpp4isu=NA,
+  upper_ci_dpp4isu=NA,
   strata=NA
 )
 
-observed_dpp4 <- tibble() %>% mutate(
-  observed_dpp4=NA,
-  lower_ci_dpp4=NA,
-  upper_ci_dpp4=NA,
-  strata=NA
-)
-
-observed_sglt2 <- tibble() %>% mutate(
-  observed_sglt2=NA,
-  lower_ci_sglt2=NA,
-  upper_ci_sglt2=NA,
+observed_sglt2i <- tibble() %>% mutate(
+  observed_sglt2i=NA,
+  lower_ci_sglt2i=NA,
+  upper_ci_sglt2i=NA,
   strata=NA
 )
 
@@ -1064,42 +991,31 @@ observed_all <- tibble() %>% mutate(
 for (k in 1:n.quantiles) {
   for (i in 1:n.imp) {
     
-    observed_su_ckd40 <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ ckd40_risk_decile, 
+    observed_dpp4isu_ckd40 <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ ckd40_risk_decile, 
                                  data=noncal_cohort[noncal_cohort$.imp == i & 
-                                                            noncal_cohort$ckd40_risk_decile == k &
-                                                            noncal_cohort$studydrug=="SU",]) %>%
+                                                      noncal_cohort$ckd40_risk_decile == k &
+                                                      noncal_cohort$studydrug2=="DPP4i/SU",]) %>%
       tidy() %>%
       # group_by(strata) %>%
       filter(time==max(time))
     
-    EST.su[k,i] <- observed_su_ckd40$estimate
-    SE.su[k,i] <- observed_su_ckd40$std.error
+    EST.dpp4isu[k,i] <- observed_dpp4isu_ckd40$estimate
+    SE.dpp4isu[k,i] <- observed_dpp4isu_ckd40$std.error
     
-    observed_dpp4_ckd40 <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ ckd40_risk_decile, 
-                                   data=noncal_cohort[noncal_cohort$.imp == i & 
-                                                              noncal_cohort$ckd40_risk_decile == k &
-                                                              noncal_cohort$studydrug=="DPP4",]) %>%
-      tidy() %>%
-      # group_by(strata) %>%
-      filter(time==max(time))
-    
-    EST.dpp4[k,i] <- observed_dpp4_ckd40$estimate
-    SE.dpp4[k,i] <- observed_dpp4_ckd40$std.error
-    
-    observed_sglt2_ckd40 <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ ckd40_risk_decile, 
+    observed_sglt2i_ckd40 <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ ckd40_risk_decile, 
                                     data=noncal_cohort[noncal_cohort$.imp == i & 
-                                                               noncal_cohort$ckd40_risk_decile == k &
-                                                               noncal_cohort$studydrug=="SGLT2",]) %>%
+                                                         noncal_cohort$ckd40_risk_decile == k &
+                                                         noncal_cohort$studydrug2=="SGLT2i",]) %>%
       tidy() %>%
       # group_by(strata) %>%
       filter(time==max(time))
     
-    EST.sglt2[k,i] <- observed_sglt2_ckd40$estimate
-    SE.sglt2[k,i] <- observed_sglt2_ckd40$std.error
+    EST.sglt2i[k,i] <- observed_sglt2i_ckd40$estimate
+    SE.sglt2i[k,i] <- observed_sglt2i_ckd40$std.error
     
     observed_all_ckd40 <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ ckd40_risk_decile, 
-                                    data=noncal_cohort[noncal_cohort$.imp == i & 
-                                                               noncal_cohort$ckd40_risk_decile == k,]) %>%
+                                  data=noncal_cohort[noncal_cohort$.imp == i & 
+                                                       noncal_cohort$ckd40_risk_decile == k,]) %>%
       tidy() %>%
       # group_by(strata) %>%
       filter(time==max(time))
@@ -1109,30 +1025,21 @@ for (k in 1:n.quantiles) {
     
   }
   
-  est.su <- pool.rubin.KM(EST.su[k,], SE.su[k,], n.imp)
-  observed_su[k,] <- observed_su[k,] %>% 
+  est.dpp4isu <- pool.rubin.KM(EST.dpp4isu[k,], SE.dpp4isu[k,], n.imp)
+  observed_dpp4isu[k,] <- observed_dpp4isu[k,] %>% 
     mutate(
-      observed_su=est.su[1],
-      lower_ci_su=est.su[2],
-      upper_ci_su=est.su[3],
+      observed_dpp4isu=est.dpp4isu[1],
+      lower_ci_dpp4isu=est.dpp4isu[2],
+      upper_ci_dpp4isu=est.dpp4isu[3],
       strata=k
     )
   
-  est.dpp4 <- pool.rubin.KM(EST.dpp4[k,], SE.dpp4[k,], n.imp)
-  observed_dpp4[k,] <- observed_dpp4[k,] %>% 
+  est.sglt2i <- pool.rubin.KM(EST.sglt2i[k,], SE.sglt2i[k,], n.imp)
+  observed_sglt2i[k,] <- observed_sglt2i[k,] %>% 
     mutate(
-      observed_dpp4=est.dpp4[1],
-      lower_ci_dpp4=est.dpp4[2],
-      upper_ci_dpp4=est.dpp4[3],
-      strata=k
-    )
-  
-  est.sglt2 <- pool.rubin.KM(EST.sglt2[k,], SE.sglt2[k,], n.imp)
-  observed_sglt2[k,] <- observed_sglt2[k,] %>% 
-    mutate(
-      observed_sglt2=est.sglt2[1],
-      lower_ci_sglt2=est.sglt2[2],
-      upper_ci_sglt2=est.sglt2[3],
+      observed_sglt2i=est.sglt2i[1],
+      lower_ci_sglt2i=est.sglt2i[2],
+      upper_ci_sglt2i=est.sglt2i[3],
       strata=k
     )
   
@@ -1148,32 +1055,26 @@ for (k in 1:n.quantiles) {
 }
 
 
-su_events <- noncal_cohort %>%
-  filter(studydrug=="SU" & ckd_egfr40_censvar==1) %>%
+dpp4isu_events <- noncal_cohort %>%
+  filter(studydrug2=="DPP4i/SU" & ckd_egfr40_censvar==1) %>%
   group_by(ckd40_risk_decile) %>%
-  summarise(SU=round(n()/n.imp, 0))
-
-dpp4_events <- noncal_cohort %>%
-  filter(studydrug=="DPP4" & ckd_egfr40_censvar==1) %>%
-  group_by(ckd40_risk_decile) %>%
-  summarise(DPP4=round(n()/n.imp, 0))
+  summarise(DPP4iSU=round(n()/n.imp, 0))
 
 sglt2_events <- noncal_cohort %>%
-  filter(studydrug=="SGLT2" & ckd_egfr40_censvar==1) %>%
+  filter(studydrug2=="SGLT2i" & ckd_egfr40_censvar==1) %>%
   group_by(ckd40_risk_decile) %>%
-  summarise(SGLT2=round(n()/n.imp, 0))
+  summarise(SGLTi=round(n()/n.imp, 0))
 
 
 obs_v_pred <- rbind(
-  cbind((predicted %>% filter(studydrug=="SU")), observed_su),
-  cbind((predicted %>% filter(studydrug=="DPP4")), observed_dpp4),
-  cbind((predicted %>% filter(studydrug=="SGLT2")), observed_sglt2)
+  cbind((predicted %>% filter(studydrug2=="DPP4i/SU")), observed_dpp4isu),
+  cbind((predicted %>% filter(studydrug2=="SGLT2i")), observed_sglt2i)
 ) %>%
-  mutate(observed=coalesce(observed_su, observed_dpp4, observed_sglt2),
-         lower_ci=coalesce(lower_ci_su, lower_ci_dpp4, lower_ci_sglt2),
-         upper_ci=coalesce(upper_ci_su, upper_ci_dpp4, upper_ci_sglt2))
+  mutate(observed=coalesce(observed_dpp4isu, observed_sglt2i),
+         lower_ci=coalesce(lower_ci_dpp4isu,lower_ci_sglt2i),
+         upper_ci=coalesce(upper_ci_dpp4isu, upper_ci_sglt2i))
 
-events_table <- data.frame(t(su_events %>% inner_join(dpp4_events) %>%
+events_table <- data.frame(t(dpp4isu_events %>%
                                inner_join(sglt2_events))) %>%
   rownames_to_column() %>%
   filter(rowname!="ckd40_risk_decile")
@@ -1184,7 +1085,7 @@ empty_tick <- obs_v_pred %>%
   filter(ckd40_risk_decile==1) %>%
   mutate(observed=NA, lower_ci=NA, upper_ci=NA, mean_ckd40_pred=NA, ckd40_risk_decile=0)
 
-p1 <- ggplot(data=bind_rows(empty_tick,obs_v_pred), aes(x=ckd40_risk_decile, group=studydrug, color=studydrug)) +
+p1 <- ggplot(data=bind_rows(empty_tick,obs_v_pred), aes(x=ckd40_risk_decile, group=studydrug2, color=studydrug2)) +
   geom_point(aes(y = observed*100), position=dodge) +
   geom_errorbar(aes(ymax=upper_ci*100,ymin=lower_ci*100),width=0.25,size=1, position=dodge) +
   geom_point(aes(y = mean_ckd40_pred*100), position=dodge, shape=17, size=2) +
@@ -1192,6 +1093,7 @@ p1 <- ggplot(data=bind_rows(empty_tick,obs_v_pred), aes(x=ckd40_risk_decile, gro
   xlab("Risk score decile") + ylab("Risk (%)")+
   scale_x_continuous(breaks=c(seq(0,10,by=1)))+
   scale_y_continuous(breaks=c(seq(0,7,by=1)), limits=c(-1,10)) +
+  scale_colour_manual(values = cols) +
   theme(panel.border=element_blank(), panel.grid.major=element_blank(),panel.grid.minor=element_blank(),
         axis.line.x=element_line(colour = "black"), axis.line.y=element_line(colour="black"),
         plot.title = element_text(size = rel(1.5), face = "bold")) + theme(plot.margin = margin()) +
@@ -1213,7 +1115,7 @@ p_ckd40_interim_bydeciles_bydrug
 
 p1  <- ggplot(data=bind_rows(empty_tick,obs_v_pred), aes(x=mean_ckd40_pred*100)) +
   #geom_errorbar(aes(ymax=upper_ci*100,ymin=lower_ci*100),width=0.25,size=1, position=dodge) +
-  geom_point(aes(y = observed*100, group=studydrug, color=studydrug), position=dodge, shape=17, size=2) +
+  geom_point(aes(y = observed*100, group=studydrug2, color=studydrug2), position=dodge, shape=17, size=2) +
   geom_abline(intercept = 0, slope = 1) +
   theme_bw() +
   xlab("Predicted risk (%)") + ylab("Observed risk (%)")+
@@ -1285,7 +1187,7 @@ cstat_est <- summary(surv_mod_ckd40)$concordance[1]
 cstat_est_ll <- summary(surv_mod_ckd40)$concordance[1]-(1.96*summary(surv_mod_ckd40)$concordance[2])
 cstat_est_ul <- summary(surv_mod_ckd40)$concordance[1]+(1.96*summary(surv_mod_ckd40)$concordance[2])
 paste0("C statistic: ", round(cstat_est, 4), ", 95% CI ", round(cstat_est_ll, 4), "-", round(cstat_est_ul,4))
-# C statistic: 0.734, 95% CI 0.7262-0.7419
+# C statistic: 0.7515, 95% CI 0.7454-0.7577
 
 #before recalibrating, the risk score systematically overestimated risk. However after recalibration, it underestimates risk in those at high risk.
 #an alternative method is logistic calibration:
@@ -1296,12 +1198,12 @@ paste0("C statistic: ", round(cstat_est, 4), ", 95% CI ", round(cstat_est_ll, 4)
 intercept_cf <- coef_cf <- rep(NA,n.imp)
 
 for (i in 1:n.imp) {
-recal_mod <- glm(ckd_egfr40_censvar ~ (ckdpc_40egfr_lin_predictor), 
-                 data = cal_cohort[cal_cohort$.imp == i,], family = "binomial")
-
-intercept_cf[i] <- recal_mod$coef[1]
-coef_cf[i] <- recal_mod$coef[2]
-
+  recal_mod <- glm(ckd_egfr40_censvar ~ (ckdpc_40egfr_lin_predictor), 
+                   data = cal_cohort[cal_cohort$.imp == i,], family = "binomial")
+  
+  intercept_cf[i] <- recal_mod$coef[1]
+  coef_cf[i] <- recal_mod$coef[2]
+  
 }
 
 # new intercept:
@@ -1322,7 +1224,7 @@ noncal_cohort$ckd40_risk_decile <- ntile(noncal_cohort$ckdpc_40egfr_score_cal, n
 
 ### Get mean predicted probabilities by studydrug
 predicted <- noncal_cohort %>%
-  group_by(ckd40_risk_decile, studydrug) %>%
+  group_by(ckd40_risk_decile, studydrug2) %>%
   summarise(mean_ckd40_pred=mean(ckdpc_40egfr_score_cal)/100)
 
 predicted_all <- noncal_cohort %>%
@@ -1331,30 +1233,22 @@ predicted_all <- noncal_cohort %>%
 
 ### Find actual observed probabilities by risk score category and studydrug
 
-EST.su <- SE.su <-
-  EST.dpp4 <- SE.dpp4 <-
-  EST.sglt2 <- SE.sglt2 <- 
+EST.dpp4isu <- SE.dpp4isu <-
+  EST.sglt2i <- SE.sglt2i <- 
   EST.all <- SE.all <-
   matrix(data = NA, nrow = n.quantiles, ncol = n.imp)
 
-observed_su <- tibble() %>% mutate(
-  observed_su=NA,
-  lower_ci_su=NA,
-  upper_ci_su=NA,
+observed_dpp4isu <- tibble() %>% mutate(
+  observed_dpp4isu=NA,
+  lower_ci_dpp4isu=NA,
+  upper_ci_dpp4isu=NA,
   strata=NA
 )
 
-observed_dpp4 <- tibble() %>% mutate(
-  observed_dpp4=NA,
-  lower_ci_dpp4=NA,
-  upper_ci_dpp4=NA,
-  strata=NA
-)
-
-observed_sglt2 <- tibble() %>% mutate(
-  observed_sglt2=NA,
-  lower_ci_sglt2=NA,
-  upper_ci_sglt2=NA,
+observed_sglt2i <- tibble() %>% mutate(
+  observed_sglt2i=NA,
+  lower_ci_sglt2i=NA,
+  upper_ci_sglt2i=NA,
   strata=NA
 )
 
@@ -1368,42 +1262,31 @@ observed_all <- tibble() %>% mutate(
 for (k in 1:n.quantiles) {
   for (i in 1:n.imp) {
     
-    observed_su_ckd40 <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ ckd40_risk_decile, 
+    observed_dpp4isu_ckd40 <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ ckd40_risk_decile, 
                                  data=noncal_cohort[noncal_cohort$.imp == i & 
-                                                            noncal_cohort$ckd40_risk_decile == k &
-                                                            noncal_cohort$studydrug=="SU",]) %>%
+                                                      noncal_cohort$ckd40_risk_decile == k &
+                                                      noncal_cohort$studydrug2=="DPP4i/SU",]) %>%
       tidy() %>%
       # group_by(strata) %>%
       filter(time==max(time))
     
-    EST.su[k,i] <- observed_su_ckd40$estimate
-    SE.su[k,i] <- observed_su_ckd40$std.error
+    EST.dpp4isu[k,i] <- observed_dpp4isu_ckd40$estimate
+    SE.dpp4isu[k,i] <- observed_dpp4isu_ckd40$std.error
     
-    observed_dpp4_ckd40 <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ ckd40_risk_decile, 
-                                   data=noncal_cohort[noncal_cohort$.imp == i & 
-                                                              noncal_cohort$ckd40_risk_decile == k &
-                                                              noncal_cohort$studydrug=="DPP4",]) %>%
-      tidy() %>%
-      # group_by(strata) %>%
-      filter(time==max(time))
-    
-    EST.dpp4[k,i] <- observed_dpp4_ckd40$estimate
-    SE.dpp4[k,i] <- observed_dpp4_ckd40$std.error
-    
-    observed_sglt2_ckd40 <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ ckd40_risk_decile, 
+    observed_sglt2i_ckd40 <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ ckd40_risk_decile, 
                                     data=noncal_cohort[noncal_cohort$.imp == i & 
-                                                               noncal_cohort$ckd40_risk_decile == k &
-                                                               noncal_cohort$studydrug=="SGLT2",]) %>%
+                                                         noncal_cohort$ckd40_risk_decile == k &
+                                                         noncal_cohort$studydrug2=="SGLT2i",]) %>%
       tidy() %>%
       # group_by(strata) %>%
       filter(time==max(time))
     
-    EST.sglt2[k,i] <- observed_sglt2_ckd40$estimate
-    SE.sglt2[k,i] <- observed_sglt2_ckd40$std.error
+    EST.sglt2i[k,i] <- observed_sglt2i_ckd40$estimate
+    SE.sglt2i[k,i] <- observed_sglt2i_ckd40$std.error
     
     observed_all_ckd40 <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ ckd40_risk_decile, 
                                   data=noncal_cohort[noncal_cohort$.imp == i & 
-                                                             noncal_cohort$ckd40_risk_decile == k,]) %>%
+                                                       noncal_cohort$ckd40_risk_decile == k,]) %>%
       tidy() %>%
       # group_by(strata) %>%
       filter(time==max(time))
@@ -1413,30 +1296,21 @@ for (k in 1:n.quantiles) {
     
   }
   
-  est.su <- pool.rubin.KM(EST.su[k,], SE.su[k,], n.imp)
-  observed_su[k,] <- observed_su[k,] %>% 
+  est.dpp4isu <- pool.rubin.KM(EST.dpp4isu[k,], SE.dpp4isu[k,], n.imp)
+  observed_dpp4isu[k,] <- observed_dpp4isu[k,] %>% 
     mutate(
-      observed_su=est.su[1],
-      lower_ci_su=est.su[2],
-      upper_ci_su=est.su[3],
+      observed_dpp4isu=est.dpp4isu[1],
+      lower_ci_dpp4isu=est.dpp4isu[2],
+      upper_ci_dpp4isu=est.dpp4isu[3],
       strata=k
     )
   
-  est.dpp4 <- pool.rubin.KM(EST.dpp4[k,], SE.dpp4[k,], n.imp)
-  observed_dpp4[k,] <- observed_dpp4[k,] %>% 
+  est.sglt2i <- pool.rubin.KM(EST.sglt2i[k,], SE.sglt2i[k,], n.imp)
+  observed_sglt2i[k,] <- observed_sglt2i[k,] %>% 
     mutate(
-      observed_dpp4=est.dpp4[1],
-      lower_ci_dpp4=est.dpp4[2],
-      upper_ci_dpp4=est.dpp4[3],
-      strata=k
-    )
-  
-  est.sglt2 <- pool.rubin.KM(EST.sglt2[k,], SE.sglt2[k,], n.imp)
-  observed_sglt2[k,] <- observed_sglt2[k,] %>% 
-    mutate(
-      observed_sglt2=est.sglt2[1],
-      lower_ci_sglt2=est.sglt2[2],
-      upper_ci_sglt2=est.sglt2[3],
+      observed_sglt2i=est.sglt2i[1],
+      lower_ci_sglt2i=est.sglt2i[2],
+      upper_ci_sglt2i=est.sglt2i[3],
       strata=k
     )
   
@@ -1452,32 +1326,26 @@ for (k in 1:n.quantiles) {
 }
 
 
-su_events <- noncal_cohort %>%
-  filter(studydrug=="SU" & ckd_egfr40_censvar==1) %>%
+dpp4isu_events <- noncal_cohort %>%
+  filter(studydrug2=="DPP4i/SU" & ckd_egfr40_censvar==1) %>%
   group_by(ckd40_risk_decile) %>%
-  summarise(SU=round(n()/n.imp, 0))
-
-dpp4_events <- noncal_cohort %>%
-  filter(studydrug=="DPP4" & ckd_egfr40_censvar==1) %>%
-  group_by(ckd40_risk_decile) %>%
-  summarise(DPP4=round(n()/n.imp, 0))
+  summarise(DPP4iSU=round(n()/n.imp, 0))
 
 sglt2_events <- noncal_cohort %>%
-  filter(studydrug=="SGLT2" & ckd_egfr40_censvar==1) %>%
+  filter(studydrug2=="SGLT2i" & ckd_egfr40_censvar==1) %>%
   group_by(ckd40_risk_decile) %>%
-  summarise(SGLT2=round(n()/n.imp, 0))
+  summarise(SGLTi=round(n()/n.imp, 0))
 
 
 obs_v_pred <- rbind(
-  cbind((predicted %>% filter(studydrug=="SU")), observed_su),
-  cbind((predicted %>% filter(studydrug=="DPP4")), observed_dpp4),
-  cbind((predicted %>% filter(studydrug=="SGLT2")), observed_sglt2)
+  cbind((predicted %>% filter(studydrug2=="DPP4i/SU")), observed_dpp4isu),
+  cbind((predicted %>% filter(studydrug2=="SGLT2i")), observed_sglt2i)
 ) %>%
-  mutate(observed=coalesce(observed_su, observed_dpp4, observed_sglt2),
-         lower_ci=coalesce(lower_ci_su, lower_ci_dpp4, lower_ci_sglt2),
-         upper_ci=coalesce(upper_ci_su, upper_ci_dpp4, upper_ci_sglt2))
+  mutate(observed=coalesce(observed_dpp4isu, observed_sglt2i),
+         lower_ci=coalesce(lower_ci_dpp4isu,  lower_ci_sglt2i),
+         upper_ci=coalesce(upper_ci_dpp4isu, upper_ci_sglt2i))
 
-events_table <- data.frame(t(su_events %>% inner_join(dpp4_events) %>%
+events_table <- data.frame(t(dpp4isu_events %>%
                                inner_join(sglt2_events))) %>%
   rownames_to_column() %>%
   filter(rowname!="ckd40_risk_decile")
@@ -1488,7 +1356,7 @@ empty_tick <- obs_v_pred %>%
   filter(ckd40_risk_decile==1) %>%
   mutate(observed=NA, lower_ci=NA, upper_ci=NA, mean_ckd40_pred=NA, ckd40_risk_decile=0)
 
-p1 <- ggplot(data=bind_rows(empty_tick,obs_v_pred), aes(x=ckd40_risk_decile, group=studydrug, color=studydrug)) +
+p1 <- ggplot(data=bind_rows(empty_tick,obs_v_pred), aes(x=ckd40_risk_decile, group=studydrug2, color=studydrug2)) +
   geom_point(aes(y = observed*100), position=dodge) +
   geom_errorbar(aes(ymax=upper_ci*100,ymin=lower_ci*100),width=0.25,size=1, position=dodge) +
   geom_point(aes(y = mean_ckd40_pred*100), position=dodge, shape=17, size=2) +
@@ -1496,6 +1364,7 @@ p1 <- ggplot(data=bind_rows(empty_tick,obs_v_pred), aes(x=ckd40_risk_decile, gro
   xlab("Risk score decile") + ylab("Risk (%)")+
   scale_x_continuous(breaks=c(seq(0,10,by=1)))+
   scale_y_continuous(breaks=c(seq(0,7,by=1)), limits=c(-1,10)) +
+  scale_colour_manual(values = cols) +
   theme(panel.border=element_blank(), panel.grid.major=element_blank(),panel.grid.minor=element_blank(),
         axis.line.x=element_line(colour = "black"), axis.line.y=element_line(colour="black"),
         plot.title = element_text(size = rel(1.5), face = "bold")) + theme(plot.margin = margin()) +
@@ -1516,12 +1385,13 @@ p_ckd40_cal_bydeciles_bydrug
 ## obs v predicted plot (not deciles but predicted risk on x-axis)
 p1 <- ggplot(data=bind_rows(empty_tick,obs_v_pred), aes(x=mean_ckd40_pred*100)) +
   #geom_errorbar(aes(ymax=upper_ci*100,ymin=lower_ci*100),width=0.25,size=1, position=dodge) +
-  geom_point(aes(y = observed*100, group=studydrug, color=studydrug), position=dodge, shape=17, size=2) +
+  geom_point(aes(y = observed*100, group=studydrug2, color=studydrug2), position=dodge, shape=17, size=2) +
   geom_abline(intercept = 0, slope = 1) +
   theme_bw() +
   xlab("Predicted risk (%)") + ylab("Observed risk (%)")+
   scale_x_continuous(limits=c(0,3.5))+
   scale_y_continuous(limits=c(-1,7)) +
+  scale_colour_manual(values = cols) +
   theme(panel.border=element_blank(), panel.grid.major=element_blank(),panel.grid.minor=element_blank(),
         axis.line.x=element_line(colour = "black"), axis.line.y=element_line(colour="black"),
         plot.title = element_text(size = rel(1.5), face = "bold")) + theme(plot.margin = margin()) +
@@ -1535,7 +1405,7 @@ p_ckd40_cal_bydrug
 ## plot with all observed combined (like first plot but not grouped by drug) vs predicted
 
 
-obs_v_pred <- rbind(
+obs_v_pred2 <- rbind(
   (predicted_all %>% mutate(
     lower_ci = NA,
     upper_ci = NA,
@@ -1552,7 +1422,7 @@ obs_v_pred <- rbind(
   )
 )
 
-p_ckd40_cal_bydeciles <- ggplot(data=obs_v_pred, aes(x=strata, y=estimate*100)) +
+p_ckd40_cal_bydeciles <- ggplot(data=obs_v_pred2, aes(x=strata, y=estimate*100)) +
   geom_errorbar(aes(ymax=upper_ci*100,ymin=lower_ci*100),width=0.1,size=.75) +
   geom_point(aes(fill = risk_type, size = risk_type), shape = 21, colour = "black", stroke = 1.5) +
   scale_fill_manual("",
@@ -1580,6 +1450,53 @@ p_ckd40_cal_bydeciles <- ggplot(data=obs_v_pred, aes(x=strata, y=estimate*100)) 
 
 p_ckd40_cal_bydeciles
 
+## FINAL PLOT
+p_ckd40_cal_bydeciles_dpp4isu <- ggplot(data=bind_rows(empty_tick,obs_v_pred), aes(x=mean_ckd40_pred*100)) +
+  geom_errorbar(aes(ymax=upper_ci_dpp4isu*100,ymin=lower_ci_dpp4isu*100, color=studydrug2),width=0.1,size=1) +
+  geom_point(aes(y = observed_dpp4isu*100, group=studydrug2, color=studydrug2), shape=18, size=3) +
+  geom_abline(intercept = 0, slope = 1, lty = 2) +
+  theme_bw() +
+  xlab("Predicted risk (%)") + ylab("Observed risk (%)")+
+  scale_x_continuous(limits=c(0,6))+
+  scale_y_continuous(limits=c(-1,7)) +
+  scale_colour_manual(values = cols) +
+  theme(panel.border=element_blank(), panel.grid.major=element_blank(),panel.grid.minor=element_blank(),
+        axis.line.x=element_line(colour = "black"), axis.line.y=element_line(colour="black"),
+        plot.title = element_text(size = rel(1.5), face = "bold")) + theme(plot.margin = margin()) +
+  theme(axis.text=element_text(size=rel(1.5)),
+        axis.title=element_text(size=rel(1.5)),
+        plot.title=element_text(hjust = 0.5),
+        plot.subtitle=element_text(hjust = 0.5,size=rel(1.2)),
+        legend.position = "none") +
+  ggtitle("Predicted vs observed risk of 40% eGFR decline or ESRD", subtitle = "Recalibrated score using logistic recalibration, binned by risk decile") +
+  coord_cartesian(xlim = c(0,6), ylim = c(0,6))
+
+
+p_ckd40_cal_bydeciles_dpp4isu
+
+# with SGLT2i included (but not to show as these are overpredicted)
+# p_ckd40_cal_bydeciles <- ggplot(data=bind_rows(empty_tick,obs_v_pred), aes(x=mean_ckd40_pred*100)) +
+#   geom_errorbar(aes(ymax=upper_ci*100,ymin=lower_ci*100, color=studydrug2),width=0.1,size=1) +
+#   geom_point(aes(y = observed*100, group=studydrug2, color=studydrug2), shape=18, size=3) +
+#   geom_abline(intercept = 0, slope = 1, lty = 2) +
+#   theme_bw() +
+#   xlab("Predicted risk (%)") + ylab("Observed risk (%)")+
+#   scale_x_continuous(limits=c(0,6))+
+#   scale_y_continuous(limits=c(-1,7)) +
+#   scale_colour_manual(values = cols) +
+#   theme(panel.border=element_blank(), panel.grid.major=element_blank(),panel.grid.minor=element_blank(),
+#         axis.line.x=element_line(colour = "black"), axis.line.y=element_line(colour="black"),
+#         plot.title = element_text(size = rel(1.5), face = "bold")) + theme(plot.margin = margin()) +
+#   theme(axis.text=element_text(size=rel(1.5)),
+#         axis.title=element_text(size=rel(1.5)),
+#         plot.title=element_text(hjust = 0.5),
+#         plot.subtitle=element_text(hjust = 0.5,size=rel(1.2)),
+#         legend.position = c(0.2,0.8),
+#         legend.title = element_text(colour = "white")) +
+#   ggtitle("Predicted vs observed risk of 40% eGFR decline or ESRD", subtitle = "Recalibrated score using logistic recalibration, binned by risk decile") +
+#   coord_cartesian(xlim = c(0,6), ylim = c(0,6))
+# p_ckd40_cal_bydeciles
+
 ## C-stat
 noncal_cohort <- noncal_cohort %>%
   mutate(ckdpc_40egfr_survival=(100-ckdpc_40egfr_score_cal)/100)
@@ -1589,9 +1506,9 @@ cstat_est <- summary(surv_mod_ckd40)$concordance[1]
 cstat_est_ll <- summary(surv_mod_ckd40)$concordance[1]-(1.96*summary(surv_mod_ckd40)$concordance[2])
 cstat_est_ul <- summary(surv_mod_ckd40)$concordance[1]+(1.96*summary(surv_mod_ckd40)$concordance[2])
 paste0("C statistic: ", round(cstat_est, 4), ", 95% CI ", round(cstat_est_ll, 4), "-", round(cstat_est_ul,4))
-# C statistic: 0.734, 95% CI 0.7262-0.7419
+# C statistic: 0.7656, 95% CI 0.76-0.7713
 
 ############################3 STORE RECALIBRATED SCORES################################################################
 # save dataset with calibrated risk score so this can be used in the subsequent scripts
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-save(noncal_cohort, file=paste0(today, "_t2d_ckdpc_recalibrated.Rda"))
+save(noncal_cohort, file=paste0(today, "_t2d_ckdpc_recalibrated_incl_egfr_below_60.Rda"))
