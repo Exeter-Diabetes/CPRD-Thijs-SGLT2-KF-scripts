@@ -193,6 +193,7 @@ outlist1 <- c("patid", "gp_record_end", "drugclass", "drugline_all", "ncurrtx",
               "cens_itt", "cens_pp", "cens_itt_3_yrs", "cens_pp_3_yrs", 
               "ckd_345_censdate", "ckd_345_censtime_yrs", 
               "ckd_egfr40_censdate", "ckd_egfr40_censtime_yrs", 
+              "ckd_egfr40_5y_censvar", "ckd_egfr40_5y_censdate", "ckd_egfr40_5y_censtime_yrs", 
               "death_censdate", "death_censtime_yrs", 
               "ckd_345_pp_censdate", "ckd_345_pp_censvar", "ckd_345_pp_censtime_yrs", 
               "ckd_egfr40_pp_censdate", "ckd_egfr40_pp_censvar", "ckd_egfr40_pp_censtime_yrs", 
@@ -453,7 +454,7 @@ print(paste0("Number of drug episodes excluded with missing ckdpc risk scores du
 
 q <- temp %>% .$patid %>% unique() %>% length()
 print(paste0("Number of subjects in study population ", q))
-q <- temp %>% nrow()
+q <- temp[temp$.imp > 0,] %>% nrow()
 print(paste0("Number of drug episodes in study population ", q/n.imp))
 
 ########################5 SAVE DATASET####################################################################

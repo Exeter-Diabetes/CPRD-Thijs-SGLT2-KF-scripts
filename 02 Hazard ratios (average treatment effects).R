@@ -632,8 +632,8 @@ setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/output/")
 
 save(all_hrs, file=paste0(today, "_all_hrs_incl_egfr_below_60.Rda"))
 save(all_SGLT2ivsDPP4iSU_hrs, file=paste0(today, "_all_SGLT2ivsDPP4iSU_hrs_incl_egfr_below_60.Rda"))
-#load("2024-02-26_all_hrs_incl_egfr_below_60.Rda")
-#load("2024-02-26_all_SGLT2ivsDPP4iSU_hrs_incl_egfr_below_60.Rda")
+# load("2024-02-26_all_hrs_incl_egfr_below_60.Rda")
+# load("2024-02-26_all_SGLT2ivsDPP4iSU_hrs_incl_egfr_below_60.Rda")
 
 # show table with events, follow up time, and hazard ratios
 flextable(all_sglt2i_hrs)
@@ -888,7 +888,7 @@ p_egfr40_1 <-
   ggplot(aes(y = factor(analysis, levels = rev(unique(analysis))))) + 
   scale_x_continuous(trans = "log10", breaks = c(0.5, 0.75, 1.0, 1.3, 2.0)) +
   coord_cartesian(ylim=c(1,length(unique(all_hrs[all_hrs$outcome == "ckd_egfr40",]$analysis)) + 1), 
-                  xlim=c(0.5, 2)) +
+                  xlim=c(0.4, 2)) +
   theme_classic() +
   geom_point(aes(x=HR), shape=15, size=3) +
   geom_linerange(aes(xmin=LB, xmax=UB)) +
@@ -900,7 +900,7 @@ p_egfr40_1 <-
            y = length(unique(all_hrs[all_hrs$outcome == "ckd_egfr40",]$analysis)) + 1, 
            label = "Favours SU") +
   labs(x="", y="") +
-  ggtitle("40% decline in eGFR or ESRD", subtitle = "SGLT2i vs SU") +
+  ggtitle("40% decline in eGFR or ESKD", subtitle = "SGLT2i vs SU") +
   theme(axis.line.y = element_blank(),
         axis.ticks.y= element_blank(),
         axis.text.y= element_blank(),
@@ -933,7 +933,7 @@ p_egfr40_2 <-
   ggplot(aes(y = factor(analysis, levels = rev(unique(analysis))))) + 
   scale_x_continuous(trans = "log10", breaks = c(0.5, 0.75, 1.0, 1.3, 2.0)) +
   coord_cartesian(ylim=c(1,length(unique(all_hrs[all_hrs$outcome == "ckd_egfr40" & !all_hrs$analysis == "meta-analysis of RCTs",]$analysis)) + 1), 
-                  xlim=c(0.5, 2)) +
+                  xlim=c(0.4, 2)) +
   theme_classic() +
   geom_point(aes(x=HR), shape=15, size=3) +
   geom_linerange(aes(xmin=LB, xmax=UB)) +
@@ -978,7 +978,7 @@ p_egfr40_3 <-
   ggplot(aes(y = factor(analysis, levels = rev(unique(analysis))))) + 
   scale_x_continuous(trans = "log10", breaks = c(0.5, 0.75, 1.0, 1.3, 2.0)) +
   coord_cartesian(ylim=c(1,length(unique(all_hrs[all_hrs$outcome == "ckd_egfr40_pp" & !all_hrs$analysis == "meta-analysis of RCTs",]$analysis)) + 1), 
-                  xlim=c(0.5, 2)) +
+                  xlim=c(0.4, 2)) +
   theme_classic() +
   geom_point(aes(x=HR), shape=15, size=3) +
   geom_linerange(aes(xmin=LB, xmax=UB)) +
@@ -1045,7 +1045,7 @@ p_egfr40_4 <-
            y = length(unique(all_SGLT2ivsDPP4iSU_hrs[all_SGLT2ivsDPP4iSU_hrs$outcome == "ckd_egfr40",]$analysis)) + 1, 
            label = "Favours DPP4i/SU") +
   labs(x="Hazard Ratio", y="") +
-  ggtitle("40% decline in eGFR or ESRD") +
+  ggtitle("40% decline in eGFR or ESKD") +
   theme(axis.line.y = element_blank(),
         axis.ticks.y= element_blank(),
         axis.text.y= element_blank(),
@@ -1374,10 +1374,10 @@ for (k in kf_key_outcomes) {
   egfr_SGLT2ivsDPP4iSU_hrs <- rbind(above60_hr, below60_hr)
   
   temp <- rbind(
-    cbind(outcome = k, contrast = "eGFR above 60", analysis = "adjusted",
+    cbind(outcome = k, contrast = "eGFR ≥60mL/min", analysis = "adjusted",
           HR = adjusted_above60[1], LB = adjusted_above60[2], UB = adjusted_above60[3], 
           string = adjusted_above60_string),
-    cbind(outcome = k, contrast = "eGFR below 60", analysis = "adjusted",
+    cbind(outcome = k, contrast = "eGFR <60mL/min", analysis = "adjusted",
           HR = adjusted_below60[1], LB = adjusted_below60[2], UB = adjusted_below60[3], 
           string = adjusted_below60_string)
   )
@@ -1391,8 +1391,8 @@ flextable(alb_SGLT2ivsDPP4iSU_hrs)
 flextable(egfr_SGLT2ivsDPP4iSU_hrs)
 save(alb_hrs, file=paste0(today, "_alb_hrs_incl_egfr_below_60.Rda"))
 save(egfr_hrs, file=paste0(today, "_egfr_hrs_incl_egfr_below_60.Rda"))
-#load("2024-02-26_alb_hrs_incl_egfr_below_60.Rda")
-#load("2024-02-26_egfr_hrs_incl_egfr_below_60.Rda")
+# load("2024-02-26_alb_hrs_incl_egfr_below_60.Rda")
+# load("2024-02-26_egfr_hrs_incl_egfr_below_60.Rda")
 
 # prep data frames with row for overall
 overall <- all_SGLT2ivsDPP4iSU_hrs[all_SGLT2ivsDPP4iSU_hrs$analysis == "adjusted",] %>% select(-model)
@@ -1466,7 +1466,7 @@ p_egfr40_alb <-
            y = length(unique(alb_hrs[alb_hrs$outcome == "ckd_egfr40",]$contrast)) + 1, 
            label = "Favours DPP4i/SU") +
   labs(x="", y="") +
-  ggtitle("40% decline in eGFR or ESRD", subtitle = paste0(c("By albuminuria status (p = ", round(p_value_interaction_alb,2), " for interaction)"),collapse="")) +
+  ggtitle("40% decline in eGFR or ESKD", subtitle = paste0(c("By albuminuria status (p = ", round(p_value_interaction_alb,2), " for interaction)"),collapse="")) +
   theme(axis.line.y = element_blank(),
         axis.ticks.y= element_blank(),
         axis.text.y= element_blank(),

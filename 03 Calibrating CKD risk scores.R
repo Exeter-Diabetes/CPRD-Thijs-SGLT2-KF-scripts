@@ -76,7 +76,7 @@ cohort <- cohort %>% group_by(.imp, patid) %>% filter(
 # check number of subjects
 table(cohort$studydrug)
 # SU  DPP4i SGLT2i 
-# 385790 595080 499270   # 10 imputations therefore number of subjects per group appears 10 times larger
+# 311872 499468 559760   # 10 imputations therefore number of subjects per group appears 10 times larger
 
 # select calibration cohort and non-calibration cohort 
 
@@ -612,7 +612,7 @@ p_ckd40_uncal_bydeciles_dpp4isu <- ggplot(data=bind_rows(empty_tick,obs_v_pred),
         plot.title=element_text(hjust = 0.5),
         plot.subtitle=element_text(hjust = 0.5,size=rel(1.2)),
         legend.position = "none") +
-  ggtitle("Predicted vs observed risk of 40% eGFR decline or ESRD", subtitle = "Uncalibrated score, binned by risk decile") +
+  ggtitle("Predicted vs observed risk of 40% eGFR decline or ESKD", subtitle = "Uncalibrated score, binned by risk decile") +
   coord_cartesian(xlim = c(0,7.5), ylim = c(0,7.5))
 
 
@@ -1133,7 +1133,7 @@ p_ckd40_interim_bydrug
 
 ## plot with all observed combined vs predicted
 
-obs_v_pred <- rbind(
+obs_v_pred_all <- rbind(
   (predicted_all %>% mutate(
     lower_ci = NA,
     upper_ci = NA,
@@ -1150,7 +1150,7 @@ obs_v_pred <- rbind(
   )
 )
 
-p_ckd40_interim_bydeciles <- ggplot(data=obs_v_pred, aes(x=strata, y=estimate*100)) +
+p_ckd40_interim_bydeciles <- ggplot(data=obs_v_pred_all, aes(x=strata, y=estimate*100)) +
   geom_errorbar(aes(ymax=upper_ci*100,ymin=lower_ci*100),width=0.1,size=.75) +
   geom_point(aes(fill = risk_type, size = risk_type), shape = 21, colour = "black", stroke = 1.5) +
   scale_fill_manual("",
@@ -1192,32 +1192,34 @@ paste0("C statistic: ", round(cstat_est, 4), ", 95% CI ", round(cstat_est_ll, 4)
 #before recalibrating, the risk score systematically overestimated risk. However after recalibration, it underestimates risk in those at high risk.
 #an alternative method is logistic calibration:
 #a logistic regression model is fitted with the linear predictor as the only covariate in the updating set.
-#The calibration slope is used to recalibrate the original regression coefficients the regression coefficients of the original model (multiplied with the calibration slope).
-#The intercept of the original prediction model is adjusted by adding the calibration intercept
+#The calibration slope is used to recalibrate the original regression coefficients (multiplied with the calibration slope).
+#And we will add the new calibration intercept
+
+cal_cohort <- cal_cohort %>%
+  mutate(temp_lin_predictor=ckdpc_40egfr_lin_predictor + EHRBiomarkr::ckdpc40EgfrRiskConstants$intercept %>% as.numeric(),
+         centred_lin_predictor=temp_lin_predictor-mean(temp_lin_predictor))
 
 intercept_cf <- coef_cf <- rep(NA,n.imp)
 
 for (i in 1:n.imp) {
-  recal_mod <- glm(ckd_egfr40_censvar ~ (ckdpc_40egfr_lin_predictor), 
-                   data = cal_cohort[cal_cohort$.imp == i,], family = "binomial")
+  recal_mod <- glm(ckd_egfr40_censvar ~ centred_lin_predictor,
+                   data = cal_cohort[cal_cohort$.imp == i,], family = "binomial"
+  )
   
-  intercept_cf[i] <- recal_mod$coef[1]
+  new_intercept[i] <- recal_mod$coef[1]
   coef_cf[i] <- recal_mod$coef[2]
   
 }
 
-# new intercept:
-new_intercept <- EHRBiomarkr::ckdpc40EgfrRiskConstants$intercept %>% as.numeric() + mean(intercept_cf)
-
+new_intercept <- mean(new_intercept)
 
 ## Recalculate scores in rest of cohort
 noncal_cohort <- noncal_cohort %>%
-  mutate(centred_40egfr_lin_predictor=ckdpc_40egfr_lin_predictor-mean(ckdpc_40egfr_lin_predictor)) %>%
-  mutate(recal_40egfr_lin_predictor=centred_40egfr_lin_predictor*mean(coef_cf)) %>%
-  ungroup() %>%
-  mutate(ckdpc_40egfr_score_cal= 
-           100 *      100 *
-           (exp(recal_40egfr_lin_predictor + new_intercept)/(1 + exp(recal_40egfr_lin_predictor + new_intercept))))
+  mutate(
+    ckdpc_40egfr_score_cal=
+      100 * 
+      (exp(mean(coef_cf)*ckdpc_40egfr_lin_predictor + new_intercept))/(1 + exp(mean(coef_cf)*ckdpc_40egfr_lin_predictor + new_intercept))
+  )
 
 ## Plot
 noncal_cohort$ckd40_risk_decile <- ntile(noncal_cohort$ckdpc_40egfr_score_cal, n.quantiles)
@@ -1234,7 +1236,7 @@ predicted_all <- noncal_cohort %>%
 ### Find actual observed probabilities by risk score category and studydrug
 
 EST.dpp4isu <- SE.dpp4isu <-
-  EST.sglt2i <- SE.sglt2i <- 
+  EST.sglt2i <- SE.sglt2i <-
   EST.all <- SE.all <-
   matrix(data = NA, nrow = n.quantiles, ncol = n.imp)
 
@@ -1262,10 +1264,10 @@ observed_all <- tibble() %>% mutate(
 for (k in 1:n.quantiles) {
   for (i in 1:n.imp) {
     
-    observed_dpp4isu_ckd40 <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ ckd40_risk_decile, 
-                                 data=noncal_cohort[noncal_cohort$.imp == i & 
-                                                      noncal_cohort$ckd40_risk_decile == k &
-                                                      noncal_cohort$studydrug2=="DPP4i/SU",]) %>%
+    observed_dpp4isu_ckd40 <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ ckd40_risk_decile,
+                                      data=noncal_cohort[noncal_cohort$.imp == i &
+                                                           noncal_cohort$ckd40_risk_decile == k &
+                                                           noncal_cohort$studydrug2=="DPP4i/SU",]) %>%
       tidy() %>%
       # group_by(strata) %>%
       filter(time==max(time))
@@ -1273,10 +1275,10 @@ for (k in 1:n.quantiles) {
     EST.dpp4isu[k,i] <- observed_dpp4isu_ckd40$estimate
     SE.dpp4isu[k,i] <- observed_dpp4isu_ckd40$std.error
     
-    observed_sglt2i_ckd40 <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ ckd40_risk_decile, 
-                                    data=noncal_cohort[noncal_cohort$.imp == i & 
-                                                         noncal_cohort$ckd40_risk_decile == k &
-                                                         noncal_cohort$studydrug2=="SGLT2i",]) %>%
+    observed_sglt2i_ckd40 <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ ckd40_risk_decile,
+                                     data=noncal_cohort[noncal_cohort$.imp == i &
+                                                          noncal_cohort$ckd40_risk_decile == k &
+                                                          noncal_cohort$studydrug2=="SGLT2i",]) %>%
       tidy() %>%
       # group_by(strata) %>%
       filter(time==max(time))
@@ -1284,8 +1286,8 @@ for (k in 1:n.quantiles) {
     EST.sglt2i[k,i] <- observed_sglt2i_ckd40$estimate
     SE.sglt2i[k,i] <- observed_sglt2i_ckd40$std.error
     
-    observed_all_ckd40 <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ ckd40_risk_decile, 
-                                  data=noncal_cohort[noncal_cohort$.imp == i & 
+    observed_all_ckd40 <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ ckd40_risk_decile,
+                                  data=noncal_cohort[noncal_cohort$.imp == i &
                                                        noncal_cohort$ckd40_risk_decile == k,]) %>%
       tidy() %>%
       # group_by(strata) %>%
@@ -1297,7 +1299,7 @@ for (k in 1:n.quantiles) {
   }
   
   est.dpp4isu <- pool.rubin.KM(EST.dpp4isu[k,], SE.dpp4isu[k,], n.imp)
-  observed_dpp4isu[k,] <- observed_dpp4isu[k,] %>% 
+  observed_dpp4isu[k,] <- observed_dpp4isu[k,] %>%
     mutate(
       observed_dpp4isu=est.dpp4isu[1],
       lower_ci_dpp4isu=est.dpp4isu[2],
@@ -1306,7 +1308,7 @@ for (k in 1:n.quantiles) {
     )
   
   est.sglt2i <- pool.rubin.KM(EST.sglt2i[k,], SE.sglt2i[k,], n.imp)
-  observed_sglt2i[k,] <- observed_sglt2i[k,] %>% 
+  observed_sglt2i[k,] <- observed_sglt2i[k,] %>%
     mutate(
       observed_sglt2i=est.sglt2i[1],
       lower_ci_sglt2i=est.sglt2i[2],
@@ -1315,7 +1317,7 @@ for (k in 1:n.quantiles) {
     )
   
   est.all <- pool.rubin.KM(EST.all[k,], SE.all[k,], n.imp)
-  observed_all[k,] <- observed_all[k,] %>% 
+  observed_all[k,] <- observed_all[k,] %>%
     mutate(
       observed=est.all[1],
       lower_ci=est.all[2],
@@ -1415,7 +1417,7 @@ obs_v_pred2 <- rbind(
   ),
   (observed_all %>% mutate(
     risk_type = "observed"
-  ) %>% 
+  ) %>%
     relocate(strata, .before = observed) %>%
     relocate(risk_type, .after = upper_ci) %>%
     select(strata, estimate=observed, lower_ci, upper_ci, risk_type)
@@ -1433,7 +1435,7 @@ p_ckd40_cal_bydeciles <- ggplot(data=obs_v_pred2, aes(x=strata, y=estimate*100))
                     values = c(4,3),
                     guide = "none") +
   guides(fill = guide_legend(override.aes = list(size = 4))) +
-  theme_bw() +  
+  theme_bw() +
   theme(legend.position = c(0.05,0.95),
         legend.justification = c(0,1),
         legend.key.size = unit(1, "cm"),
@@ -1468,7 +1470,7 @@ p_ckd40_cal_bydeciles_dpp4isu <- ggplot(data=bind_rows(empty_tick,obs_v_pred), a
         plot.title=element_text(hjust = 0.5),
         plot.subtitle=element_text(hjust = 0.5,size=rel(1.2)),
         legend.position = "none") +
-  ggtitle("Predicted vs observed risk of 40% eGFR decline or ESRD", subtitle = "Recalibrated score using logistic recalibration, binned by risk decile") +
+  ggtitle("Predicted vs observed risk of 40% eGFR decline or ESKD", subtitle = "Recalibrated score using logistic recalibration, binned by risk decile") +
   coord_cartesian(xlim = c(0,6), ylim = c(0,6))
 
 
@@ -1493,7 +1495,7 @@ p_ckd40_cal_bydeciles_dpp4isu
 #         plot.subtitle=element_text(hjust = 0.5,size=rel(1.2)),
 #         legend.position = c(0.2,0.8),
 #         legend.title = element_text(colour = "white")) +
-#   ggtitle("Predicted vs observed risk of 40% eGFR decline or ESRD", subtitle = "Recalibrated score using logistic recalibration, binned by risk decile") +
+#   ggtitle("Predicted vs observed risk of 40% eGFR decline or ESKD", subtitle = "Recalibrated score using logistic recalibration, binned by risk decile") +
 #   coord_cartesian(xlim = c(0,6), ylim = c(0,6))
 # p_ckd40_cal_bydeciles
 
