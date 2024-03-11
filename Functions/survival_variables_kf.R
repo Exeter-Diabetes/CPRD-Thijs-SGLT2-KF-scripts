@@ -97,12 +97,18 @@ add_surv_vars <- function(cohort_dataset, main_only=FALSE) {
     censdate_var=paste0(i, "_censdate")
     censvar_var=paste0(i, "_censvar")
     censtime_var=paste0(i, "_censtime_yrs")
+    censdate_var_5y=paste0(i, "_5y_censdate")
+    censvar_var_5y=paste0(i, "_5y_censvar")
+    censtime_var_5y=paste0(i, "_5y_censtime_yrs")
     
     if (i=="ckd_egfr40") {
       cohort <- cohort %>%
         mutate({{censdate_var}}:=pmin(!!sym(outcome_var), cens_itt_3_yrs, na.rm=TRUE),
                {{censvar_var}}:=ifelse(!is.na(!!sym(outcome_var)) & !!sym(censdate_var)==!!sym(outcome_var), 1, 0),
-               {{censtime_var}}:=as.numeric(difftime(!!sym(censdate_var), dstartdate, unit="days"))/365.25)
+               {{censtime_var}}:=as.numeric(difftime(!!sym(censdate_var), dstartdate, unit="days"))/365.25,
+               {{censdate_var_5y}}:=pmin(!!sym(outcome_var), cens_itt, na.rm=TRUE),
+               {{censvar_var_5y}}:=ifelse(!is.na(!!sym(outcome_var)) & !!sym(censdate_var_5y)==!!sym(outcome_var), 1, 0),
+               {{censtime_var_5y}}:=as.numeric(difftime(!!sym(censdate_var_5y), dstartdate, unit="days"))/365.25)
     } else {
     cohort <- cohort %>%
       mutate({{censdate_var}}:=pmin(!!sym(outcome_var), cens_itt, na.rm=TRUE),
