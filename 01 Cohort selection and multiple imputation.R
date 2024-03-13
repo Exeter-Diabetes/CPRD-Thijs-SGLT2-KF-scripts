@@ -476,7 +476,7 @@ temp <- temp %>% mutate(
                           smoking_hx + dyslipidaemia +
                           albuminuria > 1, T, F),
   qrisk2_above_10_pct = ifelse(qrisk2_10yr_score >= 10, T, F),
-  egfr_below_60 = ifelse(preckdstage %in% c("stage_1", "stage_2") & preegfr >=60, F, T),
+  egfr_below_60 = ifelse(preegfr >=60, F, T),
   ACEi_or_ARB = ifelse(temp$ACEi + temp$ARB > 0, T, F),
   macroalbuminuria = ifelse(uacr < 30, F, T),
   microalbuminuria = ifelse(uacr <3, F, ifelse(macroalbuminuria == T, F, T))

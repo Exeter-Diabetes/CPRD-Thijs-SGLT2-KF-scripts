@@ -38,7 +38,7 @@ options(dplyr.summarise.inform = FALSE)
 rm(list=ls())
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-load("2024-02-26_t2d_ckdpc_imputed_data_incl_egfr_below_60.Rda")
+load("2024-03-06_t2d_ckdpc_imputed_data_incl_egfr_below_60.Rda")
 
 n.imp <- 10
 set.seed(123)
@@ -176,7 +176,7 @@ summary(w.overlap, weighted.var = TRUE, metric = "ASD")
 cohort <- temp
 rm(temp)
 save(cohort, file=paste0(today, "_t2d_ckdpc_imputed_data_withweights_incl_egfr_below_60.Rda"))
-#load("2024-02-26_t2d_ckdpc_imputed_data_withweights_incl_egfr_below_60.Rda")
+#load("2024-03-06_t2d_ckdpc_imputed_data_withweights_incl_egfr_below_60.Rda")
 ############################2 CALCULATE HAZARD RATIOS################################################################
 
 ## 2 calculate hazard ratios (unadjusted, adjusted, weighted) and n events per study drug
@@ -632,8 +632,8 @@ setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/output/")
 
 save(all_hrs, file=paste0(today, "_all_hrs_incl_egfr_below_60.Rda"))
 save(all_SGLT2ivsDPP4iSU_hrs, file=paste0(today, "_all_SGLT2ivsDPP4iSU_hrs_incl_egfr_below_60.Rda"))
-# load("2024-02-26_all_hrs_incl_egfr_below_60.Rda")
-# load("2024-02-26_all_SGLT2ivsDPP4iSU_hrs_incl_egfr_below_60.Rda")
+# load("2024-03-06_all_hrs_incl_egfr_below_60.Rda")
+# load("2024-03-06_all_SGLT2ivsDPP4iSU_hrs_incl_egfr_below_60.Rda")
 
 # show table with events, follow up time, and hazard ratios
 flextable(all_sglt2i_hrs)
@@ -695,190 +695,8 @@ layout <- c(
   area(t = 0, l = 0, b = 30, r = 4), # left plot, starts at the top of the page (0) and goes 30 units down and 3 units to the right
   area(t = 1, l = 5, b = 30, r = 9) # middle plot starts a little lower (t=1) because there's no title. starts 1 unit right of the left plot (l=4, whereas left plot is r=3), goes to the bottom of the page (30 units), and 6 units further over from the left plot (r=9 whereas left plot is r=3)
 )
-# #############3A FOREST PLOT FOR HRs FOR NEW CKD#############
-# p_ckd345_1 <- 
-#   all_hrs %>%
-#   filter(outcome == "ckd_345") %>%
-#   filter(contrast == "SGLT2i vs SU") %>%
-#   ggplot(aes(y = factor(analysis, levels = rev(unique(analysis))))) + 
-#   scale_x_continuous(trans = "log10", breaks = c(0.5, 0.75, 1.0, 1.3, 2.0)) +
-#   coord_cartesian(ylim=c(1,length(unique(all_hrs[all_hrs$outcome == "ckd_345",]$analysis)) + 1), 
-#                   xlim=c(0.5, 2)) +
-#   theme_classic() +
-#   geom_point(aes(x=HR), shape=15, size=3) +
-#   geom_linerange(aes(xmin=LB, xmax=UB)) +
-#   geom_vline(xintercept = 1, linetype="dashed") +
-#   annotate("text", x = .65, 
-#            y = length(unique(all_hrs[all_hrs$outcome == "ckd_345",]$analysis)) + 1, 
-#            label = "SGLT2i protective") +
-#   annotate("text", x = 1.5, 
-#            y = length(unique(all_hrs[all_hrs$outcome == "ckd_345",]$analysis)) + 1, 
-#            label = "SGLT2i harmful") +
-#   labs(x="Hazard Ratio", y="") +
-#   ggtitle("New CKD (SGLT2i vs SU)") +
-#   theme(axis.line.y = element_blank(),
-#         axis.ticks.y= element_blank(),
-#         axis.text.y= element_blank(),
-#         axis.title.y= element_blank()) 
-# 
-# 
-# p_left_1 <-
-#   labels_plot %>%
-#   filter(outcome == "ckd_345") %>%
-#   filter(contrast == "SGLT2i vs SU") %>%
-#   ggplot(aes(y = (model))) + 
-#   # geom_text(aes(x = 0, label = model), hjust = 0, fontface = "bold") +
-#   geom_text(
-#     aes(x = 1, label = model),
-#     hjust = 0,
-#     fontface = ifelse(labels_plot[labels_plot$outcome == "ckd_345" & labels_plot$contrast == "SGLT2i vs SU",]$
-#                         model == "Hazard Ratio (95% CI)", "bold", "plain")
-#   ) +
-#   theme_void() +
-#   coord_cartesian(xlim = c(0, 4))
-# 
-# # final plot arrangement
-# p_left_1 + p_ckd345_1 + plot_layout(design = layout)
-# 
-# 
-# ## same for SGLT2i vs DPP4
-# 
-# p_ckd345_2 <- 
-#   all_hrs %>%
-#   filter(outcome == "ckd_345") %>%
-#   filter(contrast == "SGLT2i vs DPP4i") %>%
-#   ggplot(aes(y = factor(analysis, levels = rev(unique(analysis))))) + 
-#   scale_x_continuous(trans = "log10", breaks = c(0.5, 0.75, 1.0, 1.3, 2.0)) +
-#   coord_cartesian(ylim=c(1,length(unique(all_hrs[all_hrs$outcome == "ckd_345",]$analysis)) + 1), 
-#                   xlim=c(0.5, 2)) +
-#   theme_classic() +
-#   geom_point(aes(x=HR), shape=15, size=3) +
-#   geom_linerange(aes(xmin=LB, xmax=UB)) +
-#   geom_vline(xintercept = 1, linetype="dashed") +
-#   annotate("text", x = .65, 
-#            y = length(unique(all_hrs[all_hrs$outcome == "ckd_345",]$analysis)) + 1, 
-#            label = "SGLT2i protective") +
-#   annotate("text", x = 1.5, 
-#            y = length(unique(all_hrs[all_hrs$outcome == "ckd_345",]$analysis)) + 1, 
-#            label = "SGLT2i harmful") +
-#   labs(x="Hazard Ratio", y="") +
-#   ggtitle("New CKD (SGLT2i vs DPP4i)") +
-#   theme(axis.line.y = element_blank(),
-#         axis.ticks.y= element_blank(),
-#         axis.text.y= element_blank(),
-#         axis.title.y= element_blank()) 
-# 
-# p_left_2 <-
-#   labels_plot %>%
-#   filter(outcome == "ckd_345") %>%
-#   filter(contrast == "SGLT2i vs DPP4i") %>%
-#   ggplot(aes(y = (model))) + 
-#   # geom_text(aes(x = 0, label = model), hjust = 0, fontface = "bold") +
-#   geom_text(
-#     aes(x = 1, label = model),
-#     hjust = 0,
-#     fontface = ifelse(labels_plot[labels_plot$outcome == "ckd_345" & labels_plot$contrast == "SGLT2i vs DPP4i",]$
-#                         model == "Hazard Ratio (95% CI)", "bold", "plain")
-#   ) +
-#   theme_void() +
-#   coord_cartesian(xlim = c(0, 4))
-# 
-# # final plot arrangement
-# p_left_2 + p_ckd345_2 + plot_layout(design = layout)
-# 
-# 
-# ## same for DPP4i vs SU
-# # for this outcome we will use the _pp outcome as patients were then censored if they switched from DPP4i to SU
-# # (no overlapping intervals)
-# p_ckd345_3 <- 
-#   all_hrs %>%
-#   filter(outcome == "ckd_345_pp") %>%
-#   filter(contrast == "DPP4i vs SU") %>%
-#   ggplot(aes(y = factor(analysis, levels = rev(unique(analysis))))) + 
-#   scale_x_continuous(trans = "log10", breaks = c(0.5, 0.75, 1.0, 1.3, 2.0)) +
-#   coord_cartesian(ylim=c(1,length(unique(all_hrs[all_hrs$outcome == "ckd_345_pp",]$analysis)) + 1), 
-#                   xlim=c(0.5, 2)) +
-#   theme_classic() +
-#   geom_point(aes(x=HR), shape=15, size=3) +
-#   geom_linerange(aes(xmin=LB, xmax=UB)) +
-#   geom_vline(xintercept = 1, linetype="dashed") +
-#   annotate("text", x = .65, 
-#            y = length(unique(all_hrs[all_hrs$outcome == "ckd_345_pp",]$analysis)) + 1, 
-#            label = "DPP4i protective") +
-#   annotate("text", x = 1.5, 
-#            y = length(unique(all_hrs[all_hrs$outcome == "ckd_345_pp",]$analysis)) + 1, 
-#            label = "DPP4i harmful") +
-#   labs(x="Hazard Ratio", y="") +
-#   ggtitle("New CKD (DPP4i vs SU)") +
-#   theme(axis.line.y = element_blank(),
-#         axis.ticks.y= element_blank(),
-#         axis.text.y= element_blank(),
-#         axis.title.y= element_blank()) 
-# 
-# p_left_3 <-
-#   labels_plot %>%
-#   filter(outcome == "ckd_345_pp") %>%
-#   filter(contrast == "DPP4i vs SU") %>%
-#   ggplot(aes(y = (model))) + 
-#   # geom_text(aes(x = 0, label = model), hjust = 0, fontface = "bold") +
-#   geom_text(
-#     aes(x = 1, label = model),
-#     hjust = 0,
-#     fontface = ifelse(labels_plot[labels_plot$outcome == "ckd_345_pp" & labels_plot$contrast == "DPP4i vs SU",]$
-#                         model == "Hazard Ratio (95% CI)", "bold", "plain")
-#   ) +
-#   theme_void() +
-#   coord_cartesian(xlim = c(0, 4))
-# 
-# # final plot arrangement
-# p_left_3 + p_ckd345_3 + plot_layout(design = layout)
-# 
-# 
-# ## and for SGLT2i vs DPP4i/SU combined
-# p_ckd345_4 <- 
-#   all_SGLT2ivsDPP4iSU_hrs %>%
-#   filter(outcome == "ckd_345") %>%
-#   ggplot(aes(y = factor(analysis, levels = rev(unique(analysis))))) + 
-#   scale_x_continuous(trans = "log10", breaks = c(0.5, 0.75, 1.0, 1.3, 2.0)) +
-#   coord_cartesian(ylim=c(1,length(unique(all_SGLT2ivsDPP4iSU_hrs[all_SGLT2ivsDPP4iSU_hrs$outcome == "ckd_345",]$analysis)) + 1), 
-#                   xlim=c(0.5, 2)) +
-#   theme_classic() +
-#   geom_point(aes(x=HR), shape=15, size=3) +
-#   geom_linerange(aes(xmin=LB, xmax=UB)) +
-#   geom_vline(xintercept = 1, linetype="dashed") +
-#   annotate("text", x = .65, 
-#            y = length(unique(all_SGLT2ivsDPP4iSU_hrs[all_SGLT2ivsDPP4iSU_hrs$outcome == "ckd_345",]$analysis)) + 1, 
-#            label = "SGLT2i protective") +
-#   annotate("text", x = 1.5, 
-#            y = length(unique(all_SGLT2ivsDPP4iSU_hrs[all_SGLT2ivsDPP4iSU_hrs$outcome == "ckd_345",]$analysis)) + 1, 
-#            label = "SGLT2i harmful") +
-#   labs(x="Hazard Ratio", y="") +
-#   ggtitle("New CKD (SGLT2i vs DPP4i/SU)") +
-#   theme(axis.line.y = element_blank(),
-#         axis.ticks.y= element_blank(),
-#         axis.text.y= element_blank(),
-#         axis.title.y= element_blank()) 
-# 
-# 
-# 
-# p_left_4 <-
-#   labels_plot2 %>%
-#   filter(outcome == "ckd_345") %>%
-#   ggplot(aes(y = (model))) + 
-#   # geom_text(aes(x = 0, label = model), hjust = 0, fontface = "bold") +
-#   geom_text(
-#     aes(x = 1, label = model),
-#     hjust = 0,
-#     fontface = ifelse(labels_plot2[labels_plot2$outcome == "ckd_345",]$
-#                         model == "Hazard Ratio (95% CI)", "bold", "plain")
-#   ) +
-#   theme_void() +
-#   coord_cartesian(xlim = c(0, 4))
-# 
-# # final plot arrangement
-# p_left_4 + p_ckd345_4 + plot_layout(design = layout)
 
-#############3B FOREST PLOT FOR HRs FOR 40% DECLINE IN EGFR#############
+#############3 FOREST PLOT FOR HRs FOR 40% DECLINE IN EGFR#############
 
 # plot
 p_egfr40_1 <- 
@@ -900,7 +718,7 @@ p_egfr40_1 <-
            y = length(unique(all_hrs[all_hrs$outcome == "ckd_egfr40",]$analysis)) + 1, 
            label = "Favours SU") +
   labs(x="", y="") +
-  ggtitle("40% decline in eGFR or ESKD", subtitle = "SGLT2i vs SU") +
+  ggtitle("40% decline in eGFR / ESKD", subtitle = "SGLT2i vs SU") +
   theme(axis.line.y = element_blank(),
         axis.ticks.y= element_blank(),
         axis.text.y= element_blank(),
@@ -1045,7 +863,7 @@ p_egfr40_4 <-
            y = length(unique(all_SGLT2ivsDPP4iSU_hrs[all_SGLT2ivsDPP4iSU_hrs$outcome == "ckd_egfr40",]$analysis)) + 1, 
            label = "Favours DPP4i/SU") +
   labs(x="Hazard Ratio", y="") +
-  ggtitle("40% decline in eGFR or ESKD") +
+  ggtitle("40% decline in eGFR / ESKD") +
   theme(axis.line.y = element_blank(),
         axis.ticks.y= element_blank(),
         axis.text.y= element_blank(),
@@ -1391,8 +1209,8 @@ flextable(alb_SGLT2ivsDPP4iSU_hrs)
 flextable(egfr_SGLT2ivsDPP4iSU_hrs)
 save(alb_hrs, file=paste0(today, "_alb_hrs_incl_egfr_below_60.Rda"))
 save(egfr_hrs, file=paste0(today, "_egfr_hrs_incl_egfr_below_60.Rda"))
-# load("2024-02-26_alb_hrs_incl_egfr_below_60.Rda")
-# load("2024-02-26_egfr_hrs_incl_egfr_below_60.Rda")
+# load("2024-03-06_alb_hrs_incl_egfr_below_60.Rda")
+# load("2024-03-06_egfr_hrs_incl_egfr_below_60.Rda")
 
 # prep data frames with row for overall
 overall <- all_SGLT2ivsDPP4iSU_hrs[all_SGLT2ivsDPP4iSU_hrs$analysis == "adjusted",] %>% select(-model)
@@ -1466,7 +1284,7 @@ p_egfr40_alb <-
            y = length(unique(alb_hrs[alb_hrs$outcome == "ckd_egfr40",]$contrast)) + 1, 
            label = "Favours DPP4i/SU") +
   labs(x="", y="") +
-  ggtitle("40% decline in eGFR or ESKD", subtitle = paste0(c("By albuminuria status (p = ", round(p_value_interaction_alb,2), " for interaction)"),collapse="")) +
+  ggtitle("40% decline in eGFR / ESKD", subtitle = paste0(c("By albuminuria status (p = ", round(p_value_interaction_alb,2), " for interaction)"),collapse="")) +
   theme(axis.line.y = element_blank(),
         axis.ticks.y= element_blank(),
         axis.text.y= element_blank(),
