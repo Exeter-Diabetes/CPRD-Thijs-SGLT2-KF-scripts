@@ -487,7 +487,7 @@ temp <- temp %>% mutate(
 #variables to be shown
 vars <- c("dstartdate_age", "malesex", "ethnicity_5cat", "imd2015_10",             # sociodemographic variables
           "prebmi", "preldl", "prehba1c", "presbp", "predbp", "preegfr",           # vital signs and laboratory measurements
-          "preckdstage", "uacr", "albuminuria", "microalbuminuria", "macroalbuminuria",
+          "preckdstage", "egfr_below_60", "uacr", "albuminuria", "microalbuminuria", "macroalbuminuria",
           "dstartdate_dm_dur_all", "qrisk2_smoking_cat", "predrug_hypertension",   # comorbidities
           "predrug_af", "predrug_dka", "osteoporosis", 
           "predrug_acutepancreatitis", "predrug_falls", 
@@ -507,7 +507,7 @@ factors <- c("malesex", "ethnicity_qrisk2", "qrisk2_smoking_cat", "predrug_hyper
              "initiation_year",
              "ncurrtx", "MFN", "TZD", "INS", "ACEi_or_ARB",
              "cv_high_risk", "qrisk2_above_10_pct", 
-             "preckdstage", "albuminuria", "microalbuminuria", "macroalbuminuria")
+             "preckdstage", "egfr_below_60", "albuminuria", "microalbuminuria", "macroalbuminuria")
 
 nonnormal <- c("imd2015_10", "uacr", "dstartdate_dm_dur_all")
 

@@ -320,10 +320,10 @@ for (k in levels(as.factor(test4$x))) {
 
 noncal_cohort <- noncal_cohort %>% filter(macroalbuminuria == F)
 
-temp <- noncal_cohort %>% filter(preegfr < 90)
+temp <- noncal_cohort %>% filter(preegfr < 90 | albuminuria == T)
 
 surv_indication_NICE <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ studydrug2,
-                                data = temp[temp$.imp ==1,],
+                                data = temp,
                                 weights = overlap2,
                                 conf.type = "log", conf.int = 0.95)
 
@@ -333,7 +333,7 @@ NNT_NICE <- round(1/(summary(surv_indication_NICE, times=3)$surv[2]-summary(surv
 temp2 <- noncal_cohort %>% filter(preegfr < 60 | albuminuria == T)
 
 surv_indication_KDIGO <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ studydrug2,
-                                 data = temp2[temp2$.imp ==1,],
+                                 data = temp2,
                                  weights = overlap2,
                                  conf.type = "log", conf.int = 0.95)
 
@@ -343,7 +343,7 @@ NNT_KDIGO <- round(1/(summary(surv_indication_KDIGO, times=3)$surv[2]-summary(su
 
 temp3 <- noncal_cohort %>% filter(preegfr>90)
 surv_noindication_NICE <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ studydrug2,
-                                  data = temp3[temp3$.imp ==1,],
+                                  data = temp3,
                                   weights = overlap2,
                                   conf.type = "log", conf.int = 0.95)
 
@@ -352,7 +352,7 @@ NNT_noindication_NICE <- round(1/(summary(surv_noindication_NICE, times=3)$surv[
 
 temp4 <- noncal_cohort %>% filter(preegfr>60 & albuminuria == F)
 surv_noindication_KDIGO <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ studydrug2,
-                                   data = temp4[temp4$.imp ==1,],
+                                   data = temp4,
                                    weights = overlap2,
                                    conf.type = "log", conf.int = 0.95)
 
@@ -363,7 +363,7 @@ temp5 <- noncal_cohort %>% filter(preegfr>60 & albuminuria == F |
                                     preegfr>60 & albuminuria == T & 
                                     uacr < threshold_1)
 surv_noindication_tt <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ studydrug2,
-                                data = temp5[temp5$.imp ==1,],
+                                data = temp5,
                                 weights = overlap2,
                                 conf.type = "log", conf.int = 0.95)
 

@@ -73,7 +73,7 @@ cohort <- cohort %>% group_by(.imp, patid) %>% filter(
 # check number of subjects
 table(cohort$studydrug)
 # SU  DPP4i SGLT2i 
-# 311872 499468 559760   # 10 imputations therefore number of subjects per group appears 10 times larger
+# 389470 624700 559760   # 10 imputations therefore number of subjects per group appears 10 times larger
 
 # select calibration cohort and non-calibration cohort 
 
@@ -367,8 +367,9 @@ cstat_est <- summary(surv_mod_ckd40)$concordance[1]
 cstat_est_ll <- summary(surv_mod_ckd40)$concordance[1]-(1.96*summary(surv_mod_ckd40)$concordance[2])
 cstat_est_ul <- summary(surv_mod_ckd40)$concordance[1]+(1.96*summary(surv_mod_ckd40)$concordance[2])
 paste0("C statistic: ", round(cstat_est, 4), ", 95% CI ", round(cstat_est_ll, 4), "-", round(cstat_est_ul,4))
-# C statistic: 0.7531, 95% CI 0.7475-0.7586
-
+# C statistic: 0.7693, 95% CI 0.7643-0.7744
+# brier_score <- brier(surv_mod_ckd40, times = 3)
+# paste0("Brier score: ", round(brier_score$brier,4))
 
 # similarly, this risk score also overestimates risk.
 # both will need some recalibration.
@@ -667,7 +668,8 @@ cstat_est_ll <- summary(surv_mod_ckd40)$concordance[1]-(1.96*summary(surv_mod_ck
 cstat_est_ul <- summary(surv_mod_ckd40)$concordance[1]+(1.96*summary(surv_mod_ckd40)$concordance[2])
 paste0("C statistic: ", round(cstat_est, 4), ", 95% CI ", round(cstat_est_ll, 4), "-", round(cstat_est_ul,4))
 # C statistic: 0.7515, 95% CI 0.7454-0.7577
-
+# brier_score <- brier(surv_mod_ckd40, times = 3)
+# paste0("Brier score: ", round(brier_score$brier,4))
 
 ############################2B RECALIBRATION - LOGISTIC RECALIBRATION################################################################
 
@@ -991,6 +993,8 @@ cstat_est_ll <- summary(surv_mod_ckd40)$concordance[1]-(1.96*summary(surv_mod_ck
 cstat_est_ul <- summary(surv_mod_ckd40)$concordance[1]+(1.96*summary(surv_mod_ckd40)$concordance[2])
 paste0("C statistic: ", round(cstat_est, 4), ", 95% CI ", round(cstat_est_ll, 4), "-", round(cstat_est_ul,4))
 # C statistic: 0.7656, 95% CI 0.76-0.7713
+# brier_score <- brier(surv_mod_ckd40, times = 3)
+#  paste0("Brier score: ", round(brier_score$brier,4))
 
 ############################3 STORE RECALIBRATED SCORES################################################################
 # save dataset with calibrated risk score so this can be used in the subsequent scripts
