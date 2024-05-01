@@ -19,6 +19,7 @@ library(survminer)
 library(broom)
 library(patchwork)
 library(rms)
+library(pROC)
 
 options(dplyr.dpp4isummarise.inform = FALSE)
 
@@ -57,7 +58,7 @@ pool.rubin.KM <- function(EST,SE,n.imp){
 
 # load data
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-load("2024-03-06_t2d_ckdpc_imputed_data_withweights_incl_egfr_below_60.Rda")
+load("2024-04-30_t2d_ckdpc_imputed_data_withweights.Rda")
 
 # select imputed data only (ie. remove non-imputed data)
 cohort <- cohort[cohort$.imp > 0,]
@@ -240,107 +241,13 @@ empty_tick <- obs_v_pred %>%
   filter(ckd40_risk_decile==1) %>%
   mutate(observed=NA, lower_ci=NA, upper_ci=NA, mean_ckd40_pred=NA, ckd40_risk_decile=0)
 
-p1 <- ggplot(data=bind_rows(empty_tick,obs_v_pred), aes(x=ckd40_risk_decile, group=studydrug2, color=studydrug2)) +
-  geom_point(aes(y = observed*100), position=dodge) +
-  geom_errorbar(aes(ymax=upper_ci*100,ymin=lower_ci*100),width=0.25,size=1, position=dodge) +
-  geom_point(aes(y = mean_ckd40_pred*100), position=dodge, shape=17, size=2) +
-  theme_bw() +
-  xlab("Risk score decile") + ylab("Risk (%)")+
-  scale_x_continuous(breaks=c(seq(0,10,by=1)))+
-  scale_y_continuous(breaks=c(seq(0,7,by=1)), limits=c(-10,10)) +
-  scale_colour_manual(values = cols) +
-  theme(panel.border=element_blank(), panel.grid.major=element_blank(),panel.grid.minor=element_blank(),
-        axis.line.x=element_line(colour = "black"), axis.line.y=element_line(colour="black"),
-        plot.title = element_text(size = rel(1.5), face = "bold")) + theme(plot.margin = margin()) +
-  theme(axis.text=element_text(size=rel(1.5)))+ theme(axis.title=element_text(size=rel(1.5))) +
-  ggtitle("Uncalibrated risk score vs 40% eGFR decline/ESKD (3 year)") +
-  coord_cartesian(ylim = c(0,7.5))
-
-p2 <- gridExtra::tableGrob(events_table, rows = NULL, cols = NULL)
-p2$widths <- unit(rep(1, ncol(p2)), "null")
-p2$heights <- unit(rep(1, nrow(p2)), "null")
-
-p3 <- ggplot() +
-  annotation_custom(p2)
-
-p_ckd40_uncal_bydeciles_bydrug <- p1 + p3 + plot_layout(ncol = 1, heights=c(5,1))
-p_ckd40_uncal_bydeciles_bydrug
-
-# plot with obs vs predicted with loess smoother
-
-p1 <- ggplot(data=bind_rows(empty_tick,obs_v_pred), aes(x=mean_ckd40_pred*100)) +
-  #geom_errorbar(aes(ymax=upper_ci*100,ymin=lower_ci*100),width=0.25,size=1, position=dodge) +
-  geom_point(aes(y = observed*100, group=studydrug2, color=studydrug2), position=dodge, shape=17, size=2) +
-  geom_abline(intercept = 0, slope = 1) +
-  theme_bw() +
-  xlab("CKD-PC risk score (%)") + ylab("Estimated risk (%)")+
-  scale_x_continuous(limits=c(0,6))+
-  scale_y_continuous(limits=c(-5,10)) +
-  scale_colour_manual(values = cols) +
-  theme(panel.border=element_blank(), panel.grid.major=element_blank(),panel.grid.minor=element_blank(),
-        axis.line.x=element_line(colour = "black"), axis.line.y=element_line(colour="black"),
-        plot.title = element_text(size = rel(1.5), face = "bold")) + theme(plot.margin = margin()) +
-  theme(axis.text=element_text(size=rel(1.5)))+ theme(axis.title=element_text(size=rel(1.5))) +
-  ggtitle("Predicted vs observed incidence of 40% eGFR decline/ESKD (3 year)")+
-  coord_cartesian(ylim = c(0,3.5))
-
-p_ckd40_uncal_bydrug <- p1 + geom_smooth(aes(y=observed*100, x=mean_ckd40_pred*100), colour = "black", data = obs_v_pred)
-p_ckd40_uncal_bydrug
-
-## first plot with all observed combined (not grouped by studydrug) vs predicted
-
-obs_v_pred2 <- rbind(
-  (predicted_all %>% mutate(
-    lower_ci = NA,
-    upper_ci = NA,
-    risk_type = "predicted"
-  ) %>%
-    select(strata=ckd40_risk_decile, estimate=mean_ckd40_pred, lower_ci, upper_ci, risk_type)
-  ),
-  (observed_all %>% mutate(
-    risk_type = "observed"
-  ) %>% 
-    relocate(strata, .before = observed) %>%
-    relocate(risk_type, .after = upper_ci) %>%
-    select(strata, estimate=observed, lower_ci, upper_ci, risk_type)
-  )
-)
-
-p_ckd40_uncal_bydeciles <- ggplot(data=obs_v_pred2, aes(x=strata, y=estimate*100)) +
-  geom_errorbar(aes(ymax=upper_ci*100,ymin=lower_ci*100),width=0.1,size=.75) +
-  geom_point(aes(fill = risk_type, size = risk_type), shape = 21, colour = "black", stroke = 1.5) +
-  scale_fill_manual("",
-                    breaks = c("predicted", "observed"),
-                    labels = c("Uncalibrated risk score", "Incidence of 40% eGFR decline/ESKD (Kaplan-Meier estimate)"),
-                    values = c("white", "cadetblue3")) +
-  scale_size_manual(breaks = c("predicted", "observed"),
-                    values = c(4,3),
-                    guide = "none") +
-  guides(fill = guide_legend(override.aes = list(size = 4))) +
-  theme_bw() +  
-  theme(legend.position = c(0.05,0.95),
-        legend.justification = c(0,1),
-        legend.key.size = unit(1, "cm"),
-        legend.text=element_text(size=rel(1))) +
-  xlab("Risk score decile") + ylab("Risk (%)")+
-  scale_x_continuous(breaks=c(seq(0,10,by=1)))+
-  scale_y_continuous(breaks=c(seq(0,7,by=1)), limits=c(-1,10)) +
-  theme(panel.border=element_blank(), panel.grid.major=element_blank(),panel.grid.minor=element_blank(),
-        axis.line.x=element_line(colour = "black"), axis.line.y=element_line(colour="black"),
-        plot.title = element_text(size = rel(1.5), face = "bold")) + theme(plot.margin = margin()) +
-  theme(axis.text=element_text(size=rel(1.5)))+ theme(axis.title=element_text(size=rel(1.5))) +
-  ggtitle("Uncalibrated risk score vs incidence of 40% eGFR decline/ESKD (3-year)") +
-  coord_cartesian(ylim = c(0,7.5))
-
-p_ckd40_uncal_bydeciles
-
 ## FINAL PLOT
 p_ckd40_uncal_bydeciles_dpp4isu <- ggplot(data=bind_rows(empty_tick,obs_v_pred), aes(x=mean_ckd40_pred*100)) +
   geom_errorbar(aes(ymax=upper_ci_dpp4isu*100,ymin=lower_ci_dpp4isu*100, color=studydrug2),width=0.1,size=1) +
   geom_point(aes(y = observed_dpp4isu*100, group=studydrug2, color=studydrug2), shape=18, size=3) +
   geom_abline(intercept = 0, slope = 1, lty = 2) +
   theme_bw() +
-  xlab("Uncalibrated CKD-PC risk score (%)") + ylab("Estimated risk (%)")+
+  xlab("Uncalibrated CKD-PC risk score (%)") + ylab("Observed proportion (%)")+
   scale_x_continuous(limits=c(0,8))+
   scale_y_continuous(limits=c(-1,7)) +
   scale_colour_manual(values = cols) +
@@ -370,15 +277,16 @@ paste0("C statistic: ", round(cstat_est, 4), ", 95% CI ", round(cstat_est_ll, 4)
 # C statistic: 0.7693, 95% CI 0.7643-0.7744
 # brier_score <- brier(surv_mod_ckd40, times = 3)
 # paste0("Brier score: ", round(brier_score$brier,4))
+ROC <- roc(noncal_cohort, ckd_egfr40_censvar, ckdpc_40egfr_score)
+auc(ROC)
 
-# similarly, this risk score also overestimates risk.
-# both will need some recalibration.
+# this risk score overestimates risk and needs to be recalibrated.
 
 ############################2A RECALIBRATION - INTERCEPT ONLY ################################################################
 # 40% decline in eGFR / CKD 5
 # risk equation uses a logistic model. There are several ways to update these models.
 # the most straightforward one is to adjust the intercept ("calibration in the large")
-#see: Journal of Clinical Epidemiology 61 (2008) 76e86. Janssen KJM, Moons KGM, Kalkman CJ, Grobbee DE, Vergouwe Y. Updating methods improved the performance of a clinical prediction model in new patients
+# source: Journal of Clinical Epidemiology 61 (2008) 76e86. Janssen KJM, Moons KGM, Kalkman CJ, Grobbee DE, Vergouwe Y. Updating methods improved the performance of a clinical prediction model in new patients
 
 
 #original intercept:
@@ -541,106 +449,13 @@ empty_tick <- obs_v_pred %>%
   filter(ckd40_risk_decile==1) %>%
   mutate(observed=NA, lower_ci=NA, upper_ci=NA, mean_ckd40_pred=NA, ckd40_risk_decile=0)
 
-p1 <- ggplot(data=bind_rows(empty_tick,obs_v_pred), aes(x=ckd40_risk_decile, group=studydrug2, color=studydrug2)) +
-  geom_point(aes(y = observed*100), position=dodge) +
-  geom_errorbar(aes(ymax=upper_ci*100,ymin=lower_ci*100),width=0.25,size=1, position=dodge) +
-  geom_point(aes(y = mean_ckd40_pred*100), position=dodge, shape=17, size=2) +
-  theme_bw() +
-  xlab("Risk score decile") + ylab("Risk (%)")+
-  scale_x_continuous(breaks=c(seq(0,10,by=1)))+
-  scale_y_continuous(breaks=c(seq(0,7,by=1)), limits=c(-1,10)) +
-  scale_colour_manual(values = cols) +
-  theme(panel.border=element_blank(), panel.grid.major=element_blank(),panel.grid.minor=element_blank(),
-        axis.line.x=element_line(colour = "black"), axis.line.y=element_line(colour="black"),
-        plot.title = element_text(size = rel(1.5), face = "bold")) + theme(plot.margin = margin()) +
-  theme(axis.text=element_text(size=rel(1.5)))+ theme(axis.title=element_text(size=rel(1.5))) +
-  ggtitle("Recalibrated risk score vs 40% eGFR decline/ESKD (3 year)\n(Calibration-in-the-large)") +
-  coord_cartesian(ylim = c(0,7.5))
-
-p2 <- gridExtra::tableGrob(events_table, rows = NULL, cols = NULL)
-p2$widths <- unit(rep(1, ncol(p2)), "null")
-p2$heights <- unit(rep(1, nrow(p2)), "null")
-
-p3 <- ggplot() +
-  annotation_custom(p2)
-
-p_ckd40_interim_bydeciles_bydrug <- p1 + p3 + plot_layout(ncol = 1, heights=c(5,1))
-p_ckd40_interim_bydeciles_bydrug
-
-# obs vs predicted (not decile on x-axis but predicted risk) with loess smoother
-
-p1  <- ggplot(data=bind_rows(empty_tick,obs_v_pred), aes(x=mean_ckd40_pred*100)) +
-  #geom_errorbar(aes(ymax=upper_ci*100,ymin=lower_ci*100),width=0.25,size=1, position=dodge) +
-  geom_point(aes(y = observed*100, group=studydrug2, color=studydrug2), position=dodge, shape=17, size=2) +
-  geom_abline(intercept = 0, slope = 1) +
-  theme_bw() +
-  xlab("CKD-PC risk score (%)") + ylab("Estimated risk (%)")+
-  scale_x_continuous(limits=c(0,3.5))+
-  scale_y_continuous(limits=c(-1,7)) +
-  theme(panel.border=element_blank(), panel.grid.major=element_blank(),panel.grid.minor=element_blank(),
-        axis.line.x=element_line(colour = "black"), axis.line.y=element_line(colour="black"),
-        plot.title = element_text(size = rel(1.5), face = "bold")) + theme(plot.margin = margin()) +
-  theme(axis.text=element_text(size=rel(1.5)))+ theme(axis.title=element_text(size=rel(1.5))) +
-  ggtitle("Predicted vs observed incidence of 40% eGFR decline/ESKD (3 year)") +
-  coord_cartesian(ylim = c(0,3.5))
-
-p_ckd40_interim_bydrug <- p1 + geom_smooth(aes(y=observed*100, x=mean_ckd40_pred*100), colour = "black", data = obs_v_pred)
-p_ckd40_interim_bydrug
-
-## plot with all observed combined vs predicted
-
-obs_v_pred_all <- rbind(
-  (predicted_all %>% mutate(
-    lower_ci = NA,
-    upper_ci = NA,
-    risk_type = "predicted"
-  ) %>%
-    select(strata=ckd40_risk_decile, estimate=mean_ckd40_pred, lower_ci, upper_ci, risk_type)
-  ),
-  (observed_all %>% mutate(
-    risk_type = "observed"
-  ) %>% 
-    relocate(strata, .before = observed) %>%
-    relocate(risk_type, .after = upper_ci) %>%
-    select(strata, estimate=observed, lower_ci, upper_ci, risk_type)
-  )
-)
-
-p_ckd40_interim_bydeciles <- ggplot(data=obs_v_pred_all, aes(x=strata, y=estimate*100)) +
-  geom_errorbar(aes(ymax=upper_ci*100,ymin=lower_ci*100),width=0.1,size=.75) +
-  geom_point(aes(fill = risk_type, size = risk_type), shape = 21, colour = "black", stroke = 1.5) +
-  scale_fill_manual("",
-                    breaks = c("predicted", "observed"),
-                    labels = c("Recalibrated risk score", "Incidence of 40% eGFR decline/ESKD (Kaplan-Meier estimate)"),
-                    values = c("white", "cadetblue3")) +
-  scale_size_manual(breaks = c("predicted", "observed"),
-                    values = c(4,3),
-                    guide = "none") +
-  guides(fill = guide_legend(override.aes = list(size = 4))) +
-  theme_bw() +  
-  theme(legend.position = c(0.05,0.95),
-        legend.justification = c(0,1),
-        legend.key.size = unit(1, "cm"),
-        legend.text=element_text(size=rel(1))) +
-  xlab("Risk score decile") + ylab("Risk (%)")+
-  scale_x_continuous(breaks=c(seq(0,10,by=1)))+
-  scale_y_continuous(breaks=c(seq(0,7,by=1)), limits=c(-1,10)) +
-  theme(panel.border=element_blank(), panel.grid.major=element_blank(),panel.grid.minor=element_blank(),
-        axis.line.x=element_line(colour = "black"), axis.line.y=element_line(colour="black"),
-        plot.title = element_text(size = rel(1.5), face = "bold")) + theme(plot.margin = margin()) +
-  theme(axis.text=element_text(size=rel(1.5)))+ theme(axis.title=element_text(size=rel(1.5))) +
-  ggtitle("CKD-PC risk score vs estimated risk of 40% decline in eGFR / ESKD", subtitle = "Intercept recalibration of CKD-PC risk score, binned by risk decile") +  
-  coord_cartesian(ylim = c(0,7.5))
-
-p_ckd40_interim_bydeciles
-
 ## FINAL PLOT
 p_ckd40_interim_bydeciles_dpp4isu <- ggplot(data=bind_rows(empty_tick,obs_v_pred), aes(x=mean_ckd40_pred*100)) +
   geom_errorbar(aes(ymax=upper_ci_dpp4isu*100,ymin=lower_ci_dpp4isu*100, color=studydrug2),width=0.1,size=1) +
   geom_point(aes(y = observed_dpp4isu*100, group=studydrug2, color=studydrug2), shape=18, size=3) +
   geom_abline(intercept = 0, slope = 1, lty = 2) +
   theme_bw() +
-  xlab("Recalibrated CKD-PC risk score (%)") + ylab("Estimated risk (%)")+
+  xlab("Recalibrated CKD-PC risk score (%)") + ylab("Observed proportion (%)")+
   scale_x_continuous(limits=c(0,8))+
   scale_y_continuous(limits=c(-1,7)) +
   scale_colour_manual(values = cols) +
@@ -667,9 +482,11 @@ cstat_est <- summary(surv_mod_ckd40)$concordance[1]
 cstat_est_ll <- summary(surv_mod_ckd40)$concordance[1]-(1.96*summary(surv_mod_ckd40)$concordance[2])
 cstat_est_ul <- summary(surv_mod_ckd40)$concordance[1]+(1.96*summary(surv_mod_ckd40)$concordance[2])
 paste0("C statistic: ", round(cstat_est, 4), ", 95% CI ", round(cstat_est_ll, 4), "-", round(cstat_est_ul,4))
-# C statistic: 0.7515, 95% CI 0.7454-0.7577
+# C statistic: 0.7656, 95% CI 0.76-0.7713
 # brier_score <- brier(surv_mod_ckd40, times = 3)
 # paste0("Brier score: ", round(brier_score$brier,4))
+ROC_cal <- roc(noncal_cohort, ckd_egfr40_censvar, ckdpc_40egfr_score_cal)
+auc(ROC_cal)
 
 ############################2B RECALIBRATION - LOGISTIC RECALIBRATION################################################################
 
@@ -683,7 +500,8 @@ cal_cohort <- cal_cohort %>%
   mutate(temp_lin_predictor=ckdpc_40egfr_lin_predictor + EHRBiomarkr::ckdpc40EgfrRiskConstants$intercept %>% as.numeric(),
          centred_lin_predictor=temp_lin_predictor-mean(temp_lin_predictor))
 
-intercept_cf <- coef_cf <- rep(NA,n.imp)
+new_intercept <- coef_cf <- rep(NA,n.imp)
+intercept_se <- coef_se <- rep(NA,n.imp)
 
 for (i in 1:n.imp) {
   recal_mod <- glm(ckd_egfr40_censvar ~ centred_lin_predictor,
@@ -691,18 +509,24 @@ for (i in 1:n.imp) {
   )
   
   new_intercept[i] <- recal_mod$coef[1]
+  intercept_se[i] <- summary(recal_mod)$coefficients[1,2]
   coef_cf[i] <- recal_mod$coef[2]
+  coef_se[i] <- summary(recal_mod)$coefficients[2,2]
   
 }
-
-new_intercept <- mean(new_intercept)
+# pool SE
+intercept_se_pooled <- sqrt(mean(intercept_se^2) + (1+1/n.imp)*var(new_intercept))
+coef_se_pooled <- sqrt(mean(coef_se^2) + (1+1/n.imp)*var(coef_cf))
+# calculate confidence intervals
+print(paste0(c("Calibration intercept ", mean(new_intercept), ", 95% CI ", mean(new_intercept) - 1.96*intercept_se_pooled, "-", mean(new_intercept) + 1.96*intercept_se_pooled), collapse = "")) ## 
+print(paste0(c("Calibration coefficient ", mean(coef_cf), ", 95% CI ", mean(coef_cf) - 1.96*coef_se_pooled, "-", mean(coef_cf) + 1.96*coef_se_pooled), collapse = "")) ## 
 
 ## Recalculate scores in rest of cohort
 noncal_cohort <- noncal_cohort %>%
   mutate(
     ckdpc_40egfr_score_cal=
       100 * 
-      (exp(mean(coef_cf)*ckdpc_40egfr_lin_predictor + new_intercept))/(1 + exp(mean(coef_cf)*ckdpc_40egfr_lin_predictor + new_intercept))
+      (exp(mean(coef_cf)*ckdpc_40egfr_lin_predictor + mean(new_intercept)))/(1 + exp(mean(coef_cf)*ckdpc_40egfr_lin_predictor + mean(new_intercept)))
   )
 
 ## Plot
@@ -842,107 +666,13 @@ empty_tick <- obs_v_pred %>%
   filter(ckd40_risk_decile==1) %>%
   mutate(observed=NA, lower_ci=NA, upper_ci=NA, mean_ckd40_pred=NA, ckd40_risk_decile=0)
 
-p1 <- ggplot(data=bind_rows(empty_tick,obs_v_pred), aes(x=ckd40_risk_decile, group=studydrug2, color=studydrug2)) +
-  geom_point(aes(y = observed*100), position=dodge) +
-  geom_errorbar(aes(ymax=upper_ci*100,ymin=lower_ci*100),width=0.25,size=1, position=dodge) +
-  geom_point(aes(y = mean_ckd40_pred*100), position=dodge, shape=17, size=2) +
-  theme_bw() +
-  xlab("Risk score decile") + ylab("Risk (%)")+
-  scale_x_continuous(breaks=c(seq(0,10,by=1)))+
-  scale_y_continuous(breaks=c(seq(0,7,by=1)), limits=c(-1,10)) +
-  scale_colour_manual(values = cols) +
-  theme(panel.border=element_blank(), panel.grid.major=element_blank(),panel.grid.minor=element_blank(),
-        axis.line.x=element_line(colour = "black"), axis.line.y=element_line(colour="black"),
-        plot.title = element_text(size = rel(1.5), face = "bold")) + theme(plot.margin = margin()) +
-  theme(axis.text=element_text(size=rel(1.5)))+ theme(axis.title=element_text(size=rel(1.5))) +
-  ggtitle("Recalibrated risk score vs 40% eGFR decline/ESKD (3 year)\n(Logistic recalibration)") +
-  coord_cartesian(ylim = c(0,7.5))
-
-p2 <- gridExtra::tableGrob(events_table, rows = NULL, cols = NULL)
-p2$widths <- unit(rep(1, ncol(p2)), "null")
-p2$heights <- unit(rep(1, nrow(p2)), "null")
-
-p3 <- ggplot() +
-  annotation_custom(p2)
-
-p_ckd40_cal_bydeciles_bydrug <- p1 + p3 + plot_layout(ncol = 1, heights=c(5,1))
-p_ckd40_cal_bydeciles_bydrug
-
-## obs v predicted plot (not deciles but predicted risk on x-axis)
-p1 <- ggplot(data=bind_rows(empty_tick,obs_v_pred), aes(x=mean_ckd40_pred*100)) +
-  #geom_errorbar(aes(ymax=upper_ci*100,ymin=lower_ci*100),width=0.25,size=1, position=dodge) +
-  geom_point(aes(y = observed*100, group=studydrug2, color=studydrug2), position=dodge, shape=17, size=2) +
-  geom_abline(intercept = 0, slope = 1) +
-  theme_bw() +
-  xlab("CKD-PC risk score (%)") + ylab("Estimated risk (%)")+
-  scale_x_continuous(limits=c(0,3.5))+
-  scale_y_continuous(limits=c(-1,7)) +
-  scale_colour_manual(values = cols) +
-  theme(panel.border=element_blank(), panel.grid.major=element_blank(),panel.grid.minor=element_blank(),
-        axis.line.x=element_line(colour = "black"), axis.line.y=element_line(colour="black"),
-        plot.title = element_text(size = rel(1.5), face = "bold")) + theme(plot.margin = margin()) +
-  theme(axis.text=element_text(size=rel(1.5)))+ theme(axis.title=element_text(size=rel(1.5))) +
-  ggtitle("Predicted vs observed incidence of 40% eGFR decline/ESKD (3 year)\n(Logistic recalibration)") +
-  coord_cartesian(ylim = c(0,3.5))
-
-p_ckd40_cal_bydrug <- p1 + geom_smooth(aes(y=observed*100, x=mean_ckd40_pred*100), colour = "black", data = obs_v_pred)
-p_ckd40_cal_bydrug
-
-## plot with all observed combined (like first plot but not grouped by drug) vs predicted
-
-
-obs_v_pred2 <- rbind(
-  (predicted_all %>% mutate(
-    lower_ci = NA,
-    upper_ci = NA,
-    risk_type = "predicted"
-  ) %>%
-    select(strata=ckd40_risk_decile, estimate=mean_ckd40_pred, lower_ci, upper_ci, risk_type)
-  ),
-  (observed_all %>% mutate(
-    risk_type = "observed"
-  ) %>%
-    relocate(strata, .before = observed) %>%
-    relocate(risk_type, .after = upper_ci) %>%
-    select(strata, estimate=observed, lower_ci, upper_ci, risk_type)
-  )
-)
-
-p_ckd40_cal_bydeciles <- ggplot(data=obs_v_pred2, aes(x=strata, y=estimate*100)) +
-  geom_errorbar(aes(ymax=upper_ci*100,ymin=lower_ci*100),width=0.1,size=.75) +
-  geom_point(aes(fill = risk_type, size = risk_type), shape = 21, colour = "black", stroke = 1.5) +
-  scale_fill_manual("",
-                    breaks = c("predicted", "observed"),
-                    labels = c("Recalibrated risk score", "Incidence of 40% eGFR decline/ESKD (Kaplan-Meier estimate)"),
-                    values = c("white", "cadetblue3")) +
-  scale_size_manual(breaks = c("predicted", "observed"),
-                    values = c(4,3),
-                    guide = "none") +
-  guides(fill = guide_legend(override.aes = list(size = 4))) +
-  theme_bw() +
-  theme(legend.position = c(0.05,0.95),
-        legend.justification = c(0,1),
-        legend.key.size = unit(1, "cm"),
-        legend.text=element_text(size=rel(1))) +
-  xlab("Risk score decile") + ylab("Risk (%)")+
-  scale_x_continuous(breaks=c(seq(0,10,by=1)))+
-  scale_y_continuous(breaks=c(seq(0,7,by=1)), limits=c(-1,10)) +
-  theme(panel.border=element_blank(), panel.grid.major=element_blank(),panel.grid.minor=element_blank(),
-        axis.line.x=element_line(colour = "black"), axis.line.y=element_line(colour="black"),
-        plot.title = element_text(size = rel(1.5), face = "bold")) + theme(plot.margin = margin()) +
-  theme(axis.text=element_text(size=rel(1.5)))+ theme(axis.title=element_text(size=rel(1.5))) +
-  ggtitle("Recalibrated risk score vs incidence of 40% eGFR decline/ESKD (3-year)\n(Logistic recalibration)") +
-  coord_cartesian(ylim = c(0,7.5))
-
-p_ckd40_cal_bydeciles
-
 ## FINAL PLOT
 p_ckd40_cal_bydeciles_dpp4isu <- ggplot(data=bind_rows(empty_tick,obs_v_pred), aes(x=mean_ckd40_pred*100)) +
   geom_errorbar(aes(ymax=upper_ci_dpp4isu*100,ymin=lower_ci_dpp4isu*100, color=studydrug2),width=0.1,size=1) +
   geom_point(aes(y = observed_dpp4isu*100, group=studydrug2, color=studydrug2), shape=18, size=3) +
   geom_abline(intercept = 0, slope = 1, lty = 2) +
   theme_bw() +
-  xlab("Recalibrated CKD-PC risk score (%)") + ylab("Estimated risk (%)")+
+  xlab("Recalibrated CKD-PC risk score (%)") + ylab("Observed proportion (%)")+
   scale_x_continuous(limits=c(0,6))+
   scale_y_continuous(limits=c(-1,7)) +
   scale_colour_manual(values = cols) +
@@ -960,28 +690,6 @@ p_ckd40_cal_bydeciles_dpp4isu <- ggplot(data=bind_rows(empty_tick,obs_v_pred), a
 
 p_ckd40_cal_bydeciles_dpp4isu
 
-# with SGLT2i included (but not to show as these are overpredicted)
-# p_ckd40_cal_bydeciles <- ggplot(data=bind_rows(empty_tick,obs_v_pred), aes(x=mean_ckd40_pred*100)) +
-#   geom_errorbar(aes(ymax=upper_ci*100,ymin=lower_ci*100, color=studydrug2),width=0.1,size=1) +
-#   geom_point(aes(y = observed*100, group=studydrug2, color=studydrug2), shape=18, size=3) +
-#   geom_abline(intercept = 0, slope = 1, lty = 2) +
-#   theme_bw() +
-#   xlab("CKD-PC risk score (%)") + ylab("Estimated risk (%)")+
-#   scale_x_continuous(limits=c(0,6))+
-#   scale_y_continuous(limits=c(-1,7)) +
-#   scale_colour_manual(values = cols) +
-#   theme(panel.border=element_blank(), panel.grid.major=element_blank(),panel.grid.minor=element_blank(),
-#         axis.line.x=element_line(colour = "black"), axis.line.y=element_line(colour="black"),
-#         plot.title = element_text(size = rel(1.5), face = "bold")) + theme(plot.margin = margin()) +
-#   theme(axis.text=element_text(size=rel(1.5)),
-#         axis.title=element_text(size=rel(1.5)),
-#         plot.title=element_text(hjust = 0.5),
-#         plot.subtitle=element_text(hjust = 0.5,size=rel(1.2)),
-#         legend.position = c(0.2,0.8),
-#         legend.title = element_text(colour = "white")) +
-#   ggtitle("CKD-PC risk score vs estimated risk of 40% decline in eGFR / ESKD", subtitle = "Recalibrated score using logistic recalibration, binned by risk decile") +
-#   coord_cartesian(xlim = c(0,6), ylim = c(0,6))
-# p_ckd40_cal_bydeciles
 
 ## C-stat
 noncal_cohort <- noncal_cohort %>%
@@ -995,8 +703,11 @@ paste0("C statistic: ", round(cstat_est, 4), ", 95% CI ", round(cstat_est_ll, 4)
 # C statistic: 0.7656, 95% CI 0.76-0.7713
 # brier_score <- brier(surv_mod_ckd40, times = 3)
 #  paste0("Brier score: ", round(brier_score$brier,4))
+ROC_cal <- roc(noncal_cohort, ckd_egfr40_censvar, ckdpc_40egfr_score_cal)
+auc(ROC_cal)
+
 
 ############################3 STORE RECALIBRATED SCORES################################################################
 # save dataset with calibrated risk score so this can be used in the subsequent scripts
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-save(noncal_cohort, file=paste0(today, "_t2d_ckdpc_recalibrated_incl_egfr_below_60.Rda"))
+save(noncal_cohort, file=paste0(today, "_t2d_ckdpc_recalibrated.Rda"))

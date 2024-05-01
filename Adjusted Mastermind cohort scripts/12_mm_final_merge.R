@@ -45,8 +45,10 @@ combo_start_stop <- combo_start_stop %>% analysis$cached("combo_start_stop")
 
 ## Biomarkers inc. CKD
 #baseline_biomarkers <- baseline_biomarkers %>% analysis$cached("baseline_biomarkers")
-response_biomarkers <- response_biomarkers %>% analysis$cached("response_biomarkers") #includes baseline biomarker values for first instance drug periods so no need to use baseline_biomakers table
 ckd_stages <- ckd_stages %>% analysis$cached("ckd_stages")
+analysis = cprd$analysis("Thijs_ckd") # nieuwe versie daarom onder mijn naam opgeslagen ipv onder mm
+response_biomarkers <- response_biomarkers %>% analysis$cached("response_biomarkers") #includes baseline biomarker values for first instance drug periods so no need to use baseline_biomakers table
+
 
 ## Comorbidities
 analysis = cprd$analysis("Thijs_ckd") # nieuwe versie daarom onder mijn naam opgeslagen ipv onder mm

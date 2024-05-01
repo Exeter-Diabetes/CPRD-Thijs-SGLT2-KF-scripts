@@ -30,9 +30,9 @@ set.seed(123)
 ## A Cohort selection (see cohort_definition_kf function for details)
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-load("2024-02-26_t2d_1stinstance_a.Rda")
-load("2024-02-26_t2d_1stinstance_b.Rda")
-load("2024-02-26_t2d_all_drug_periods.Rda")
+load("2024-04-30_t2d_1stinstance_a.Rda")
+load("2024-04-30_t2d_1stinstance_b.Rda")
+load("2024-04-30_t2d_all_drug_periods.Rda")
 
 t2d_1stinstance <- rbind(t2d_1stinstance_a, t2d_1stinstance_b)
 rm(t2d_1stinstance_a)
@@ -45,7 +45,7 @@ cohort <- define_cohort(t2d_1stinstance, t2d_all_drug_periods)
 
 table(cohort$studydrug)
 # DPP4 SGLT2    SU 
-# 69132 50637 43434
+# 72840 56740 43947
 
 ## B Make variables for survival analysis of all endpoints (see survival_variables_kf function for details)
 
@@ -98,6 +98,7 @@ cohort <- cohort %>%
          #add variables necessary for PS weights later on
          predrug_dka, predrug_falls, predrug_urinary_frequency, predrug_volume_depletion, 
          predrug_micturition_control, predrug_dementia, hosp_admission_prev_year, 
+         predrug_medspecific_gi,
          statin, ACEi, ARB, BB, CCB, ThZD, loopD, MRA, steroids, immunosuppr, osteoporosis
   )
 
@@ -486,8 +487,10 @@ temp <- temp %>% mutate(
 
 #variables to be shown
 vars <- c("dstartdate_age", "malesex", "ethnicity_5cat", "imd2015_10",             # sociodemographic variables
-          "prebmi", "preldl", "prehba1c", "presbp", "predbp", "preegfr",           # vital signs and laboratory measurements
-          "preckdstage", "egfr_below_60", "uacr", "albuminuria", "microalbuminuria", "macroalbuminuria",
+          "prebmi", "presbp", "predbp", "pretotalcholesterol", "prehdl", "preldl", # vital signs and laboratory measurements
+          "pretriglyceride", "prehba1c",  "preegfr",           
+          "preckdstage", "egfr_below_60", "uacr", "albuminuria", 
+          "microalbuminuria", "macroalbuminuria",
           "dstartdate_dm_dur_all", "qrisk2_smoking_cat", "predrug_hypertension",   # comorbidities
           "predrug_af", "predrug_dka", "osteoporosis", 
           "predrug_acutepancreatitis", "predrug_falls", 
@@ -519,8 +522,36 @@ tabforprint <- print(table, nonnormal = nonnormal, quote = FALSE, noSpaces = TRU
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/output/")
 #my computer is set to continental settings, therefore I am using write.csv2 instead of write.csv
 today <- as.character(Sys.Date(), format="%Y%m%d")
-write.csv2(tabforprint, file = paste0(today, "_baseline_table_incl_egfr_below_60.csv"))
+write.csv2(tabforprint, file = paste0(today, "_baseline_table.csv"))
+
+# get baseline table by eGFR/uACR subgroups:
+temp <- temp %>% mutate(
+  subgroup = ifelse(
+    macroalbuminuria == T, "uACR ≥30mg/mmol", ifelse(
+      preegfr <60, ifelse(
+        albuminuria == T, "eGFR <60mL/min, uACR 3-30mg/mmol", "eGFR <60mL/min, uACR <3mg/mmol"), ifelse(
+          albuminuria == T, "eGFR ≥60mL/min, uACR 3-30mg/mmol", "eGFR ≥60mL/min, uACR <3mg/mmol"
+        )
+      )
+    )
+  )
+temp$subgroup <- temp$subgroup %>% factor(levels = c("eGFR ≥60mL/min, uACR <3mg/mmol",
+                                                        "eGFR ≥60mL/min, uACR 3-30mg/mmol",
+                                                        "eGFR <60mL/min, uACR <3mg/mmol",
+                                                        "eGFR <60mL/min, uACR 3-30mg/mmol",
+                                                        "uACR ≥30mg/mmol"))
+
+vars <- c(vars, "studydrug")
+factors <- c(factors, "studydrug")
+table <- CreateTableOne(vars = vars, strata = "subgroup", data = temp[temp$.imp > 0,], 
+                        factorVars = factors, test = F)
+
+tabforprint <- print(table, nonnormal = nonnormal, quote = FALSE, noSpaces = TRUE, printToggle = T)
+
+write.csv2(tabforprint, file = paste0(today, "_baseline_table_by_subgroup.csv"))
+
+
 
 # save imputed dataset so this can be used in the subsequent scripts
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-save(temp, file=paste0(today, "_t2d_ckdpc_imputed_data_incl_egfr_below_60.Rda"))
+save(temp, file=paste0(today, "_t2d_ckdpc_imputed_data.Rda"))

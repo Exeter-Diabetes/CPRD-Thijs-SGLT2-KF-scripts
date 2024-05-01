@@ -43,7 +43,7 @@ pool.rubin.KM <- function(EST,SE,n.imp){
   return(output)}
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-load("2024-03-06_t2d_ckdpc_recalibrated_incl_egfr_below_60.Rda")
+load("2024-04-30_t2d_ckdpc_recalibrated.Rda")
 
 noncal_cohort$studydrug2 <- as.factor(noncal_cohort$studydrug2)
 
@@ -370,7 +370,7 @@ empty_tick <- obs_v_pred2 %>%
 
 ## SGLT2i benefit predicted vs observed - in all patients
 p_benefit_bydeciles2 <- ggplot(data=bind_rows(empty_tick,obs_v_pred2), aes(x=predicted*100)) +
-  geom_errorbar(aes(ymax=upper_ci*100,ymin=lower_ci*100, color= "#0072B2"),width=0.1,size=1) +
+  geom_errorbar(aes(ymax=upper_ci*100,ymin=lower_ci*100, color= "#0072B2"),width=0.025,size=1) +
   geom_point(aes(y = estimate*100, color="#0072B2"), shape=18, size=3) +
   geom_abline(intercept = 0, slope = 1, lty = 2) +
   theme_bw() +
@@ -385,7 +385,7 @@ p_benefit_bydeciles2 <- ggplot(data=bind_rows(empty_tick,obs_v_pred2), aes(x=pre
         plot.subtitle=element_text(hjust = 0.5,size=rel(1.2)),
         legend.position = "none") +
   ggtitle("Predicted versus observed SGLT2-inhibitor benefit", subtitle = "Binned by predicted benefit decile") +
-  coord_cartesian(xlim = c(0,4), ylim = c(0,4))
+  coord_cartesian(xlim = c(0,1.5), ylim = c(-0.2,1.5))
 
 p_benefit_bydeciles2
 
@@ -1315,19 +1315,31 @@ nnt_table <- rbind(obs_v_pred40 %>% select(risk_group,
                                   risk_predicted=mean_predicted_background_risk, 
                                   risk_observed=surv, 
                                   arr_predicted=mean_predicted_benefit, 
-                                  arr_observed=surv_diff, nnt_predicted, nnt_observed),
+                                  arr_observed=surv_diff, 
+                                  arr_lowerci=lower_ci,
+                                  arr_upperci=upper_ci,
+                                  nnt_predicted, 
+                                  nnt_observed),
                 obs_v_pred40_lowegfr %>% mutate(risk_group = c("Reduced eGFR, no albuminuria", "Reduced eGFR, microalbuminuria")) %>%
                                         select(risk_group, 
                                                risk_predicted=mean_predicted_background_risk, 
                                                risk_observed=surv, 
                                                arr_predicted=mean_predicted_benefit, 
-                                               arr_observed=surv_diff, nnt_predicted, nnt_observed),
+                                               arr_observed=surv_diff, 
+                                               arr_lowerci=lower_ci,
+                                               arr_upperci=upper_ci,
+                                               nnt_predicted, 
+                                               nnt_observed),
                 obs_v_pred40_macroalb %>% mutate(risk_group="Any eGFR, macroalbuminuria") %>% 
                                           select(risk_group, 
                                                  risk_predicted=mean_predicted_background_risk, 
                                                  risk_observed=surv, 
                                                  arr_predicted=mean_predicted_benefit, 
-                                                 arr_observed=surv_diff, nnt_predicted, nnt_observed)
+                                                 arr_observed=surv_diff, 
+                                                 arr_lowerci=lower_ci,
+                                                 arr_upperci=upper_ci,
+                                                 nnt_predicted, 
+                                                 nnt_observed)
                 ) %>%
   mutate(
     risk_predicted = round(risk_predicted*100,1),
@@ -1335,9 +1347,12 @@ nnt_table <- rbind(obs_v_pred40 %>% select(risk_group,
     arr_predicted =round(arr_predicted*100,1),
     arr_observed = round(arr_observed*100,1),
     nnt_predicted = round(nnt_predicted),
-    nnt_observed = round(nnt_observed)
+    nnt_observed = round(nnt_observed),
+    nnt_observed_lowerci = round(1/arr_upperci),
+    nnt_observed_upperci = round(1/arr_lowerci)
 ) %>% cbind(nnt_observed_weighted)
 
+# setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/output/")
 # write.csv2(nnt_table, file = paste0(today, "_nnt_table.csv"))
 
 
