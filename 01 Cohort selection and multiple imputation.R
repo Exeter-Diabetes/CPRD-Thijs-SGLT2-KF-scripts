@@ -78,6 +78,14 @@ cohort$immunosuppr <- !is.na(cohort$predrug_latest_immunosuppressants)
 cohort$osteoporosis <- !is.na(cohort$predrug_latest_osteoporosis)
 cohort$later_glp1 <- !is.na(cohort$next_glp1_start)
 
+## for some reason the dataset contains dstopdate.x and dstopdate.x which are identical
+# remove these if this is present
+if ("dstopdate.x" %in% names(cohort)) {
+  cohort <- cohort %>% mutate(dstopdate = dstopdate.x) %>% select(
+    -c(dstopdate.x, dstopdate.y)
+  )
+}
+
 cohort <- cohort %>%
   #for hba1c take closest result to index date within window of 2 years prior and 7 days post, similar as other biomarkers
   mutate(prehba1c = prehba1c2yrs) %>%
@@ -123,7 +131,15 @@ cohort <- cohort %>%
                                labels = c("White", "South Asian", "Black", "Other", "Mixed", "Not stated/Unknown"))) %>% 
   relocate(ethnicity_5cat, .after = last_col())
 
-
+# imd_2015 is not a continuous variable - we will categorise this as quantiles
+cohort <- cohort %>% mutate(
+  imd2015_10 = ifelse(imd2015_10 %in% c(1,2), "1/2",
+                      ifelse(imd2015_10 %in% c(3,4), "3/4",
+                             ifelse(imd2015_10 %in% c(5,6), "5,6",
+                                    ifelse(imd2015_10 %in% c(7,8), "7,8",
+                                           ifelse(imd2015_10 %in% c(9,10), "9,10", NA))))),
+  imd2015_10 = factor(imd2015_10)
+)
 
 ########################2 MULTIPLE IMPUTATION####################################################################
 # 2 Impute missing data
@@ -171,7 +187,7 @@ meth[c("death_date", "preacr", "last_sglt2_stop", "preckdstage", "predrug_earlie
        "ethnicity_qrisk2", 
        "predrug_latest_thiazide_diuretics", "next_glp1_start" )] <- ""
 
-meth["qrisk2_smoking_cat"] <- "polyreg"
+meth[c("qrisk2_smoking_cat", "imd2015_10")] <- "polyreg"
 
 meth["prebmi"] <- "~ I( preweight / (height/100)^2)"
 
@@ -480,7 +496,8 @@ temp <- temp %>% mutate(
   egfr_below_60 = ifelse(preegfr >=60, F, T),
   ACEi_or_ARB = ifelse(temp$ACEi + temp$ARB > 0, T, F),
   macroalbuminuria = ifelse(uacr < 30, F, T),
-  microalbuminuria = ifelse(uacr <3, F, ifelse(macroalbuminuria == T, F, T))
+  microalbuminuria = ifelse(uacr <3, F, ifelse(macroalbuminuria == T, F, T)),
+  studydrug2 = ifelse(!studydrug == "SGLT2", "DPP4i/SU", "SGLT2i")
 )
 
 # create table one: this will be an average of the imputed datasets (n to be divided by n.imp)
@@ -503,7 +520,7 @@ vars <- c("dstartdate_age", "malesex", "ethnicity_5cat", "imd2015_10",          
 )
 
 #categorical variables
-factors <- c("malesex", "ethnicity_qrisk2", "qrisk2_smoking_cat", "predrug_hypertension", 
+factors <- c("malesex", "ethnicity_qrisk2", "imd2015_10", "qrisk2_smoking_cat", "predrug_hypertension", 
              "predrug_af", "predrug_dka", "osteoporosis", "predrug_acutepancreatitis", 
              "predrug_falls", "predrug_urinary_frequency", "predrug_volume_depletion", 
              "predrug_micturition_control", "predrug_dementia", "hosp_admission_prev_year",
@@ -512,9 +529,9 @@ factors <- c("malesex", "ethnicity_qrisk2", "qrisk2_smoking_cat", "predrug_hyper
              "cv_high_risk", "qrisk2_above_10_pct", 
              "preckdstage", "egfr_below_60", "albuminuria", "microalbuminuria", "macroalbuminuria")
 
-nonnormal <- c("imd2015_10", "uacr", "dstartdate_dm_dur_all")
+nonnormal <- c("uacr", "dstartdate_dm_dur_all")
 
-table <- CreateTableOne(vars = vars, strata = "studydrug", data = temp[temp$.imp > 0,], 
+table <- CreateTableOne(vars = vars, strata = "studydrug2", data = temp[temp$.imp > 0,], 
                         factorVars = factors, test = F)
 
 tabforprint <- print(table, nonnormal = nonnormal, quote = FALSE, noSpaces = TRUE, printToggle = T)
