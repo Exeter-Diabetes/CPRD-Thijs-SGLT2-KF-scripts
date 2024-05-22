@@ -53,6 +53,15 @@ source("survival_variables_kf.R")
 
 cohort <- add_surv_vars(cohort, main_only=FALSE) # add per-protocol survival variables as well
 
+## for some reason the dataset contains dstopdate.x and dstopdate.x which are identical
+# remove these if this is present
+if ("dstopdate.x" %in% names(cohort)) {
+  cohort <- cohort %>% mutate(dstopdate = dstopdate.x) %>% select(
+    -c(dstopdate.x, dstopdate.y)
+  )
+}
+
+rm(list=setdiff(ls(), "cohort"))
 
 ## C Just keep variables of interest
 
@@ -62,29 +71,20 @@ cohort <- cohort %>%
          uacr=ifelse(uacr<0.6, 0.6, uacr),
          
          #and create variable to code whether someone is on oral hyperglycaemic agents
-         oha=ifelse(Acarbose+MFN+DPP4+Glinide+GLP1+SGLT2+SU+TZD>add, 1L, 0L))
+         oha=ifelse(Acarbose+MFN+DPP4+Glinide+GLP1+SGLT2+SU+TZD>add, 1L, 0L),
+         statin=!is.na(cohort$predrug_latest_statins),
+         ACEi=!is.na(cohort$predrug_latest_ace_inhibitors),
+         ARB=!is.na(cohort$predrug_latest_arb),
+         BB=!is.na(cohort$predrug_latest_beta_blockers),
+         CCB=!is.na(cohort$predrug_latest_calcium_channel_blockers),
+         ThZD=!is.na(cohort$predrug_latest_thiazide_diuretics),
+         loopD=!is.na(cohort$predrug_latest_loop_diuretics),
+         MRA=!is.na(cohort$predrug_latest_ksparing_diuretics),
+         steroids=!is.na(cohort$predrug_latest_oralsteroids),
+         immunosuppr=!is.na(cohort$predrug_latest_immunosuppressants),
+         osteoporosis=!is.na(cohort$predrug_latest_osteoporosis)
+         )
 
-# add variables that we would want to use later for weights
-cohort$statin <- !is.na(cohort$predrug_latest_statins)
-cohort$ACEi <- !is.na(cohort$predrug_latest_ace_inhibitors)
-cohort$ARB <- !is.na(cohort$predrug_latest_arb)
-cohort$BB <- !is.na(cohort$predrug_latest_beta_blockers)
-cohort$CCB <- !is.na(cohort$predrug_latest_calcium_channel_blockers)
-cohort$ThZD <- !is.na(cohort$predrug_latest_thiazide_diuretics)
-cohort$loopD <- !is.na(cohort$predrug_latest_loop_diuretics)
-cohort$MRA <- !is.na(cohort$predrug_latest_ksparing_diuretics)
-cohort$steroids <- !is.na(cohort$predrug_latest_oralsteroids)
-cohort$immunosuppr <- !is.na(cohort$predrug_latest_immunosuppressants)
-cohort$osteoporosis <- !is.na(cohort$predrug_latest_osteoporosis)
-cohort$later_glp1 <- !is.na(cohort$next_glp1_start)
-
-## for some reason the dataset contains dstopdate.x and dstopdate.x which are identical
-# remove these if this is present
-if ("dstopdate.x" %in% names(cohort)) {
-  cohort <- cohort %>% mutate(dstopdate = dstopdate.x) %>% select(
-    -c(dstopdate.x, dstopdate.y)
-  )
-}
 
 cohort <- cohort %>%
   #for hba1c take closest result to index date within window of 2 years prior and 7 days post, similar as other biomarkers
@@ -93,7 +93,7 @@ cohort <- cohort %>%
          drugclass, studydrug, dstartdate, dstopdate, drugline_all, drugsubstances, ncurrtx, DPP4, GLP1, 
          MFN, SGLT2, SU, TZD, INS, dstartdate_age, dstartdate_dm_dur_all, preweight, height, prehba1c, prebmi, 
          prehdl, preldl, pretriglyceride, pretotalcholesterol, prealt, presbp, predbp, preegfr, preckdstage, 
-         preacr, uacr, qrisk2_smoking_cat, contains("cens"), last_sglt2_stop, oha, next_glp1_start, later_glp1,
+         preacr, uacr, qrisk2_smoking_cat, contains("cens"), last_sglt2_stop, oha,
          #add variables necessary to calculate qrisk2/qhdf and ckdpc scores
          predrug_fh_premature_cvd, predrug_af, predrug_rheumatoidarthritis, tds_2011,
          predrug_angina, predrug_myocardialinfarction, predrug_stroke, predrug_revasc,
@@ -109,8 +109,6 @@ cohort <- cohort %>%
          predrug_medspecific_gi,
          statin, ACEi, ARB, BB, CCB, ThZD, loopD, MRA, steroids, immunosuppr, osteoporosis
   )
-
-rm(list=setdiff(ls(), "cohort"))
 
 # set SU as reference group
 
