@@ -274,7 +274,7 @@ cstat_est <- summary(surv_mod_ckd40)$concordance[1]
 cstat_est_ll <- summary(surv_mod_ckd40)$concordance[1]-(1.96*summary(surv_mod_ckd40)$concordance[2])
 cstat_est_ul <- summary(surv_mod_ckd40)$concordance[1]+(1.96*summary(surv_mod_ckd40)$concordance[2])
 paste0("C statistic: ", round(cstat_est, 4), ", 95% CI ", round(cstat_est_ll, 4), "-", round(cstat_est_ul,4))
-# C statistic: 0.7693, 95% CI 0.7643-0.7744
+# C statistic: 0.7693, 95% CI 0.7642-0.7744
 # brier_score <- brier(surv_mod_ckd40, times = 3)
 # paste0("Brier score: ", round(brier_score$brier,4))
 ROC <- roc(noncal_cohort, ckd_egfr40_censvar, ckdpc_40egfr_score)
@@ -482,7 +482,7 @@ cstat_est <- summary(surv_mod_ckd40)$concordance[1]
 cstat_est_ll <- summary(surv_mod_ckd40)$concordance[1]-(1.96*summary(surv_mod_ckd40)$concordance[2])
 cstat_est_ul <- summary(surv_mod_ckd40)$concordance[1]+(1.96*summary(surv_mod_ckd40)$concordance[2])
 paste0("C statistic: ", round(cstat_est, 4), ", 95% CI ", round(cstat_est_ll, 4), "-", round(cstat_est_ul,4))
-# C statistic: 0.7656, 95% CI 0.76-0.7713
+# C statistic: 0.7677, 95% CI 0.7622-0.7733
 # brier_score <- brier(surv_mod_ckd40, times = 3)
 # paste0("Brier score: ", round(brier_score$brier,4))
 ROC_cal <- roc(noncal_cohort, ckd_egfr40_censvar, ckdpc_40egfr_score_cal)
@@ -700,7 +700,7 @@ cstat_est <- summary(surv_mod_ckd40)$concordance[1]
 cstat_est_ll <- summary(surv_mod_ckd40)$concordance[1]-(1.96*summary(surv_mod_ckd40)$concordance[2])
 cstat_est_ul <- summary(surv_mod_ckd40)$concordance[1]+(1.96*summary(surv_mod_ckd40)$concordance[2])
 paste0("C statistic: ", round(cstat_est, 4), ", 95% CI ", round(cstat_est_ll, 4), "-", round(cstat_est_ul,4))
-# C statistic: 0.7656, 95% CI 0.76-0.7713
+# C statistic: 0.7677, 95% CI 0.7622-0.7733
 # brier_score <- brier(surv_mod_ckd40, times = 3)
 #  paste0("Brier score: ", round(brier_score$brier,4))
 ROC_cal <- roc(noncal_cohort, ckd_egfr40_censvar, ckdpc_40egfr_score_cal)

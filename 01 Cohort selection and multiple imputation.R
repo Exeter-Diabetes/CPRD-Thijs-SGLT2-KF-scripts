@@ -484,6 +484,7 @@ print(paste0("Number of drug episodes in study population ", q/n.imp))
 temp <- temp %>% mutate(
   obesity = ifelse(prebmi < 30, F, T),
   smoking_hx = ifelse(qrisk2_smoking_cat == 0, F, T),
+  smoking_status = ifelse(qrisk2_smoking_cat == 0, "never", ifelse(qrisk2_smoking_cat == 1, "ex", "current")),
   albuminuria = ifelse(uacr < 3, F, T),
   dyslipidaemia = ifelse(pretotalcholesterol < 5 &
                            preldl < 4 &
@@ -493,11 +494,11 @@ temp <- temp %>% mutate(
                           smoking_hx + dyslipidaemia +
                           albuminuria > 1, T, F),
   qrisk2_above_10_pct = ifelse(qrisk2_10yr_score >= 10, T, F),
-  egfr_below_60 = ifelse(preegfr >=60, F, T),
   ACEi_or_ARB = ifelse(temp$ACEi + temp$ARB > 0, T, F),
   macroalbuminuria = ifelse(uacr < 30, F, T),
   microalbuminuria = ifelse(uacr <3, F, ifelse(macroalbuminuria == T, F, T)),
-  studydrug2 = ifelse(!studydrug == "SGLT2", "DPP4i/SU", "SGLT2i")
+  studydrug2 = ifelse(!studydrug == "SGLT2", "DPP4i/SU", "SGLT2i"),
+  ncurrtx = ifelse(ncurrtx==1, "1.", ifelse(ncurrtx==2, "2.", ifelse(ncurrtx==3, "3.", "4+")))
 )
 
 # create table one: this will be an average of the imputed datasets (n to be divided by n.imp)
@@ -508,7 +509,7 @@ vars <- c("dstartdate_age", "malesex", "ethnicity_5cat", "imd2015_10",          
           "pretriglyceride", "prehba1c",  "preegfr",           
           "preckdstage", "egfr_below_60", "uacr", "albuminuria", 
           "microalbuminuria", "macroalbuminuria",
-          "dstartdate_dm_dur_all", "qrisk2_smoking_cat", "predrug_hypertension",   # comorbidities
+          "dstartdate_dm_dur_all", "smoking_status", "predrug_hypertension",   # comorbidities
           "predrug_af", "predrug_dka", "osteoporosis", 
           "predrug_acutepancreatitis", "predrug_falls", 
           "predrug_urinary_frequency", "predrug_volume_depletion", 
@@ -520,7 +521,7 @@ vars <- c("dstartdate_age", "malesex", "ethnicity_5cat", "imd2015_10",          
 )
 
 #categorical variables
-factors <- c("malesex", "ethnicity_qrisk2", "imd2015_10", "qrisk2_smoking_cat", "predrug_hypertension", 
+factors <- c("malesex", "ethnicity_qrisk2", "imd2015_10", "smoking_status", "predrug_hypertension", 
              "predrug_af", "predrug_dka", "osteoporosis", "predrug_acutepancreatitis", 
              "predrug_falls", "predrug_urinary_frequency", "predrug_volume_depletion", 
              "predrug_micturition_control", "predrug_dementia", "hosp_admission_prev_year",
@@ -543,20 +544,12 @@ write.csv2(tabforprint, file = paste0(today, "_baseline_table.csv"))
 
 # get baseline table by eGFR/uACR subgroups:
 temp <- temp %>% mutate(
-  subgroup = ifelse(
-    macroalbuminuria == T, "uACR ≥30mg/mmol", ifelse(
-      preegfr <60, ifelse(
-        albuminuria == T, "eGFR <60mL/min, uACR 3-30mg/mmol", "eGFR <60mL/min, uACR <3mg/mmol"), ifelse(
-          albuminuria == T, "eGFR ≥60mL/min, uACR 3-30mg/mmol", "eGFR ≥60mL/min, uACR <3mg/mmol"
-        )
-      )
-    )
-  )
-temp$subgroup <- temp$subgroup %>% factor(levels = c("eGFR ≥60mL/min, uACR <3mg/mmol",
-                                                        "eGFR ≥60mL/min, uACR 3-30mg/mmol",
-                                                        "eGFR <60mL/min, uACR <3mg/mmol",
-                                                        "eGFR <60mL/min, uACR 3-30mg/mmol",
-                                                        "uACR ≥30mg/mmol"))
+  risk_group = ifelse(macroalbuminuria == T, 
+                      ifelse(egfr_below_60 == F, "eGFR ≥60mL/min/1.73m2, uACR ≥30mg/mmol", "eGFR <60mL/min/1.73m2, uACR ≥30mg/mmol"), 
+                      ifelse(egfr_below_60 == T, 
+                             ifelse(albuminuria == T, "eGFR <60mL/min/1.73m2, uACR 3-30mg/mmol", "eGFR <60mL/min/1.73m2, uACR <3mg/mmol"),
+                             ifelse(albuminuria == F, "eGFR ≥60mL/min/1.73m2, uACR <3mg/mmol", "eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol")))
+)
 
 vars <- c(vars, "studydrug")
 factors <- c(factors, "studydrug")

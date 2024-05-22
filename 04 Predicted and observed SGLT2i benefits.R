@@ -60,17 +60,6 @@ noncal_cohort <- noncal_cohort %>%
 noncal_cohort  <- noncal_cohort %>%
   mutate(nnt_predicted = 1/(ckdpc_40egfr_sglt2i_benefit))
 
-noncal_cohort <- noncal_cohort %>% mutate(
-  egfr_below_60 = ifelse(preegfr < 60, T, F),
-  macroalbuminuria = ifelse(uacr < 30, F, T),
-  microalbuminuria = ifelse(uacr <3, F, ifelse(macroalbuminuria == T, F, T)),
-  risk_group = ifelse(macroalbuminuria == T, 
-                      ifelse(egfr_below_60 == F, "eGFR ≥60mL/min/1.73m2, uACR ≥30mg/mmol", "eGFR <60mL/min/1.73m2, uACR ≥30mg/mmol"), 
-                      ifelse(egfr_below_60 == T, 
-                             ifelse(albuminuria == T, "eGFR <60mL/min/1.73m2, uACR 3-30mg/mmol", "eGFR <60mL/min/1.73m2, uACR <3mg/mmol"),
-                             ifelse(albuminuria == F, "eGFR ≥60mL/min/1.73m2, uACR <3mg/mmol", "eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol")))
-  )
-
 # decile plots indicate only top 10% in people with preserved eGFR and low-level albuminuria have a significant risk
 
 risk_threshold <- .90
@@ -96,7 +85,8 @@ noncal_cohort <- noncal_cohort %>% mutate(
                                            "eGFR <60mL/min/1.73m2, uACR ≥30mg/mmol"))
 )
 
-
+# covariates for multivariable adjustment
+covariates <- "dstartdate_age + malesex + imd2015_10 + ethnicity_5cat + initiation_year + prebmi + prehba1c + pretotalcholesterol +  preegfr + uacr + presbp + ckdpc_40egfr_score + ncurrtx + MFN + statin + INS + ACEi_or_ARB + smoking_status + dstartdate_dm_dur_all + predrug_hypertension + predrug_dementia + hosp_admission_prev_year"
 
 today <- as.character(Sys.Date(), format="%Y%m%d")
 
@@ -1144,7 +1134,7 @@ write.csv2(nnt_table, file = paste0(today, "_nnt_table.csv"))
 vars <- c("dstartdate_age", "malesex", "ethnicity_5cat", "imd2015_10",             # sociodemographic variables
           "prebmi", "preegfr", "uacr", "albuminuria",                              # vital signs and laboratory measurements
           "preldl", "prehba1c", "presbp", "predbp",   
-          "dstartdate_dm_dur_all", "qrisk2_smoking_cat", "predrug_hypertension",   # comorbidities
+          "dstartdate_dm_dur_all", "smoking_status", "predrug_hypertension",       # comorbidities
           "predrug_af", "predrug_dka", "osteoporosis", 
           "predrug_acutepancreatitis", "predrug_falls", 
           "predrug_urinary_frequency", "predrug_volume_depletion", 
@@ -1155,7 +1145,7 @@ vars <- c("dstartdate_age", "malesex", "ethnicity_5cat", "imd2015_10",          
 )
 
 #categorical variables
-factors <- c("malesex", "ethnicity_qrisk2", "imd2015_10", "qrisk2_smoking_cat", "predrug_hypertension", 
+factors <- c("malesex", "ethnicity_qrisk2", "imd2015_10", "smoking_status", "predrug_hypertension", 
              "predrug_af", "predrug_dka", "osteoporosis", "predrug_acutepancreatitis", 
              "predrug_falls", "predrug_urinary_frequency", "predrug_volume_depletion", 
              "predrug_micturition_control", "predrug_dementia", "hosp_admission_prev_year",

@@ -65,14 +65,9 @@ pool.rubin.HR <- function(COEFS,SE,n.imp){
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
 load("2024-04-30_t2d_ckdpc_imputed_data.Rda")
 
-#create variable studydrug2 where we compare SGLT2i vs combined group of DPP4i/SU
-temp <- temp %>% mutate(
-  studydrug = ifelse(studydrug == "SGLT2", "SGLT2i", 
-                     ifelse(studydrug == "DPP4", "DPP4i",
-                            "SU")),
-  studydrug2 = ifelse(!studydrug == "SGLT2i", "DPP4i/SU", "SGLT2i"))
+covariates_ps <- "dstartdate_age + malesex + imd2015_10 + ethnicity_5cat + prebmi + prehba1c + pretotalcholesterol + preegfr + uacr + presbp + ckdpc_40egfr_score + ncurrtx + statin + INS + ACEi_or_ARB + smoking_status + dstartdate_dm_dur_all + predrug_hypertension + predrug_dementia + hosp_admission_prev_year"
 
-
+covariates <- "dstartdate_age + malesex + imd2015_10 + ethnicity_5cat + initiation_year + prebmi + prehba1c + pretotalcholesterol + preegfr + uacr + presbp + ckdpc_40egfr_score + ncurrtx + MFN + statin + INS + ACEi_or_ARB + smoking_status + dstartdate_dm_dur_all + predrug_hypertension + predrug_dementia + hosp_admission_prev_year"
 
 ############################1 CALCULATE WEIGHTS################################################################
 
@@ -86,51 +81,9 @@ temp$IPTW2 <- temp$overlap2 <- NA
 temp2 <- temp[temp$.imp == 0,]
 
 # propensity score formula
-ps.formula <- formula(paste("studydrug ~ 
+ps.formula <- formula(paste("studydrug ~ ", covariates_ps))
 
-                               #sociodemographic characteristics:
-                               dstartdate_age + malesex + imd2015_10 + 
-                               ethnicity_5cat + 
-                               
-                               #laboratory and vital signs measurements:
-                               preweight + prebmi + prehba1c + pretriglyceride + prehdl + preldl +
-                               pretotalcholesterol + prealt + preegfr + uacr + presbp + predbp +
-                               ckdpc_40egfr_score +
-                               
-                               #medications:
-                               ncurrtx + MFN + statin + INS +
-                               ACEi_or_ARB + BB + CCB + ThZD + loopD + MRA + 
-                               steroids + immunosuppr +
-                               
-                               #Comorbidities
-                               qrisk2_smoking_cat + dstartdate_dm_dur_all + 
-                               predrug_hypertension + osteoporosis + predrug_dka +
-                               predrug_falls + predrug_urinary_frequency + predrug_volume_depletion +
-                               predrug_acutepancreatitis + predrug_micturition_control + 
-                               predrug_dementia + hosp_admission_prev_year"))
-
-ps.formula2 <- formula(paste("studydrug2 ~ 
-
-                               #sociodemographic characteristics:
-                               dstartdate_age + malesex + imd2015_10 + 
-                               ethnicity_5cat + 
-                               
-                               #laboratory and vital signs measurements:
-                               preweight + prebmi + prehba1c + pretriglyceride + prehdl + preldl +
-                               pretotalcholesterol + prealt + preegfr + uacr + presbp + predbp + 
-                               ckdpc_40egfr_score +
-                               
-                               #medications:
-                               ncurrtx + MFN + statin + INS +
-                               ACEi_or_ARB + BB + CCB + ThZD + loopD + MRA + 
-                               steroids + immunosuppr +
-                               
-                               #Comorbidities
-                               qrisk2_smoking_cat + dstartdate_dm_dur_all + 
-                               predrug_hypertension + osteoporosis + predrug_dka +
-                               predrug_falls + predrug_urinary_frequency + predrug_volume_depletion +
-                               predrug_acutepancreatitis + predrug_micturition_control + 
-                               predrug_dementia + hosp_admission_prev_year"))
+ps.formula2 <- formula(paste("studydrug2 ~ ", covariates_ps))
 
 
 #calculate weights in each imputed dataset
@@ -236,28 +189,7 @@ for (k in outcomes_per_drugclass) {
   # write formulas for adjusted and unadjusted analyses
   f <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug"))
   
-  f_adjusted <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug + 
-                               
-                               #sociodemographic characteristics:
-                               dstartdate_age + malesex + imd2015_10 + 
-                               ethnicity_5cat + initiation_year +
-                               
-                               #laboratory and vital signs measurements:
-                               preweight + prebmi + prehba1c + pretriglyceride + prehdl + preldl +
-                               pretotalcholesterol + prealt + preegfr + uacr + presbp + predbp + 
-                               ckdpc_40egfr_score +
-                               
-                               #medications:
-                               ncurrtx + MFN + statin + INS +
-                               ACEi_or_ARB + BB + CCB + ThZD + loopD + MRA + 
-                               steroids + immunosuppr +
-                               
-                               #Comorbidities
-                               qrisk2_smoking_cat + dstartdate_dm_dur_all + 
-                               predrug_hypertension + osteoporosis + predrug_dka +
-                               predrug_falls + predrug_urinary_frequency + predrug_volume_depletion +
-                               predrug_acutepancreatitis + predrug_micturition_control + 
-                               predrug_dementia + hosp_admission_prev_year"))
+  f_adjusted <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug + ", covariates))
   
   # create empty vectors to store the hazard ratios from every imputed dataset
   # for the unadjusted survival models
@@ -534,28 +466,7 @@ for (k in kf_key_outcomes) {
   # write formulas for adjusted and unadjusted analyses
   f2 <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2"))
   
-  f_adjusted2 <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2 + 
-                               
-                               #sociodemographic characteristics:
-                               dstartdate_age + malesex + imd2015_10 + 
-                               ethnicity_5cat + initiation_year +
-                               
-                               #laboratory and vital signs measurements:
-                               preweight + prebmi + prehba1c + pretriglyceride + prehdl + preldl +
-                               pretotalcholesterol + prealt + preegfr + uacr + presbp + predbp + 
-                               ckdpc_40egfr_score +
-                               
-                               #medications:
-                               ncurrtx + MFN + statin + INS +
-                               ACEi_or_ARB + BB + CCB + ThZD + loopD + MRA + 
-                               steroids + immunosuppr +
-                               
-                               #Comorbidities
-                               qrisk2_smoking_cat + dstartdate_dm_dur_all + 
-                               predrug_hypertension + osteoporosis + predrug_dka +
-                               predrug_falls + predrug_urinary_frequency + predrug_volume_depletion +
-                               predrug_acutepancreatitis + predrug_micturition_control + 
-                               predrug_dementia + hosp_admission_prev_year"))
+  f_adjusted2 <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2 + ", covariates))
   
   # create empty vectors to store the hazard ratios from every imputed dataset
   # for the unadjusted survival models
@@ -702,14 +613,6 @@ all_SGLT2ivsDPP4iSU_hrs <- all_SGLT2ivsDPP4iSU_hrs %>%
 ############################4 SUBGROUP ANALYSES################################################################
 
 cohort <- cohort %>% mutate(
-  egfr_below_60 = ifelse(preegfr < 60, T, F),
-  macroalbuminuria = ifelse(uacr < 30, F, T),
-  microalbuminuria = ifelse(uacr <3, F, ifelse(macroalbuminuria == T, F, T)),
-  risk_group = ifelse(macroalbuminuria == T, 
-                      ifelse(egfr_below_60 == F, "eGFR ≥60mL/min/1.73m2, uACR ≥30mg/mmol", "eGFR <60mL/min/1.73m2, uACR ≥30mg/mmol"), 
-                      ifelse(egfr_below_60 == T, 
-                             ifelse(albuminuria == T, "eGFR <60mL/min/1.73m2, uACR 3-30mg/mmol", "eGFR <60mL/min/1.73m2, uACR <3mg/mmol"),
-                             ifelse(albuminuria == F, "eGFR ≥60mL/min/1.73m2, uACR <3mg/mmol", "eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol"))),
   risk_group = factor(risk_group, levels=c("eGFR ≥60mL/min/1.73m2, uACR <3mg/mmol", 
                                            "eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol",
                                            "eGFR ≥60mL/min/1.73m2, uACR ≥30mg/mmol",
@@ -782,28 +685,7 @@ for (k in kf_key_outcomes) {
     # write formulas for adjusted and unadjusted analyses
     f2 <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2*risk_group"))
     
-    f_adjusted2 <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2*risk_group +
-
-                               #sociodemographic characteristics:
-                               dstartdate_age + malesex + imd2015_10 +
-                               ethnicity_5cat + initiation_year +
-
-                               #laboratory and vital signs measurements:
-                               preweight + prebmi + prehba1c + pretriglyceride + prehdl + preldl +
-                               pretotalcholesterol + prealt + preegfr + uacr + presbp + predbp +
-                               ckdpc_40egfr_score +
-
-                               #medications:
-                               ncurrtx + MFN + statin + INS +
-                               ACEi_or_ARB + BB + CCB + ThZD + loopD + MRA +
-                               steroids + immunosuppr +
-
-                               #Comorbidities
-                               qrisk2_smoking_cat + dstartdate_dm_dur_all +
-                               predrug_hypertension + osteoporosis + predrug_dka +
-                               predrug_falls + predrug_urinary_frequency + predrug_volume_depletion +
-                               predrug_acutepancreatitis + predrug_micturition_control +
-                               predrug_dementia + hosp_admission_prev_year"))
+    f_adjusted2 <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2*risk_group + ", covariates))
     
     # create empty vectors to store the hazard ratios from every imputed dataset
     # for the unadjusted survival models
@@ -854,44 +736,23 @@ for (k in kf_key_outcomes) {
       SE.presegfr.noalb.adj[i] <- sqrt(fit.adj$var[1,1])
       
       COEFS.presegfr.microalb.adj[i] <- fit.adj$coefficients["studydrug2SGLT2i"] + fit.adj$coefficients["studydrug2SGLT2i:risk_groupeGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol"]
-      SE.presegfr.microalb.adj[i] <- sqrt(abs(fit.adj$var[1]) + abs(fit.adj$var[65,65]) + 2 * vcov(fit.adj)[1,65])
+      SE.presegfr.microalb.adj[i] <- sqrt(abs(fit.adj$var[1]) + abs(fit.adj$var[45,45]) + 2 * vcov(fit.adj)[1,45])
       
       COEFS.presegfr.macroalb.adj[i] <- fit.adj$coefficients["studydrug2SGLT2i"] + fit.adj$coefficients["studydrug2SGLT2i:risk_groupeGFR ≥60mL/min/1.73m2, uACR ≥30mg/mmol"]
-      SE.presegfr.macroalb.adj[i] <- sqrt(abs(fit.adj$var[1]) + abs(fit.adj$var[66,66]) + 2 * vcov(fit.adj)[1,66])
+      SE.presegfr.macroalb.adj[i] <- sqrt(abs(fit.adj$var[1]) + abs(fit.adj$var[46,46]) + 2 * vcov(fit.adj)[1,46])
       
       COEFS.redegfr.noalb.adj[i] <- fit.adj$coefficients["studydrug2SGLT2i"] + fit.adj$coefficients["studydrug2SGLT2i:risk_groupeGFR <60mL/min/1.73m2, uACR <3mg/mmol"]
-      SE.redegfr.noalb.adj[i] <- sqrt(abs(fit.adj$var[1]) + abs(fit.adj$var[67,67]) + 2 * vcov(fit.adj)[1,67])
+      SE.redegfr.noalb.adj[i] <- sqrt(abs(fit.adj$var[1]) + abs(fit.adj$var[47,47]) + 2 * vcov(fit.adj)[1,47])
       
       COEFS.redegfr.microalb.adj[i] <- fit.adj$coefficients["studydrug2SGLT2i"] + fit.adj$coefficients["studydrug2SGLT2i:risk_groupeGFR <60mL/min/1.73m2, uACR 3-30mg/mmol"]
-      SE.redegfr.microalb.adj[i] <- sqrt(abs(fit.adj$var[1]) + abs(fit.adj$var[68,68]) + 2 * vcov(fit.adj)[1,68])
+      SE.redegfr.microalb.adj[i] <- sqrt(abs(fit.adj$var[1]) + abs(fit.adj$var[48,48]) + 2 * vcov(fit.adj)[1,48])
       
       COEFS.redegfr.macroalb.adj[i] <- fit.adj$coefficients["studydrug2SGLT2i"] + fit.adj$coefficients["studydrug2SGLT2i:risk_groupeGFR <60mL/min/1.73m2, uACR ≥30mg/mmol"]
-      SE.redegfr.macroalb.adj[i] <- sqrt(abs(fit.adj$var[1]) + abs(fit.adj$var[69,69]) + 2 * vcov(fit.adj)[1,69])
+      SE.redegfr.macroalb.adj[i] <- sqrt(abs(fit.adj$var[1]) + abs(fit.adj$var[49,49]) + 2 * vcov(fit.adj)[1,49])
       
       if (k == "ckd_egfr40") {
         if (i == n.imp) {
-          f_adjusted3 <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2 + risk_group +
-
-                               #sociodemographic characteristics:
-                               dstartdate_age + malesex + imd2015_10 +
-                               ethnicity_5cat + initiation_year +
-
-                               #laboratory and vital signs measurements:
-                               preweight + prebmi + prehba1c + pretriglyceride + prehdl + preldl +
-                               pretotalcholesterol + prealt + preegfr + uacr + presbp + predbp +
-                               ckdpc_40egfr_score +
-
-                               #medications:
-                               ncurrtx + MFN + statin + INS +
-                               ACEi_or_ARB + BB + CCB + ThZD + loopD + MRA +
-                               steroids + immunosuppr +
-
-                               #Comorbidities
-                               qrisk2_smoking_cat + dstartdate_dm_dur_all +
-                               predrug_hypertension + osteoporosis + predrug_dka +
-                               predrug_falls + predrug_urinary_frequency + predrug_volume_depletion +
-                               predrug_acutepancreatitis + predrug_micturition_control +
-                               predrug_dementia + hosp_admission_prev_year"))
+          f_adjusted3 <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2 + risk_group + ", covariates))
           fit.no_interaction <- coxph(f_adjusted3, cohort[cohort$.imp == i,])
           
           loglikelihood_test <- anova(fit.no_interaction, fit.adj, test = "Chisq")
@@ -1035,28 +896,7 @@ for (k in kf_key_outcomes) {
     # write formulas for adjusted and unadjusted analyses
     f2 <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2*risk_group"))
     
-    f_adjusted2 <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2*risk_group +
-
-                               #sociodemographic characteristics:
-                               dstartdate_age + malesex + imd2015_10 +
-                               ethnicity_5cat + initiation_year +
-
-                               #laboratory and vital signs measurements:
-                               preweight + prebmi + prehba1c + pretriglyceride + prehdl + preldl +
-                               pretotalcholesterol + prealt + preegfr + uacr + presbp + predbp +
-                               ckdpc_40egfr_score +
-
-                               #medications:
-                               ncurrtx + MFN + statin + INS +
-                               ACEi_or_ARB + BB + CCB + ThZD + loopD + MRA +
-                               steroids + immunosuppr +
-
-                               #Comorbidities
-                               qrisk2_smoking_cat + dstartdate_dm_dur_all +
-                               predrug_hypertension + osteoporosis + predrug_dka +
-                               predrug_falls + predrug_urinary_frequency + predrug_volume_depletion +
-                               predrug_acutepancreatitis + predrug_micturition_control +
-                               predrug_dementia + hosp_admission_prev_year"))
+    f_adjusted2 <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2*risk_group + ", covariates))
     
     # create empty vectors to store the hazard ratios from every imputed dataset
     # for the unadjusted survival models
@@ -1101,13 +941,13 @@ for (k in kf_key_outcomes) {
       SE.presegfr.noalb.adj[i] <- sqrt(fit.adj$var[1,1])
       
       COEFS.presegfr.microalb.adj[i] <- fit.adj$coefficients["studydrug2SGLT2i"] + fit.adj$coefficients["studydrug2SGLT2i:risk_groupeGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol"]
-      SE.presegfr.microalb.adj[i] <- sqrt(abs(fit.adj$var[1]) + abs(fit.adj$var[63,63]) + 2 * vcov(fit.adj)[1,63])
+      SE.presegfr.microalb.adj[i] <- sqrt(abs(fit.adj$var[1]) + abs(fit.adj$var[43,43]) + 2 * vcov(fit.adj)[1,43])
       
       COEFS.redegfr.noalb.adj[i] <- fit.adj$coefficients["studydrug2SGLT2i"] + fit.adj$coefficients["studydrug2SGLT2i:risk_groupeGFR <60mL/min/1.73m2, uACR <3mg/mmol"]
-      SE.redegfr.noalb.adj[i] <- sqrt(abs(fit.adj$var[1]) + abs(fit.adj$var[64,64]) + 2 * vcov(fit.adj)[1,64])
+      SE.redegfr.noalb.adj[i] <- sqrt(abs(fit.adj$var[1]) + abs(fit.adj$var[44,44]) + 2 * vcov(fit.adj)[1,44])
       
       COEFS.redegfr.microalb.adj[i] <- fit.adj$coefficients["studydrug2SGLT2i"] + fit.adj$coefficients["studydrug2SGLT2i:risk_groupeGFR <60mL/min/1.73m2, uACR 3-30mg/mmol"]
-      SE.redegfr.microalb.adj[i] <- sqrt(abs(fit.adj$var[1]) + abs(fit.adj$var[65,65]) + 2 * vcov(fit.adj)[1,65])
+      SE.redegfr.microalb.adj[i] <- sqrt(abs(fit.adj$var[1]) + abs(fit.adj$var[45,45]) + 2 * vcov(fit.adj)[1,45])
       
     }
     
