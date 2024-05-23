@@ -65,9 +65,9 @@ pool.rubin.HR <- function(COEFS,SE,n.imp){
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
 load("2024-04-30_t2d_ckdpc_imputed_data.Rda")
 
-covariates_ps <- "dstartdate_age + malesex + imd2015_10 + ethnicity_5cat + prebmi + prehba1c + pretotalcholesterol + preegfr + uacr + presbp + ckdpc_40egfr_score + ncurrtx + statin + INS + ACEi_or_ARB + smoking_status + dstartdate_dm_dur_all + predrug_hypertension + predrug_dementia + hosp_admission_prev_year"
+covariates_ps <- "dstartdate_age + malesex + imd2015_10 + ethnicity_5cat + prebmi + prehba1c + pretotalcholesterol + preegfr + uacr + presbp + ckdpc_40egfr_score + ncurrtx + statin + INS + ACEi_or_ARB + smoking_status + dstartdate_dm_dur_all + predrug_hypertension + predrug_af + hosp_admission_prev_year"
 
-covariates <- "dstartdate_age + malesex + imd2015_10 + ethnicity_5cat + initiation_year + prebmi + prehba1c + pretotalcholesterol + preegfr + uacr + presbp + ckdpc_40egfr_score + ncurrtx + MFN + statin + INS + ACEi_or_ARB + smoking_status + dstartdate_dm_dur_all + predrug_hypertension + predrug_dementia + hosp_admission_prev_year"
+covariates <- "dstartdate_age + malesex + imd2015_10 + ethnicity_5cat + initiation_year + prebmi + prehba1c + pretotalcholesterol + preegfr + uacr + presbp + ckdpc_40egfr_score + ncurrtx + MFN + statin + INS + ACEi_or_ARB + smoking_status + dstartdate_dm_dur_all + predrug_hypertension + predrug_af + hosp_admission_prev_year"
 
 ############################1 CALCULATE WEIGHTS################################################################
 

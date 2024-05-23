@@ -29,6 +29,9 @@ set.seed(123)
 # number of imputations 
 n.imp <- 10
 
+# number of bootstraps
+n.bootstrap <- 500
+
 # number of quantiles (for risk scores later on)
 n.quantiles <- 10
 
@@ -63,9 +66,6 @@ load("2024-04-30_t2d_ckdpc_imputed_data_withweights.Rda")
 # select imputed data only (ie. remove non-imputed data)
 cohort <- cohort[cohort$.imp > 0,]
 
-# set reference level for variable studydrug
-cohort$studydrug <- relevel(as.factor(cohort$studydrug), ref = "SU")
-
 ## remove double overlapping entries for DPP4i and SU that overlap (take one only)
 cohort <- cohort %>% group_by(.imp, patid) %>% filter(
   !duplicated(studydrug2)
@@ -78,18 +78,13 @@ table(cohort$studydrug)
 
 # select calibration cohort and non-calibration cohort 
 
-# assign random 20% (SU/DPP4) as recalibration cohort and remove from main cohort
-# we will do this in each imputation and combine 
-cal_cohort <- cohort %>% filter(!studydrug2 == "SGLT2i") %>% group_by(.imp) %>% slice_sample(prop=0.2)
-
-# select those not in the calibration cohort
-noncal_cohort <- cohort %>%
-  anti_join(cal_cohort, by=c("patid", "dstartdate", "studydrug2", ".imp"))
-
-# check number of subjects
-table(noncal_cohort$studydrug)
-# SU  DPP4i SGLT2i 
-# 308945 475755 499270 
+# # assign random 20% (SU/DPP4) as recalibration cohort and remove from main cohort
+# # we will do this in each imputation and combine 
+# cal_cohort <- cohort %>% filter(!studydrug2 == "SGLT2i") %>% group_by(.imp) %>% slice_sample(prop=0.2)
+# 
+# # select those not in the calibration cohort
+# cohort <- cohort %>%
+#   anti_join(cal_cohort, by=c("patid", "dstartdate", "studydrug2", ".imp"))
 
 
 # set default colour-blind accessible colours for figures later on
@@ -148,9 +143,9 @@ for (k in 1:n.quantiles) {
   for (i in 1:n.imp) {
     
     observed_dpp4isu_ckd40 <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ ckd40_risk_decile, 
-                                 data=cohort[cohort$.imp == i & 
-                                               cohort$ckd40_risk_decile == k &
-                                               cohort$studydrug2=="DPP4i/SU",]) %>%
+                                      data=cohort[cohort$.imp == i & 
+                                                    cohort$ckd40_risk_decile == k &
+                                                    cohort$studydrug2=="DPP4i/SU",]) %>%
       tidy() %>%
       # group_by(strata) %>%
       filter(time==max(time))
@@ -160,9 +155,9 @@ for (k in 1:n.quantiles) {
     
     
     observed_sglt2i_ckd40 <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ ckd40_risk_decile, 
-                                    data=cohort[cohort$.imp == i & 
-                                                  cohort$ckd40_risk_decile == k &
-                                                  cohort$studydrug2=="SGLT2i",]) %>%
+                                     data=cohort[cohort$.imp == i & 
+                                                   cohort$ckd40_risk_decile == k &
+                                                   cohort$studydrug2=="SGLT2i",]) %>%
       tidy() %>%
       # group_by(strata) %>%
       filter(time==max(time))
@@ -247,7 +242,7 @@ p_ckd40_uncal_bydeciles_dpp4isu <- ggplot(data=bind_rows(empty_tick,obs_v_pred),
   geom_point(aes(y = observed_dpp4isu*100, group=studydrug2, color=studydrug2), shape=18, size=3) +
   geom_abline(intercept = 0, slope = 1, lty = 2) +
   theme_bw() +
-  xlab("Uncalibrated CKD-PC risk score (%)") + ylab("Observed proportion (%)")+
+  xlab("Uncalibrated CKD-PC risk score (%)") + ylab("Observed risk (%)")+
   scale_x_continuous(limits=c(0,8))+
   scale_y_continuous(limits=c(-1,7)) +
   scale_colour_manual(values = cols) +
@@ -266,61 +261,49 @@ p_ckd40_uncal_bydeciles_dpp4isu <- ggplot(data=bind_rows(empty_tick,obs_v_pred),
 p_ckd40_uncal_bydeciles_dpp4isu
 
 ## C-stat
-cohort <- cohort %>%
-  mutate(ckdpc_40egfr_survival=(100-ckdpc_40egfr_score)/100)
-
-surv_mod_ckd40 <- coxph(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ ckdpc_40egfr_survival, data=cohort, method="breslow")
-cstat_est <- summary(surv_mod_ckd40)$concordance[1]
-cstat_est_ll <- summary(surv_mod_ckd40)$concordance[1]-(1.96*summary(surv_mod_ckd40)$concordance[2])
-cstat_est_ul <- summary(surv_mod_ckd40)$concordance[1]+(1.96*summary(surv_mod_ckd40)$concordance[2])
+raw_mod <- coxph(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ ckdpc_40egfr_lin_predictor, data=cohort, method="breslow")
+cstat_est <- summary(raw_mod)$concordance[1]
+cstat_est_ll <- summary(raw_mod)$concordance[1]-(1.96*summary(raw_mod)$concordance[2])
+cstat_est_ul <- summary(raw_mod)$concordance[1]+(1.96*summary(raw_mod)$concordance[2])
 paste0("C statistic: ", round(cstat_est, 4), ", 95% CI ", round(cstat_est_ll, 4), "-", round(cstat_est_ul,4))
 # C statistic: 0.7693, 95% CI 0.7642-0.7744
+
+# calibration slope:
+raw_mod$coefficients
+
 # brier_score <- brier(surv_mod_ckd40, times = 3)
 # paste0("Brier score: ", round(brier_score$brier,4))
-ROC <- roc(noncal_cohort, ckd_egfr40_censvar, ckdpc_40egfr_score)
+ROC <- roc(cohort, ckd_egfr40_censvar, ckdpc_40egfr_score)
 auc(ROC)
 
 # this risk score overestimates risk and needs to be recalibrated.
 
-############################2A RECALIBRATION - INTERCEPT ONLY ################################################################
-# 40% decline in eGFR / CKD 5
-# risk equation uses a logistic model. There are several ways to update these models.
-# the most straightforward one is to adjust the intercept ("calibration in the large")
-# source: Journal of Clinical Epidemiology 61 (2008) 76e86. Janssen KJM, Moons KGM, Kalkman CJ, Grobbee DE, Vergouwe Y. Updating methods improved the performance of a clinical prediction model in new patients
+############################2A RECALIBRATION - BASELINE HAZARD UPDATE ################################################################
 
+# no need for resampling - this would only be adjusting the overall event probability to this cohort
+recal_mod <- cph(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ stats::offset(ckdpc_40egfr_lin_predictor), 
+                 data = cohort[!cohort$studydrug=="SGLT2i",], x = TRUE, y = TRUE, surv = TRUE)
 
-#original intercept:
-EHRBiomarkr::ckdpc40EgfrRiskConstants$intercept %>% as.numeric()
+x <- summary(survfit(recal_mod),time=3)
+bh_update <- x$surv
+bh_update_se <- x$std.error
+# print updated baseline hazard
+print(paste0("Baseline hazard ", bh_update, ", 95% CI ", bh_update-1.96*bh_update_se, "-", bh_update+1.96*bh_update_se))
 
-#calculate correction factor for intercept = ln(observed outcome frequency/1-observed outcome frequency / predicted outcome frequency/1-predicted outcome frequency)
-correction_factor <- rep(NA, n.imp)
-for (i in 1:n.imp) {
-  correction_factor[i] <- ((mean(cal_cohort[cal_cohort$.imp == i,]$ckd_egfr40_censvar) / 
-                              (1-mean(cal_cohort[cal_cohort$.imp == i,]$ckd_egfr40_censvar))) /
-                             (mean(cal_cohort[cal_cohort$.imp == i,]$ckdpc_40egfr_score*0.01) / 
-                                (1-mean(cal_cohort[cal_cohort$.imp == i,]$ckdpc_40egfr_score*0.01))) ) %>% 
-    log()
-}
-
-#new intercept = original intercept + correction factor
-new_intercept <- EHRBiomarkr::ckdpc40EgfrRiskConstants$intercept %>% as.numeric() + mean(correction_factor)
-
-## Recalculate scores in rest of cohort
-noncal_cohort <- noncal_cohort %>%
-  mutate(centred_40egfr_lin_predictor=ckdpc_40egfr_lin_predictor-mean(ckdpc_40egfr_lin_predictor)) %>%
-  ungroup() %>%
-  mutate(ckdpc_40egfr_score_cal=100 * (exp(centred_40egfr_lin_predictor + new_intercept)/(1 + exp(centred_40egfr_lin_predictor + new_intercept))))
-
+cohort <- cohort %>% mutate(
+  ckdpc_40egfr_survival_cal=bh_update^exp(ckdpc_40egfr_lin_predictor-mean(ckdpc_40egfr_lin_predictor)), # baseline hazard ^ e ^ centred linear predictor
+  ckdpc_40egfr_score_cal=(1-ckdpc_40egfr_survival_cal)*100
+)
 
 ## Show observed (estimated frequency binned per risk decile) vs predicted (risk-score predicted)
-noncal_cohort$ckd40_risk_decile <- ntile(noncal_cohort$ckdpc_40egfr_score_cal, n.quantiles)
+cohort$ckd40_risk_decile <- ntile(cohort$ckdpc_40egfr_score_cal, n.quantiles)
 
 ### Get mean predicted probabilities by studydrug
-predicted <- noncal_cohort %>%
+predicted <- cohort %>%
   group_by(ckd40_risk_decile, studydrug2) %>%
   summarise(mean_ckd40_pred=mean(ckdpc_40egfr_score_cal)/100)
 
-predicted_all <- noncal_cohort %>%
+predicted_all <- cohort %>%
   group_by(ckd40_risk_decile) %>%
   summarise(mean_ckd40_pred=mean(ckdpc_40egfr_score_cal)/100)
 
@@ -356,9 +339,9 @@ for (k in 1:n.quantiles) {
   for (i in 1:n.imp) {
     
     observed_dpp4isu_ckd40 <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ ckd40_risk_decile, 
-                                 data=noncal_cohort[noncal_cohort$.imp == i & 
-                                                      noncal_cohort$ckd40_risk_decile == k &
-                                                      noncal_cohort$studydrug2=="DPP4i/SU",]) %>%
+                                      data=cohort[cohort$.imp == i & 
+                                                    cohort$ckd40_risk_decile == k &
+                                                    cohort$studydrug2=="DPP4i/SU",]) %>%
       tidy() %>%
       # group_by(strata) %>%
       filter(time==max(time))
@@ -367,9 +350,9 @@ for (k in 1:n.quantiles) {
     SE.dpp4isu[k,i] <- observed_dpp4isu_ckd40$std.error
     
     observed_sglt2i_ckd40 <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ ckd40_risk_decile, 
-                                    data=noncal_cohort[noncal_cohort$.imp == i & 
-                                                         noncal_cohort$ckd40_risk_decile == k &
-                                                         noncal_cohort$studydrug2=="SGLT2i",]) %>%
+                                     data=cohort[cohort$.imp == i & 
+                                                   cohort$ckd40_risk_decile == k &
+                                                   cohort$studydrug2=="SGLT2i",]) %>%
       tidy() %>%
       # group_by(strata) %>%
       filter(time==max(time))
@@ -378,8 +361,8 @@ for (k in 1:n.quantiles) {
     SE.sglt2i[k,i] <- observed_sglt2i_ckd40$std.error
     
     observed_all_ckd40 <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ ckd40_risk_decile, 
-                                  data=noncal_cohort[noncal_cohort$.imp == i & 
-                                                       noncal_cohort$ckd40_risk_decile == k,]) %>%
+                                  data=cohort[cohort$.imp == i & 
+                                                cohort$ckd40_risk_decile == k,]) %>%
       tidy() %>%
       # group_by(strata) %>%
       filter(time==max(time))
@@ -419,12 +402,12 @@ for (k in 1:n.quantiles) {
 }
 
 
-dpp4isu_events <- noncal_cohort %>%
+dpp4isu_events <- cohort %>%
   filter(studydrug2=="DPP4i/SU" & ckd_egfr40_censvar==1) %>%
   group_by(ckd40_risk_decile) %>%
   summarise(DPP4iSU=round(n()/n.imp, 0))
 
-sglt2_events <- noncal_cohort %>%
+sglt2_events <- cohort %>%
   filter(studydrug2=="SGLT2i" & ckd_egfr40_censvar==1) %>%
   group_by(ckd40_risk_decile) %>%
   summarise(SGLTi=round(n()/n.imp, 0))
@@ -455,7 +438,7 @@ p_ckd40_interim_bydeciles_dpp4isu <- ggplot(data=bind_rows(empty_tick,obs_v_pred
   geom_point(aes(y = observed_dpp4isu*100, group=studydrug2, color=studydrug2), shape=18, size=3) +
   geom_abline(intercept = 0, slope = 1, lty = 2) +
   theme_bw() +
-  xlab("Recalibrated CKD-PC risk score (%)") + ylab("Observed proportion (%)")+
+  xlab("Recalibrated CKD-PC risk score (%)") + ylab("Observed risk (%)")+
   scale_x_continuous(limits=c(0,8))+
   scale_y_continuous(limits=c(-1,7)) +
   scale_colour_manual(values = cols) +
@@ -467,77 +450,78 @@ p_ckd40_interim_bydeciles_dpp4isu <- ggplot(data=bind_rows(empty_tick,obs_v_pred
         plot.title=element_text(hjust = 0.5),
         plot.subtitle=element_text(hjust = 0.5,size=rel(1.2)),
         legend.position = "none") +
-  ggtitle("Calibration plot of CKD-PC risk score for 40% decline in eGFR / ESKD", subtitle = "Intercept recalibration of risk score, binned by risk decile") +
+  ggtitle("Calibration plot of CKD-PC risk score for 40% decline in eGFR / ESKD", subtitle = "Baseline hazard (intercept) recalibration of risk score, binned by risk decile") +
   coord_cartesian(xlim = c(0,7.5), ylim = c(0,7.5))
 
 
 p_ckd40_interim_bydeciles_dpp4isu
 
 ## C-stat
-noncal_cohort <- noncal_cohort %>%
-  mutate(ckdpc_40egfr_survival=(100-ckdpc_40egfr_score_cal)/100)
 
-surv_mod_ckd40 <- coxph(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ ckdpc_40egfr_survival, data=noncal_cohort, method="breslow")
+surv_mod_ckd40 <- coxph(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ ckdpc_40egfr_survival_cal, data=cohort, method="breslow")
 cstat_est <- summary(surv_mod_ckd40)$concordance[1]
 cstat_est_ll <- summary(surv_mod_ckd40)$concordance[1]-(1.96*summary(surv_mod_ckd40)$concordance[2])
 cstat_est_ul <- summary(surv_mod_ckd40)$concordance[1]+(1.96*summary(surv_mod_ckd40)$concordance[2])
 paste0("C statistic: ", round(cstat_est, 4), ", 95% CI ", round(cstat_est_ll, 4), "-", round(cstat_est_ul,4))
-# C statistic: 0.7677, 95% CI 0.7622-0.7733
+# C statistic: 0.7693, 95% CI 0.7642-0.7744
 # brier_score <- brier(surv_mod_ckd40, times = 3)
 # paste0("Brier score: ", round(brier_score$brier,4))
-ROC_cal <- roc(noncal_cohort, ckd_egfr40_censvar, ckdpc_40egfr_score_cal)
+ROC_cal <- roc(cohort, ckd_egfr40_censvar, ckdpc_40egfr_score_cal)
 auc(ROC_cal)
 
-############################2B RECALIBRATION - LOGISTIC RECALIBRATION################################################################
+############################2B RECALIBRATION - OVERALL SLOPE RECALIBRATION################################################################
 
 #before recalibrating, the risk score systematically overestimated risk. However after recalibration, it underestimates risk in those at high risk.
-#an alternative method is logistic calibration:
-#a logistic regression model is fitted with the linear predictor as the only covariate in the updating set.
-#The calibration slope is used to recalibrate the original regression coefficients (multiplied with the calibration slope).
-#And we will add the new calibration intercept
 
-cal_cohort <- cal_cohort %>%
-  mutate(temp_lin_predictor=ckdpc_40egfr_lin_predictor + EHRBiomarkr::ckdpc40EgfrRiskConstants$intercept %>% as.numeric(),
-         centred_lin_predictor=temp_lin_predictor-mean(temp_lin_predictor))
-
-new_intercept <- coef_cf <- rep(NA,n.imp)
-intercept_se <- coef_se <- rep(NA,n.imp)
-
+bh_new <- rep(NA, n.imp)
+se_bh_new <- rep(NA, n.imp)
+cal_slope <- rep(NA, n.imp)
+slope_optimism <- rep(NA, n.imp)
+var_slope <- rep(NA, n.imp)
 for (i in 1:n.imp) {
-  recal_mod <- glm(ckd_egfr40_censvar ~ centred_lin_predictor,
-                   data = cal_cohort[cal_cohort$.imp == i,], family = "binomial"
-  )
+  print(paste0("Calculations in imputation ", i))
+  recal_mod2 <- cph(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ (ckdpc_40egfr_lin_predictor), data = cohort[cohort$.imp == i,], x = TRUE, y = TRUE, surv = TRUE)
   
-  new_intercept[i] <- recal_mod$coef[1]
-  intercept_se[i] <- summary(recal_mod)$coefficients[1,2]
-  coef_cf[i] <- recal_mod$coef[2]
-  coef_se[i] <- summary(recal_mod)$coefficients[2,2]
+  # Obtain baseline survival estimates for model
+  x <- summary(survfit(recal_mod2),time=3)
+  bh_new[i] <- x$surv
+  se_bh_new[i] <- x$std.err
   
+  # bootstrap internal validation
+  boot <- validate(recal_mod2)
+  slope_optimism[i] <- boot[3,5]
+  
+  # store calibration slope
+  cal_slope[i] <- recal_mod2$coefficients * boot[3,5]
+  var_slope[i] <- recal_mod2$var
 }
-# pool SE
-intercept_se_pooled <- sqrt(mean(intercept_se^2) + (1+1/n.imp)*var(new_intercept))
-coef_se_pooled <- sqrt(mean(coef_se^2) + (1+1/n.imp)*var(coef_cf))
-# calculate confidence intervals
-print(paste0(c("Calibration intercept ", mean(new_intercept), ", 95% CI ", mean(new_intercept) - 1.96*intercept_se_pooled, "-", mean(new_intercept) + 1.96*intercept_se_pooled), collapse = "")) ## 
-print(paste0(c("Calibration coefficient ", mean(coef_cf), ", 95% CI ", mean(coef_cf) - 1.96*coef_se_pooled, "-", mean(coef_cf) + 1.96*coef_se_pooled), collapse = "")) ## 
 
-## Recalculate scores in rest of cohort
-noncal_cohort <- noncal_cohort %>%
-  mutate(
-    ckdpc_40egfr_score_cal=
-      100 * 
-      (exp(mean(coef_cf)*ckdpc_40egfr_lin_predictor + mean(new_intercept)))/(1 + exp(mean(coef_cf)*ckdpc_40egfr_lin_predictor + mean(new_intercept)))
-  )
+bh_recal <- mean(bh_update)
+bh_recal_se <- sqrt(mean(se_bh_new)^2 + 1+1/n.imp*var(bh_recal))
+# print baseline hazard with 95% CI
+print(paste0("Baseline hazard ", bh_recal, ", 95% CI ", bh_recal-1.96*bh_recal_se, "-", bh_recal+1.96*bh_recal_se))
+
+coef_recal <- mean(cal_slope)
+coef_recal_se <- sqrt(mean(var_slope) + (1+1/n.imp)*var(cal_slope))
+# print calibration slope with 95% CI
+print(paste0("Calibration slope ", coef_recal, ", 95% CI ", coef_recal-1.96*coef_recal_se, "-", coef_recal+1.96*coef_recal_se))
+
+cohort <- cohort %>% mutate(
+  ckdpc_40egfr_lin_predictor_cal=coef_recal*ckdpc_40egfr_lin_predictor,
+  ckdpc_40egfr_survival_cal=bh_recal^exp(ckdpc_40egfr_lin_predictor_cal-mean(ckdpc_40egfr_lin_predictor_cal)), # baseline hazard ^ e ^ centred linear predictor
+  ckdpc_40egfr_score_cal=(1-ckdpc_40egfr_survival_cal)*100
+)
+
 
 ## Plot
-noncal_cohort$ckd40_risk_decile <- ntile(noncal_cohort$ckdpc_40egfr_score_cal, n.quantiles)
+cohort$ckd40_risk_decile <- ntile(cohort$ckdpc_40egfr_score_cal, n.quantiles)
 
 ### Get mean predicted probabilities by studydrug
-predicted <- noncal_cohort %>%
+predicted <- cohort %>%
   group_by(ckd40_risk_decile, studydrug2) %>%
   summarise(mean_ckd40_pred=mean(ckdpc_40egfr_score_cal)/100)
 
-predicted_all <- noncal_cohort %>%
+predicted_all <- cohort %>%
   group_by(ckd40_risk_decile) %>%
   summarise(mean_ckd40_pred=mean(ckdpc_40egfr_score_cal)/100)
 
@@ -573,9 +557,9 @@ for (k in 1:n.quantiles) {
   for (i in 1:n.imp) {
     
     observed_dpp4isu_ckd40 <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ ckd40_risk_decile,
-                                      data=noncal_cohort[noncal_cohort$.imp == i &
-                                                           noncal_cohort$ckd40_risk_decile == k &
-                                                           noncal_cohort$studydrug2=="DPP4i/SU",]) %>%
+                                      data=cohort[cohort$.imp == i &
+                                                    cohort$ckd40_risk_decile == k &
+                                                    cohort$studydrug2=="DPP4i/SU",]) %>%
       tidy() %>%
       # group_by(strata) %>%
       filter(time==max(time))
@@ -584,9 +568,9 @@ for (k in 1:n.quantiles) {
     SE.dpp4isu[k,i] <- observed_dpp4isu_ckd40$std.error
     
     observed_sglt2i_ckd40 <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ ckd40_risk_decile,
-                                     data=noncal_cohort[noncal_cohort$.imp == i &
-                                                          noncal_cohort$ckd40_risk_decile == k &
-                                                          noncal_cohort$studydrug2=="SGLT2i",]) %>%
+                                     data=cohort[cohort$.imp == i &
+                                                   cohort$ckd40_risk_decile == k &
+                                                   cohort$studydrug2=="SGLT2i",]) %>%
       tidy() %>%
       # group_by(strata) %>%
       filter(time==max(time))
@@ -595,8 +579,8 @@ for (k in 1:n.quantiles) {
     SE.sglt2i[k,i] <- observed_sglt2i_ckd40$std.error
     
     observed_all_ckd40 <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ ckd40_risk_decile,
-                                  data=noncal_cohort[noncal_cohort$.imp == i &
-                                                       noncal_cohort$ckd40_risk_decile == k,]) %>%
+                                  data=cohort[cohort$.imp == i &
+                                                cohort$ckd40_risk_decile == k,]) %>%
       tidy() %>%
       # group_by(strata) %>%
       filter(time==max(time))
@@ -636,12 +620,12 @@ for (k in 1:n.quantiles) {
 }
 
 
-dpp4isu_events <- noncal_cohort %>%
+dpp4isu_events <- cohort %>%
   filter(studydrug2=="DPP4i/SU" & ckd_egfr40_censvar==1) %>%
   group_by(ckd40_risk_decile) %>%
   summarise(DPP4iSU=round(n()/n.imp, 0))
 
-sglt2_events <- noncal_cohort %>%
+sglt2_events <- cohort %>%
   filter(studydrug2=="SGLT2i" & ckd_egfr40_censvar==1) %>%
   group_by(ckd40_risk_decile) %>%
   summarise(SGLTi=round(n()/n.imp, 0))
@@ -672,7 +656,7 @@ p_ckd40_cal_bydeciles_dpp4isu <- ggplot(data=bind_rows(empty_tick,obs_v_pred), a
   geom_point(aes(y = observed_dpp4isu*100, group=studydrug2, color=studydrug2), shape=18, size=3) +
   geom_abline(intercept = 0, slope = 1, lty = 2) +
   theme_bw() +
-  xlab("Recalibrated CKD-PC risk score (%)") + ylab("Observed proportion (%)")+
+  xlab("Recalibrated CKD-PC risk score (%)") + ylab("Observed risk (%)")+
   scale_x_continuous(limits=c(0,6))+
   scale_y_continuous(limits=c(-1,7)) +
   scale_colour_manual(values = cols) +
@@ -684,7 +668,7 @@ p_ckd40_cal_bydeciles_dpp4isu <- ggplot(data=bind_rows(empty_tick,obs_v_pred), a
         plot.title=element_text(hjust = 0.5),
         plot.subtitle=element_text(hjust = 0.5,size=rel(1.2)),
         legend.position = "none") +
-  ggtitle("Calibration plot of CKD-PC risk score for 40% decline in eGFR / ESKD", subtitle = "Logistic recalibration of risk score, binned by risk decile") +
+  ggtitle("Calibration plot of CKD-PC risk score for 40% decline in eGFR / ESKD", subtitle = "Recalibrated risk score, binned by risk decile") +
   coord_cartesian(xlim = c(0,6), ylim = c(0,6))
 
 
@@ -692,22 +676,19 @@ p_ckd40_cal_bydeciles_dpp4isu
 
 
 ## C-stat
-noncal_cohort <- noncal_cohort %>%
-  mutate(ckdpc_40egfr_survival=(100-ckdpc_40egfr_score_cal)/100)
-
-surv_mod_ckd40 <- coxph(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ ckdpc_40egfr_survival, data=noncal_cohort, method="breslow")
-cstat_est <- summary(surv_mod_ckd40)$concordance[1]
-cstat_est_ll <- summary(surv_mod_ckd40)$concordance[1]-(1.96*summary(surv_mod_ckd40)$concordance[2])
-cstat_est_ul <- summary(surv_mod_ckd40)$concordance[1]+(1.96*summary(surv_mod_ckd40)$concordance[2])
+recal_mod2 <- coxph(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ ckdpc_40egfr_lin_predictor_cal, data=cohort, method="breslow")
+cstat_est <- summary(recal_mod2)$concordance[1]
+cstat_est_ll <- summary(recal_mod2)$concordance[1]-(1.96*summary(recal_mod2)$concordance[2])
+cstat_est_ul <- summary(recal_mod2)$concordance[1]+(1.96*summary(recal_mod2)$concordance[2])
 paste0("C statistic: ", round(cstat_est, 4), ", 95% CI ", round(cstat_est_ll, 4), "-", round(cstat_est_ul,4))
-# C statistic: 0.7677, 95% CI 0.7622-0.7733
+# C statistic: 0.7693, 95% CI 0.7642-0.7744
 # brier_score <- brier(surv_mod_ckd40, times = 3)
 #  paste0("Brier score: ", round(brier_score$brier,4))
-ROC_cal <- roc(noncal_cohort, ckd_egfr40_censvar, ckdpc_40egfr_score_cal)
+ROC_cal <- roc(cohort, ckd_egfr40_censvar, ckdpc_40egfr_score_cal)
 auc(ROC_cal)
 
 
 ############################3 STORE RECALIBRATED SCORES################################################################
 # save dataset with calibrated risk score so this can be used in the subsequent scripts
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-save(noncal_cohort, file=paste0(today, "_t2d_ckdpc_recalibrated.Rda"))
+save(cohort, file=paste0(today, "_t2d_ckdpc_recalibrated.Rda"))
