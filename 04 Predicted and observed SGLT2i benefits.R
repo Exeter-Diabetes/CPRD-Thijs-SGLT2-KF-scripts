@@ -212,6 +212,7 @@ benefits <- temp_sglt2 %>%
   inner_join(temp_dpp4su, by=c("group", ".imp")) %>%
   select(-studydrug2) %>%
   mutate(survdiff=estimate_sglt2-estimate_dpp4su,
+         se_survdiff=sqrt(se_sglt2^2 + se_dpp4su^2),
          studydrug2=studydrug_original) %>%
   select(-studydrug_original)
 
@@ -221,7 +222,7 @@ load("2024-04-30_t2d_ckdpc_recalibrated_with_riskgroup.Rda")
 
 cohort <- cohort %>% inner_join(benefits %>% 
                                   select(.imp, estimate_sglt2, se_sglt2, estimate_dpp4su, se_dpp4su, patid, 
-                                         studydrug2, survdiff), 
+                                         studydrug2, survdiff, se_survdiff), 
                                 by=c(".imp", "patid", "studydrug2"))
 
 cohort$studydrug2 <- as.factor(cohort$studydrug2)
@@ -233,22 +234,22 @@ obs_v_pred_for_plot <- cohort %>%
   summarise(median_predicted_benefit=median(ckdpc_40egfr_sglt2i_benefit, na.rm=T),
             mean_predicted_benefit=mean(ckdpc_40egfr_sglt2i_benefit, na.rm=T),
             mean_benefit=mean(survdiff),
+            se_benefit=mean(se_survdiff),
             median_benefit=median(survdiff),
             lq_benefit=quantile(survdiff, prob=c(.25)),
             uq_benefit=quantile(survdiff, prob=c(.75)),
-            se_benefit=mean(1/2*(se_sglt2 + se_dpp4su)),
             upper_ci=mean_benefit + 1.96*se_benefit,
             lower_ci=mean_benefit - 1.96*se_benefit)
 
 
-
-empty_tick <- obs_v_pred_for_plot %>% 
-  filter(benefit_decile==1) %>%
-  mutate(benefit_decile=0, estimate=NA, lower_ci=NA, upper_ci=NA, predicted=NA)
+empty_tick <- data.frame(matrix(NA, nrow = 1, ncol = length(obs_v_pred_for_plot)))
+names(empty_tick) <- names(obs_v_pred_for_plot)
+empty_tick <- empty_tick %>%
+  mutate(benefit_decile=0)
 
 ## SGLT2i benefit predicted vs observed - in all patients
-p_benefit_bydeciles <- ggplot(data=bind_rows(empty_tick,obs_v_pred_for_plot), aes(x=mean_predicted_benefit*100)) +
-  geom_errorbar(aes(ymax=upper_ci*100,ymin=lower_ci*100, color= "#0072B2"),width=0.1,size=1) +
+p_benefit_bydeciles <- ggplot(data=bind_rows(empty_tick,obs_v_pred_for_plot), aes(x=median_predicted_benefit*100)) +
+  geom_errorbar(aes(ymax=uq_benefit*100,ymin=lq_benefit*100, color= "#0072B2"),width=0.1,size=1) +
   geom_point(aes(y = mean_benefit*100, color="#0072B2"), shape=18, size=3) +
   geom_abline(intercept = 0, slope = 1, lty = 2) +
   theme_bw() +
@@ -262,37 +263,10 @@ p_benefit_bydeciles <- ggplot(data=bind_rows(empty_tick,obs_v_pred_for_plot), ae
         plot.title=element_text(hjust = 0.5),
         plot.subtitle=element_text(hjust = 0.5,size=rel(1.2)),
         legend.position = "none") +
-  ggtitle("Predicted versus observed SGLT2-inhibitor benefit", subtitle = "Binned by predicted benefit decile") +
-  coord_cartesian(xlim = c(0,4), ylim = c(0,4))
+  ggtitle("Predicted versus observed SGLT2-inhibitor benefit", subtitle = "By predicted benefit decile") +
+  coord_cartesian(xlim = c(0,4), ylim = c(-.6,4))
 
 p_benefit_bydeciles
-
-####
-pred <- cohort %>%
-  group_by(risk_group) %>%
-  summarise(median_predicted_benefit=median(ckdpc_40egfr_sglt2i_benefit, na.rm=T),
-            mean_predicted_benefit=mean(ckdpc_40egfr_sglt2i_benefit, na.rm=T))
-
-observed <- benefits %>%
-  group_by(risk_group, .imp) %>%
-  summarise(mean_benefit=mean(survdiff),
-            median_benefit=median(survdiff),
-            lq_benefit=quantile(survdiff, prob=c(.25)),
-            uq_benefit=quantile(survdiff, prob=c(.75))) %>%
-  group_by(risk_group) %>%
-  summarise(mean_benefit=mean(mean_benefit),
-            median_benefit=mean(median_benefit),
-            lq_benefit=mean(lq_benefit),
-            uq_benefit=mean(uq_benefit))
-
-obs_v_pred <- pred %>% inner_join(observed, by="risk_group") %>% mutate(
-  nnt_predicted_mean = 1/mean_predicted_benefit,
-  nnt_predicted_median = 1/median_predicted_benefit,
-  nnt_obs_adj_mean = 1/mean_benefit,
-  nnt_obs_adj_lq = 1/uq_benefit,
-  nnt_obs_adj_uq = 1/lq_benefit,
-  nnt_obs_adj_median = 1/median_benefit
-)
 
 today <- as.character(Sys.Date(), format="%Y%m%d")
 save(cohort, file=paste0(today, "_t2d_ckdpc_recalibrated_with_adjsurv.Rda"))
@@ -829,201 +803,43 @@ arrange_ggsurvplots(list_plots_adjusted, print = T, nrow = 2, ncol = 3)
 
 ############################3 TABLES WITH NNTs################################################################
 
-## calculate ARR and NNT for eGFR 60mL/min
-# add number per group and events
-pred40 <- cohort %>%  group_by(risk_group
-) %>%
-  summarise(mean_predicted_benefit = mean(ckdpc_40egfr_sglt2i_benefit, na.rm=T),
-            mean_predicted_background_risk = mean(1-ckdpc_40egfr_cal, na.rm=T),
-            event_count=round(sum(ckd_egfr40_censvar)/n.imp, 0),
-            drug_count=round(n()/n.imp, 0),
-            time=round(median(ckd_egfr40_censtime_yrs), 2)) %>%
-  mutate(events_perc=round(event_count*100/drug_count, 1),
-         events=paste0(event_count, " (", events_perc, "%)"))  %>%
-  mutate(nnt_predicted=1/(mean_predicted_benefit)) %>%
-  select(-c(event_count, events_perc))
-
-# we also want to add the observed background risk 
-# to do that we need to run cox models and take these estimates (as counterfactuals)
-
-n.groups <- nlevels(as.factor(cohort$risk_group))
-
-# run cox model in each imputed dataset, extract estimates, and pool results
-survival_est <- list()
-
-for (i in 1:n.imp) {
-  
-  ddist <- datadist(cohort[cohort$.imp == i,])
-  options(datadist=ddist)
-  
-  model <- cph(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ studydrug2*risk_group, 
-               data=cohort[cohort$.imp == i,], x=TRUE, y=TRUE, surv=TRUE)
-  
-  
-  survival_est[[i]] <- survest(model, 
-                               newdata=expand.grid(studydrug2=c("DPP4i/SU", "SGLT2i"), 
-                                                   risk_group=levels(as.factor(cohort$risk_group))),
-                               times=5)
-}
-
-# now we will create empty vectors for the pooled benefits per category
-
-surv <- rep(NA, n.groups*nlevels(as.factor(cohort$studydrug2)))
-se <- rep(NA, n.groups*nlevels(as.factor(cohort$studydrug2)))
-
-# for every group we will extract the n.imp imputed values and pool these, then store these in the vectors created above
-
-for (k in 1:(n.groups*nlevels(as.factor(cohort$studydrug2)))) {
-  
-  #create empty vectors to store the imputed values for every individual risk group
-  surv_temp=paste0("surv_", k)
-  se_temp=paste0("surv_se_", k)
-  
-  assign(surv_temp, rep(NA, n.imp))
-  assign(se_temp, rep(NA, n.imp))
-  
-  #store the imputed values in this vector
-  for (i in 1:n.imp) {
-    
-    #surv_temp[i] <- survival_est[[i]]$surv[k]
-    eval(str2lang(paste0(surv_temp, "[", i, "]", " <- survival_est", "[[", i, "]]$surv[", k, "]")))
-    
-    #se_temp[i] <- survival_est[[i]]$std.error[k]
-    eval(str2lang(paste0(se_temp, "[", i, "]", " <- survival_est", "[[", i, "]]$std.err[", k, "]")))
-    
-  }
-  # pool the imputed values and store the pooled value in the main vector
-  surv[k] <- mean(eval(parse(text = surv_temp)))
-  w <- mean(eval(parse(text = se_temp))^2)
-  b <- var(eval(parse(text = surv_temp)))
-  t.var <- w + (1+1/n.imp)*b
-  se[k] <- sqrt(t.var)
-}
-
-# create data frame
-obs <- cbind(surv, expand.grid(studydrug2=c("DPP4i/SU", "SGLT2i"), 
-                               risk_group=levels(as.factor(cohort$risk_group))))
-
-obs <- obs %>%
-  pivot_wider(id_cols=c(risk_group), values_from=surv, names_from=studydrug2) %>%
-  mutate(surv_diff=SGLT2i-`DPP4i/SU`,
-         surv=1-`DPP4i/SU`) %>%
-  select(risk_group, surv, surv_diff)
-
-se <- cbind(se, expand.grid(studydrug2=c("DPP4i/SU", "SGLT2i"), 
-                            risk_group=levels(as.factor(cohort$risk_group))))
-
-se <- se %>%
-  pivot_wider(id_cols=c(risk_group), values_from=se, names_from=studydrug2) %>%
-  mutate(se=sqrt((SGLT2i^2)+(`DPP4i/SU`^2))) %>%
-  select(risk_group, se)
-
-obs <- obs %>%
-  inner_join(se, by=c("risk_group")) %>%
-  mutate(lower_ci=surv_diff-(1.96*se),
-         upper_ci=surv_diff+(1.96*se))
-
-dpp4isu_events <- cohort %>%
-  filter(studydrug2=="DPP4i/SU" & ckd_egfr40_censvar==1) %>%
+####
+pred <- cohort %>%
   group_by(risk_group) %>%
-  summarise(`DPP4i/SU`=round(n()/n.imp,0))
+  summarise(median_predicted_benefit=median(ckdpc_40egfr_sglt2i_benefit, na.rm=T),
+            mean_predicted_benefit=mean(ckdpc_40egfr_sglt2i_benefit, na.rm=T))
 
-sglt2i_events <- cohort %>%
-  filter(studydrug2=="SGLT2i" & ckd_egfr40_censvar==1) %>%
+observed <- cohort %>%
+  group_by(risk_group, .imp) %>%
+  summarise(mean_benefit=mean(survdiff),
+            se_benefit=mean(se_survdiff),
+            median_benefit=median(survdiff),
+            lq_benefit=quantile(survdiff, prob=c(.25)),
+            uq_benefit=quantile(survdiff, prob=c(.75))) %>%
   group_by(risk_group) %>%
-  summarise(SGLT2i=round(n()/n.imp,0))
+  summarise(mean_benefit=mean(mean_benefit),
+            se_benefit=mean(se_benefit),
+            median_benefit=mean(median_benefit),
+            lq_benefit=mean(lq_benefit),
+            uq_benefit=mean(uq_benefit),
+            lc_benefit=mean_benefit-1.96*se_benefit,
+            uc_benefit=mean_benefit+1.96*se_benefit)
 
-events_table <- data.frame(t(dpp4isu_events %>%
-                               inner_join(sglt2i_events))) %>%
-  rownames_to_column() %>%
-  filter(rowname!="risk_group")
+obs_v_pred <- pred %>% inner_join(observed, by="risk_group") %>% mutate(
+  nnt_predicted_mean = 1/mean_predicted_benefit,
+  nnt_predicted_median = 1/median_predicted_benefit,
+  nnt_obs_adj_mean = 1/mean_benefit,
+  nnt_obs_adj_lc = 1/uc_benefit,
+  nnt_obs_adj_uc = 1/lc_benefit,
+  nnt_obs_adj_uc = ifelse(nnt_obs_adj_uc < 0, Inf, nnt_obs_adj_uc),
+  nnt_obs_adj_lq = 1/uq_benefit,
+  nnt_obs_adj_uq = 1/lq_benefit,
+  nnt_obs_adj_median = 1/median_benefit
+)
 
-obs40 <- obs %>% mutate(risk_group=as.factor(risk_group))
-obs_v_pred40 <- pred40 %>% inner_join(obs40, by=c("risk_group")) %>%
-  mutate(nnt_observed=1/surv_diff) #%>% select(-se)
-
-nnt_observed_weighted <-   matrix(data = NA, nrow = nlevels(cohort$risk_group), ncol = n.imp)
-
-for (i in 1:n.imp) {
-  surv_presegfr_noalb <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ studydrug2,
-                        data = cohort[cohort$.imp == i &
-                                               cohort$risk_group == "eGFR ≥60mL/min/1.73m2, uACR <3mg/mmol",],
-                        weights = overlap2,
-                        conf.type = "log", conf.int = 0.95)
-  
-  surv_presegfr_microalb_lowrisk <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ studydrug2,
-                              data = cohort[cohort$.imp == i &
-                                                     cohort$risk_group ==
-                                                     paste0("eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol, ", low_risk_cat),],
-                              weights = overlap2,
-                              conf.type = "log", conf.int = 0.95)
-  
-  surv_presegfr_microalb_highrisk <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ studydrug2,
-                               data = cohort[cohort$.imp == i &
-                                                      cohort$risk_group ==
-                                                      paste0("eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol, ", high_risk_cat),],
-                               weights = overlap2,
-                               conf.type = "log", conf.int = 0.95)
-  
-  surv_presegfr_macroalb <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ studydrug2,
-                                    data = cohort[cohort$.imp == i &
-                                                           cohort$risk_group== "eGFR ≥60mL/min/1.73m2, uACR ≥30mg/mmol",],
-                                    weights = overlap2,
-                                    conf.type = "log", conf.int = 0.95)
-  
-  surv_redegfr_noalb <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ studydrug2,
-                                data = cohort[cohort$.imp == i & 
-                                                               cohort$risk_group == "eGFR <60mL/min/1.73m2, uACR <3mg/mmol",],
-                                weights = overlap2,
-                                conf.type = "log", conf.int = 0.95)
-  
-  surv_redegfr_microalb <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ studydrug2,
-                              data = cohort[cohort$.imp == i & 
-                                                             cohort$risk_group == "eGFR <60mL/min/1.73m2, uACR 3-30mg/mmol",],
-                              weights = overlap2,
-                              conf.type = "log", conf.int = 0.95)
-  
-  surv_redegfr_macroalb <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ studydrug2,
-                           data = cohort[cohort$.imp == i &
-                                                  cohort$risk_group == "eGFR <60mL/min/1.73m2, uACR ≥30mg/mmol",],
-                           weights = overlap2,
-                           conf.type = "log", conf.int = 0.95)
-  
-  nnt_observed_weighted[1,i] <- summary(surv_presegfr_noalb, times = 3)$surv[2]-summary(surv_presegfr_noalb, times = 3)$surv[1]
-  nnt_observed_weighted[2,i] <- summary(surv_presegfr_microalb_lowrisk, times = 3)$surv[2]-summary(surv_presegfr_microalb_lowrisk, times = 3)$surv[1]
-  nnt_observed_weighted[3,i] <- summary(surv_presegfr_microalb_highrisk, times = 3)$surv[2]-summary(surv_presegfr_microalb_highrisk, times = 3)$surv[1]
-  nnt_observed_weighted[4,i] <- summary(surv_presegfr_macroalb, times = 3)$surv[2]-summary(surv_presegfr_macroalb, times = 3)$surv[1]
-  nnt_observed_weighted[5,i] <- summary(surv_redegfr_noalb, times = 3)$surv[2]-summary(surv_redegfr_noalb, times = 3)$surv[1]
-  nnt_observed_weighted[6,i] <- summary(surv_redegfr_microalb, times = 3)$surv[2]-summary(surv_redegfr_microalb, times = 3)$surv[1]
-  nnt_observed_weighted[7,i] <- summary(surv_redegfr_macroalb, times = 3)$surv[2]-summary(surv_redegfr_macroalb, times = 3)$surv[1]
-}
-
-nnt_observed_weighted <- nnt_observed_weighted %>% rowMeans()
-
-nnt_observed_weighted <- (1/nnt_observed_weighted) %>% round(0)
-
-nnt_table <- obs_v_pred40 %>% select(risk_group, 
-                                           risk_predicted=mean_predicted_background_risk, 
-                                           risk_observed=surv, 
-                                           arr_predicted=mean_predicted_benefit, 
-                                           arr_observed=surv_diff, 
-                                           arr_lowerci=lower_ci,
-                                           arr_upperci=upper_ci,
-                                           nnt_predicted, 
-                                           nnt_observed) %>%
-  mutate(
-    risk_predicted = round(risk_predicted*100,3),
-    risk_observed = round(risk_observed*100,3),
-    arr_predicted =arr_predicted,
-    arr_observed = arr_observed,
-    nnt_predicted = round(nnt_predicted),
-    nnt_observed = round(nnt_observed),
-    nnt_observed_lowerci = round(1/arr_upperci),
-    nnt_observed_upperci = round(1/arr_lowerci)
-  ) %>% cbind(nnt_observed_weighted)
 
 # setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/output/")
-write.csv2(nnt_table, file = paste0(today, "_nnt_table.csv"))
+write.csv2(obs_v_pred, file = paste0(today, "_nnt_table.csv"))
 
 
 ############################4 SUBGROUP TABLES################################################################
