@@ -56,6 +56,8 @@ cohort <- cohort %>%
          ckdpc_40egfr_cal_sglt2i=ckdpc_40egfr_cal^trial_hr_kf_sglt2i,
          ckdpc_40egfr_sglt2i_benefit=ckdpc_40egfr_cal_sglt2i - ckdpc_40egfr_cal)
 
+cohort$benefit_decile <- ntile(cohort$ckdpc_40egfr_sglt2i_benefit, n.quantiles)
+
 # calculate predicted NNT = 1/ARR
 cohort  <- cohort %>%
   mutate(nnt_predicted = 1/(ckdpc_40egfr_sglt2i_benefit))
@@ -112,31 +114,37 @@ legend_out <- c(100,-100)
 
 ############################1 CALIBRATION PLOTS OF PREDICTED VS OBSERVED BENEFITS################################################################
 
-# save dataset for later (performing analysis in entire dataset exceeds memory limit)
+# centre predictors and save dataset for later (performing analysis in entire dataset exceeds memory limit)
+
+centre_and_reference <- function(df, covariates) {
+  df %>%
+    mutate(across(all_of(covariates), ~ if(is.numeric(.)) . - mean(., na.rm = TRUE) else .),  # Center numeric variables
+           across(all_of(covariates), ~ if(is.logical(.)) . == names(sort(table(.), decreasing = TRUE))[1] else .),  # Set most frequent level as reference for logical
+           across(all_of(covariates), ~ if(is.factor(.)) relevel(., ref = names(sort(table(.), decreasing = TRUE))[1]) else .))  # Set most frequent level as reference for factor
+}
+
 cohort <- cohort %>%
-  select(patid, .imp, risk_group, studydrug2, ckd_egfr40_censtime_yrs, 
-         ckd_egfr40_censvar, macroalb_censtime_yrs, macroalb_censvar, all_of(unlist(strsplit(covariates, " \\+ "))))
+  mutate(across(contains("predrug_"), as.logical),
+         hosp_admission_prev_year=as.logical(hosp_admission_prev_year),
+         INS=as.logical(INS),
+         MFN=as.logical(MFN),
+         malesex=as.factor(malesex),
+         initiation_year=as.factor(initiation_year)) %>%
+  select(patid, .imp, risk_group, studydrug2, benefit_decile,
+         ckd_egfr40_censtime_yrs, ckd_egfr40_censvar, macroalb_censtime_yrs, macroalb_censvar, 
+         all_of(unlist(strsplit(covariates, " \\+ ")))) %>% centre_and_reference(unlist(strsplit(covariates, " \\+ ")))
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-save(cohort, file=paste0(today, "_all_imputations_calibrated.Rda"))
+save(cohort, file=paste0(today, "_recalibrated_data_centred_predictors.Rda"))
 
-############################1 CALIBRATION PLOTS OF PREDICTED VS OBSERVED BENEFITS################################################################
 
-# save dataset for later (performing analysis in entire dataset exceeds memory limit)
-cohort <- cohort %>%
-  select(patid, .imp, risk_group, studydrug2, ckd_egfr40_censtime_yrs, 
-         ckd_egfr40_censvar, macroalb_censtime_yrs, macroalb_censvar, benefit_decile, 
-         all_of(unlist(strsplit(covariates, " \\+ "))))
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-save(cohort, file=paste0(today, "_all_imputations_calibrated.Rda"))
-
-rm(list = setdiff(ls(), c("n.imp", "covariates")))
+rm(list = setdiff(ls(), c("n.imp", "covariates", "today")))
 
 k <- "ckd_egfr40"
 
 for (i in 1:n.imp) {
   print(paste0("Survival estimates for imputation ", i, " (SGLT2i)"))
   setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-  load("2024-05-29_all_imputations_calibrated.Rda")
+  load("2024-05-31_recalibrated_data_centred_predictors.Rda")
   cohort <- cohort[cohort$.imp == i,]
   gc()
   
@@ -163,17 +171,16 @@ for (i in 1:n.imp) {
   
   setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/output/")
   
-  today <- as.character(Sys.Date(), format="%Y%m%d")
   save(observed_sglt2, file=paste0(today, "_adjusted_surv_SGLT2i_imp.", i, ".Rda"))
   
-  rm(list = setdiff(ls(), c("n.imp", "covariates", "k")))
+  rm(list = setdiff(ls(), c("n.imp", "covariates", "k", "today")))
 }
 
 
 for (i in 1:n.imp) {
   print(paste0("Survival estimates for imputation ", i, " (DPP4i/SU)"))
   setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-  load("2024-05-29_all_imputations_calibrated.Rda")
+  load("2024-05-31_recalibrated_data_centred_predictors.Rda")
   cohort <- cohort[cohort$.imp == i,]
   gc()
   
@@ -199,18 +206,17 @@ for (i in 1:n.imp) {
     inner_join(obs_DPP4SU, by=c("group"="rowno"))
   
   setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/output/")
-  today <- as.character(Sys.Date(), format="%Y%m%d")
   save(observed_dpp4su, file=paste0(today, "_adjusted_surv_DPP4iSU_imp.", i, ".Rda"))
   
-  rm(list = setdiff(ls(), c("n.imp", "covariates", "k")))
+  rm(list = setdiff(ls(), c("n.imp", "covariates", "k", "today")))
 }
 
 temp_sglt2 <- temp_dpp4su <- data.frame()
 
 for (i in 1:n.imp) {
   setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/output/")
-  load(paste0("2024-05-29_adjusted_surv_SGLT2i_imp.", i, ".Rda"))
-  load(paste0("2024-05-29_adjusted_surv_DPP4iSU_imp.", i, ".Rda"))
+  load(paste0("2024-05-31_adjusted_surv_SGLT2i_imp.", i, ".Rda"))
+  load(paste0("2024-05-31_adjusted_surv_DPP4iSU_imp.", i, ".Rda"))
   temp_sglt2 <- temp_sglt2 %>% rbind(observed_sglt2)
   temp_dpp4su <- temp_dpp4su %>% rbind(observed_dpp4su)
   rm(observed_sglt2)
@@ -228,7 +234,7 @@ benefits <- temp_sglt2 %>%
 
 ### Predicted same as previous
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-load("2024-05-29_t2d_ckdpc_recalibrated_with_riskgroup.Rda")
+load("2024-05-31_t2d_ckdpc_recalibrated_with_riskgroup.Rda")
 
 cohort <- cohort %>% inner_join(benefits %>% 
                                   select(.imp, estimate_sglt2, se_sglt2, estimate_dpp4su, se_dpp4su, patid, 
