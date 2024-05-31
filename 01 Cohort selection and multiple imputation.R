@@ -133,9 +133,9 @@ cohort <- cohort %>%
 cohort <- cohort %>% mutate(
   imd2015_10 = ifelse(imd2015_10 %in% c(1,2), "1/2",
                       ifelse(imd2015_10 %in% c(3,4), "3/4",
-                             ifelse(imd2015_10 %in% c(5,6), "5,6",
-                                    ifelse(imd2015_10 %in% c(7,8), "7,8",
-                                           ifelse(imd2015_10 %in% c(9,10), "9,10", NA))))),
+                             ifelse(imd2015_10 %in% c(5,6), "5/6",
+                                    ifelse(imd2015_10 %in% c(7,8), "7/8",
+                                           ifelse(imd2015_10 %in% c(9,10), "9/10", NA))))),
   imd2015_10 = factor(imd2015_10)
 )
 
@@ -495,8 +495,13 @@ temp <- temp %>% mutate(
   ACEi_or_ARB = ifelse(temp$ACEi + temp$ARB > 0, T, F),
   macroalbuminuria = ifelse(uacr < 30, F, T),
   microalbuminuria = ifelse(uacr <3, F, ifelse(macroalbuminuria == T, F, T)),
-  studydrug2 = ifelse(!studydrug == "SGLT2", "DPP4i/SU", "SGLT2i"),
-  ncurrtx = ifelse(ncurrtx==1, "1.", ifelse(ncurrtx==2, "2.", ifelse(ncurrtx==3, "3.", "4+")))
+  studydrug2 = ifelse(!studydrug == "SGLT2i", "DPP4i/SU", "SGLT2i"),
+  ncurrtx = ifelse(ncurrtx==1, "1.", ifelse(ncurrtx==2, "2.", ifelse(ncurrtx==3, "3.", "4+"))),
+  risk_group = ifelse(macroalbuminuria == T, 
+                      ifelse(egfr_below_60 == F, "eGFR ≥60mL/min/1.73m2, uACR ≥30mg/mmol", "eGFR <60mL/min/1.73m2, uACR ≥30mg/mmol"), 
+                      ifelse(egfr_below_60 == T, 
+                             ifelse(albuminuria == T, "eGFR <60mL/min/1.73m2, uACR 3-30mg/mmol", "eGFR <60mL/min/1.73m2, uACR <3mg/mmol"),
+                             ifelse(albuminuria == F, "eGFR ≥60mL/min/1.73m2, uACR <3mg/mmol", "eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol")))
 )
 
 # create table one: this will be an average of the imputed datasets (n to be divided by n.imp)
@@ -505,7 +510,7 @@ temp <- temp %>% mutate(
 vars <- c("dstartdate_age", "malesex", "ethnicity_5cat", "imd2015_10",             # sociodemographic variables
           "prebmi", "presbp", "predbp", "pretotalcholesterol", "prehdl", "preldl", # vital signs and laboratory measurements
           "pretriglyceride", "prehba1c",  "preegfr",           
-          "preckdstage", "egfr_below_60", "uacr", "albuminuria", 
+          "preckdstage", "egfr_below_60", "uacr", "risk_group", "albuminuria", 
           "microalbuminuria", "macroalbuminuria",
           "dstartdate_dm_dur_all", "smoking_status", "predrug_hypertension",   # comorbidities
           "predrug_af", "predrug_dka", "osteoporosis", 
@@ -526,11 +531,12 @@ factors <- c("malesex", "ethnicity_qrisk2", "imd2015_10", "smoking_status", "pre
              "initiation_year",
              "ncurrtx", "MFN", "TZD", "INS", "ACEi_or_ARB",
              "cv_high_risk", "qrisk2_above_10_pct", 
-             "preckdstage", "egfr_below_60", "albuminuria", "microalbuminuria", "macroalbuminuria")
+             "preckdstage", "risk_group", "egfr_below_60", "albuminuria", "microalbuminuria", "macroalbuminuria")
 
 nonnormal <- c("uacr", "dstartdate_dm_dur_all")
 
-table <- CreateTableOne(vars = vars, strata = "studydrug2", data = temp[temp$.imp > 0,], 
+table <- CreateTableOne(vars = vars, strata = "studydrug2", data = temp %>% filter(!.imp == 0) %>%  ## dataset at present contains separate drug episodes if a subject started a DPP4i and later a sulfonylurea
+                          group_by(.imp, patid) %>% filter(!duplicated(studydrug2)) %>% ungroup(),  ## these "duplicate" episodes will be removed after we have done the drug-specific analyses
                         factorVars = factors, test = F)
 
 tabforprint <- print(table, nonnormal = nonnormal, quote = FALSE, noSpaces = TRUE, printToggle = T)
@@ -541,22 +547,15 @@ today <- as.character(Sys.Date(), format="%Y%m%d")
 write.csv2(tabforprint, file = paste0(today, "_baseline_table.csv"))
 
 # get baseline table by eGFR/uACR subgroups:
-temp <- temp %>% mutate(
-  risk_group = ifelse(macroalbuminuria == T, 
-                      ifelse(egfr_below_60 == F, "eGFR ≥60mL/min/1.73m2, uACR ≥30mg/mmol", "eGFR <60mL/min/1.73m2, uACR ≥30mg/mmol"), 
-                      ifelse(egfr_below_60 == T, 
-                             ifelse(albuminuria == T, "eGFR <60mL/min/1.73m2, uACR 3-30mg/mmol", "eGFR <60mL/min/1.73m2, uACR <3mg/mmol"),
-                             ifelse(albuminuria == F, "eGFR ≥60mL/min/1.73m2, uACR <3mg/mmol", "eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol")))
-)
-
 vars <- c(vars, "studydrug")
 factors <- c(factors, "studydrug")
-table <- CreateTableOne(vars = vars, strata = "subgroup", data = temp[temp$.imp > 0,], 
+table <- CreateTableOne(vars = vars, strata = "risk_group", data = temp %>% filter(!.imp == 0) %>% 
+                          group_by(.imp, patid) %>% filter(!duplicated(studydrug2)) %>% ungroup(), 
                         factorVars = factors, test = F)
 
-tabforprint <- print(table, nonnormal = nonnormal, quote = FALSE, noSpaces = TRUE, printToggle = T)
+tabforprint2 <- print(table, nonnormal = nonnormal, quote = FALSE, noSpaces = TRUE, printToggle = T)
 
-write.csv2(tabforprint, file = paste0(today, "_baseline_table_by_subgroup.csv"))
+write.csv2(tabforprint2, file = paste0(today, "_baseline_table_by_subgroup.csv"))
 
 
 

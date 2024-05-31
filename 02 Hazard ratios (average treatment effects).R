@@ -6,13 +6,8 @@
 # HR 0.62 (0.56 - 0.68)
 
 ## Here we will be calculating HRs for SGLT2i and DPP4i vs SU for:
-## CKD: onset of CKD stage 3a-5
-## CKD: fall in eGFR of <=40% from baseline or onset of CKD stage 5
-## all-cause mortality
-
-## originally, there were plans to add other outcomes, e.g. 
-## prescription of medications for advanced kidney disease (e.g. injections for renal anaemia, phosphate binders).
-## however, due to the low number of subjects progressing to advanced CKD it is unfeasible to look into this.
+## primary outcome kidney disease progression: fall in eGFR of <=40% from baseline or onset of CKD stage 5
+## secondary outcomes: progression to macroalbuminuria, all-cause mortality, dka, amputation, and other side effects
 
 ## Contents:
 # 0 setup
@@ -1683,3 +1678,145 @@ layout <- c(
 # Final plot arrangement
 p_counts_subgroup + p_left_subgroup + p_egfr40_subgroup + p_right_subgroup + 
   p_counts_overall + p_left_overall + p_egfr40_overall + p_right_overall + plot_layout(design = layout)
+
+
+############################5D FOREST PLOT FOR HRs OF SECONDARY ANALYSES (SUPPLEMENTAL FIGURE)################################################################
+
+secondary <- all_SGLT2ivsDPP4iSU_hrs[all_SGLT2ivsDPP4iSU_hrs$analysis == "Adjusted",]
+secondary <- secondary %>% filter(!outcome == "any_ae") # will not focus on this
+
+labels_plot6 <- secondary
+
+labels6 <- data.frame(matrix("", nrow = 1, ncol = length(secondary)))
+names(labels6) <- names(secondary)
+labels6 <- labels6 %>% mutate(analysis = "Overall", 
+                              string = "Hazard Ratio (95% CI)",
+                              SGLT2i_nN = "Events/subjects",
+                              `DPP4i/SU_nN` = "")
+
+for (m in unique(secondary$outcome)) {
+  labels_temp <- labels6 
+  labels_temp$outcome <- m
+  labels_plot6 <- rbind(labels_temp, labels_plot6)
+}
+
+labels_plot6 <- labels_plot6 %>% mutate(
+  contrast = ifelse(
+    outcome == "ckd_egfr40", " Kidney disease progression",
+    ifelse(outcome == "death", " All-cause mortality", ifelse(
+      outcome == "macroalb", " Progression of albuminuria (uACR ≥30mg/mmol)", ifelse(
+        outcome == "dka", " Diabetic keto-acidosis", ifelse(
+          outcome == "amputation", " Amputation", ifelse(
+            outcome == "side_effect", " Other side effects*", NA #genital infections, volume depletion, urinary frequency and micturition control problems 
+          )
+        )
+      )
+    ))
+  ),
+  contrast = ifelse(
+    analysis == "Overall", "Outcome", as.character(contrast)
+  )
+)
+
+# have to coerce HR and CI to class numeric as they sometimes default to character
+class(secondary$HR) <- class(secondary$LB) <- class(secondary$UB) <- "numeric"
+
+plot_expression <- ""
+
+for (m in rev(unique(secondary$outcome))) {
+
+    p_counts <- labels_plot6 %>% filter(outcome==m) %>%
+    ggplot(aes(y = factor(contrast, levels = rev(unique(contrast))))) + 
+    geom_text(aes(x = 1, label = SGLT2i_nN), hjust = 1, 
+              colour = ifelse(labels_plot6[labels_plot6$outcome == m,]$SGLT2i_nN == labels6$SGLT2i_nN, "white", "black")) +
+    geom_text(aes(x = 3, label = `DPP4i/SU_nN`), hjust = 1, fontface = "plain") +
+    theme_void() +
+    coord_cartesian(xlim = c(-2, 5))
+  
+  p_hr <- 
+    secondary %>%
+    filter(outcome == m) %>%
+    ggplot(aes(y = factor(contrast, levels = rev(unique(contrast))))) + 
+    scale_x_continuous(trans = "log10", breaks = c(0.5, 0.75, 1.0, 1.5, 2.1)) +
+    coord_cartesian(ylim=c(1,length(unique(labels_plot6[labels_plot6$outcome == m,]$contrast)) + 1), 
+                    xlim=c(0.5, 2)) +
+    theme_classic() +
+    geom_point(aes(x=HR), shape=15, size=3) +
+    geom_linerange(aes(xmin=LB, xmax=UB)) +
+    geom_vline(xintercept = 1, linetype="dashed") +
+    annotate("text", x = .65, 
+             y = length(unique(secondary[secondary$outcome == m,]$contrast)) + 2, 
+             label = ifelse(m==unique(secondary$outcome)[1], "Favours\nSGLT2i", "")) +
+    annotate("text", x = 1.5,
+             y = length(unique(secondary[secondary$outcome == m,]$contrast)) + 2, 
+             label = ifelse(m==unique(secondary$outcome)[1], "Favours\nDPP4i/SU", "")) +
+    labs(x=ifelse(m==unique(secondary$outcome)[nlevels(as.factor(secondary$outcome))], "Hazard ratio", ""), y="") +
+    theme(axis.line.y = element_blank(),
+          axis.ticks.y= element_blank(),
+          axis.text.y= element_blank(),
+          axis.title.y= element_blank(),
+          axis.line.x = if (!m==unique(secondary$outcome)[nlevels(as.factor(secondary$outcome))]) {element_blank()},
+          axis.text.x = if (!m==unique(secondary$outcome)[nlevels(as.factor(secondary$outcome))]) {element_blank()},
+          axis.ticks.x = if (!m==unique(secondary$outcome)[nlevels(as.factor(secondary$outcome))]) {element_blank()},
+          plot.title = element_text(hjust = 0.5),
+          plot.subtitle = element_text(hjust = 0.5)) 
+  
+  p_left <-
+    labels_plot6 %>%
+    filter(outcome == m) %>%
+    ggplot(aes(y = (unique((contrast))))) + 
+    geom_text(
+      aes(x = 1, label = contrast),
+      hjust = 0,
+      fontface = ifelse(labels_plot6[labels_plot6$outcome == m,]$
+                          contrast == "Outcome", "bold", "plain"),
+      colour = ifelse(m==unique(secondary$outcome)[1] & labels_plot6[labels_plot6$outcome == m,]$
+                        contrast == "Outcome" | !labels_plot6[labels_plot6$outcome == m,]$
+                        contrast == "Outcome", "black", "white")
+    ) +
+    theme_void() +
+    coord_cartesian(xlim = c(0, 4))
+  
+  p_right <-
+    labels_plot6 %>%
+    filter(outcome == m) %>%
+    ggplot(aes(y = factor(string, levels = rev(unique(string))))) + 
+    geom_text(
+      aes(x = 0, label = string),
+      hjust = 0,
+      fontface = ifelse(labels_plot6[labels_plot6$outcome == m,]$string == "Hazard Ratio (95% CI)", "bold", "plain"),
+      colour = ifelse(labels_plot6[labels_plot6$outcome == m,]$string == "Hazard Ratio (95% CI)" & !m==unique(secondary$outcome)[1], 
+                      "white", "black")) +
+    theme_void() +
+    coord_cartesian(xlim = c(0, 4))
+  
+  assign(paste0("p_counts_", m), p_counts)
+  assign(paste0("p_hr_", m), p_hr)
+  assign(paste0("p_left_", m), p_left)
+  assign(paste0("p_right_", m), p_right)
+  
+  plot_expression <- paste0(plot_expression, "p_counts_", m, " + p_left_", m, " + p_hr_", m, " + p_right_", m, " + ")
+}
+
+n.plots <- nlevels(as.factor(secondary$outcome))
+
+# layout for plots below
+
+i <- 1
+layout <- paste("area(t = ",(i-1)*10, ", l = 7, b = ",(i-1)*10+22,", r = 13), area(t = ",(i-1)*10, ", l = 0, b = ",(i-1)*10+22,", r = 7), area(t = ",(i-1)*10, ", l = 12, b = ",(i-1)*10+22,", r = 18), area(t = ",(i-1)*10, ", l = 19, b = ", (i-1)*10+22,", r = 24)")
+
+
+for (i in 2:n.plots) {
+  layout <- paste("area(t = ",(i-1)*10, ", l = 7, b = ",(i-1)*10+22,", r = 13), area(t = ",(i-1)*10, ", l = 0, b = ",(i-1)*10+22,", r = 7), area(t = ",(i-1)*10, ", l = 12, b = ",(i-1)*10+22,", r = 18), area(t = ",(i-1)*10, ", l = 19, b = ", (i-1)*10+22,", r = 24), ", layout)
+}
+
+layout <- paste0("c(", layout, ")")
+
+layout <- eval(str2lang(layout))
+
+# Final plot arrangement
+
+plot_expression <- paste0(plot_expression, "plot_layout(design = layout)")
+
+eval(str2lang(plot_expression))
+

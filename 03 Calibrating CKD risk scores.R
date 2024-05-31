@@ -20,6 +20,7 @@ library(broom)
 library(patchwork)
 library(rms)
 library(pROC)
+library(riskRegression)
 
 options(dplyr.dpp4isummarise.inform = FALSE)
 
@@ -551,6 +552,7 @@ se_bh_new <- rep(NA, n.imp)
 cal_slope <- rep(NA, n.imp)
 slope_optimism <- rep(NA, n.imp)
 var_slope <- rep(NA, n.imp)
+
 for (i in 1:n.imp) {
   print(paste0("Calculations in imputation ", i))
   recal_mod2 <- cph(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ (ckdpc_40egfr_lin_predictor), data = cohort[cohort$.imp == i,], x = TRUE, y = TRUE, surv = TRUE)

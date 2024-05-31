@@ -119,6 +119,16 @@ cohort <- cohort %>%
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
 save(cohort, file=paste0(today, "_all_imputations_calibrated.Rda"))
 
+############################1 CALIBRATION PLOTS OF PREDICTED VS OBSERVED BENEFITS################################################################
+
+# save dataset for later (performing analysis in entire dataset exceeds memory limit)
+cohort <- cohort %>%
+  select(patid, .imp, risk_group, studydrug2, ckd_egfr40_censtime_yrs, 
+         ckd_egfr40_censvar, macroalb_censtime_yrs, macroalb_censvar, benefit_decile, 
+         all_of(unlist(strsplit(covariates, " \\+ "))))
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
+save(cohort, file=paste0(today, "_all_imputations_calibrated.Rda"))
+
 rm(list = setdiff(ls(), c("n.imp", "covariates")))
 
 k <- "ckd_egfr40"
@@ -126,13 +136,13 @@ k <- "ckd_egfr40"
 for (i in 1:n.imp) {
   print(paste0("Survival estimates for imputation ", i, " (SGLT2i)"))
   setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-  load("2024-04-30_all_imputations_calibrated.Rda")
+  load("2024-05-29_all_imputations_calibrated.Rda")
   cohort <- cohort[cohort$.imp == i,]
   gc()
   
   censvar_var=paste0(k, "_censvar")
   censtime_var=paste0(k, "_censtime_yrs")  
-  f_adjusted <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2 + ", covariates))
+  f_adjusted <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2 + studydrug2*benefit_decile + ", covariates)) ## add interaction ##
   
   model <- cph(f_adjusted, data=cohort, x=TRUE, y=TRUE, surv=TRUE)
   
@@ -163,13 +173,13 @@ for (i in 1:n.imp) {
 for (i in 1:n.imp) {
   print(paste0("Survival estimates for imputation ", i, " (DPP4i/SU)"))
   setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-  load("2024-04-30_all_imputations_calibrated.Rda")
+  load("2024-05-29_all_imputations_calibrated.Rda")
   cohort <- cohort[cohort$.imp == i,]
   gc()
   
   censvar_var=paste0(k, "_censvar")
   censtime_var=paste0(k, "_censtime_yrs")  
-  f_adjusted <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2 + ", covariates))
+  f_adjusted <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2 + studydrug2*benefit_decile + ", covariates))
   
   model <- cph(f_adjusted, data=cohort, x=TRUE, y=TRUE, surv=TRUE)
   
@@ -199,8 +209,8 @@ temp_sglt2 <- temp_dpp4su <- data.frame()
 
 for (i in 1:n.imp) {
   setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/output/")
-  load(paste0("2024-04-30_adjusted_surv_SGLT2i_imp.", i, ".Rda"))
-  load(paste0("2024-04-30_adjusted_surv_DPP4iSU_imp.", i, ".Rda"))
+  load(paste0("2024-05-29_adjusted_surv_SGLT2i_imp.", i, ".Rda"))
+  load(paste0("2024-05-29_adjusted_surv_DPP4iSU_imp.", i, ".Rda"))
   temp_sglt2 <- temp_sglt2 %>% rbind(observed_sglt2)
   temp_dpp4su <- temp_dpp4su %>% rbind(observed_dpp4su)
   rm(observed_sglt2)
@@ -218,7 +228,7 @@ benefits <- temp_sglt2 %>%
 
 ### Predicted same as previous
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-load("2024-04-30_t2d_ckdpc_recalibrated_with_riskgroup.Rda")
+load("2024-05-29_t2d_ckdpc_recalibrated_with_riskgroup.Rda")
 
 cohort <- cohort %>% inner_join(benefits %>% 
                                   select(.imp, estimate_sglt2, se_sglt2, estimate_dpp4su, se_dpp4su, patid, 
@@ -226,8 +236,6 @@ cohort <- cohort %>% inner_join(benefits %>%
                                 by=c(".imp", "patid", "studydrug2"))
 
 cohort$studydrug2 <- as.factor(cohort$studydrug2)
-
-cohort$benefit_decile <- ntile(cohort$ckdpc_40egfr_sglt2i_benefit, n.quantiles)
 
 obs_v_pred_for_plot <- cohort %>%
   group_by(benefit_decile) %>%
@@ -250,7 +258,7 @@ empty_tick <- empty_tick %>%
 ## SGLT2i benefit predicted vs observed - in all patients
 p_benefit_bydeciles <- ggplot(data=bind_rows(empty_tick,obs_v_pred_for_plot), aes(x=median_predicted_benefit*100)) +
   geom_errorbar(aes(ymax=uq_benefit*100,ymin=lq_benefit*100, color= "#0072B2"),width=0.1,size=1) +
-  geom_point(aes(y = mean_benefit*100, color="#0072B2"), shape=18, size=3) +
+  geom_point(aes(y = median_benefit*100, color="#0072B2"), shape=18, size=3) +
   geom_abline(intercept = 0, slope = 1, lty = 2) +
   theme_bw() +
   xlab("Risk-score predicted SGLT2-inhibitor benefit (%)") + ylab("Adjusted observed benefit* (%)")+
@@ -264,7 +272,7 @@ p_benefit_bydeciles <- ggplot(data=bind_rows(empty_tick,obs_v_pred_for_plot), ae
         plot.subtitle=element_text(hjust = 0.5,size=rel(1.2)),
         legend.position = "none") +
   ggtitle("Predicted versus observed SGLT2-inhibitor benefit", subtitle = "By predicted benefit decile") +
-  coord_cartesian(xlim = c(0,4), ylim = c(-.6,4))
+  coord_cartesian(xlim = c(0,3), ylim = c(0,3))
 
 p_benefit_bydeciles
 
