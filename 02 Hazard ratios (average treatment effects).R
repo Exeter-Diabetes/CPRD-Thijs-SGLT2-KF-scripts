@@ -710,19 +710,19 @@ for (k in kf_key_outcomes) {
       SE.presegfr.noalb.unadj[i] <- sqrt(fit.unadj$var[1,1])
       
       COEFS.presegfr.microalb.unadj[i] <- fit.unadj$coefficients["studydrug2SGLT2i"] + fit.unadj$coefficients["studydrug2SGLT2i:risk_groupeGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol"]
-      SE.presegfr.microalb.unadj[i] <- sqrt(abs(fit.unadj$var[1]) + abs(fit.unadj$var[7,7]) + 2 * vcov(fit.unadj)[1,7])
+      SE.presegfr.microalb.unadj[i] <- sqrt(abs(fit.unadj$var[1]) + abs(fit.unadj$var[nrow(fit.unadj$var)-4,nrow(fit.unadj$var)-4]) + 2 * vcov(fit.unadj)[1,nrow(fit.unadj$var)-4])
       
       COEFS.presegfr.macroalb.unadj[i] <- fit.unadj$coefficients["studydrug2SGLT2i"] + fit.unadj$coefficients["studydrug2SGLT2i:risk_groupeGFR ≥60mL/min/1.73m2, uACR ≥30mg/mmol"]
-      SE.presegfr.macroalb.unadj[i] <- sqrt(abs(fit.unadj$var[1]) + abs(fit.unadj$var[8,8]) + 2 * vcov(fit.unadj)[1,8])
+      SE.presegfr.macroalb.unadj[i] <- sqrt(abs(fit.unadj$var[1]) + abs(fit.unadj$var[nrow(fit.unadj$var)-3,nrow(fit.unadj$var)-3]) + 2 * vcov(fit.unadj)[1,nrow(fit.unadj$var)-3])
       
       COEFS.redegfr.noalb.unadj[i] <- fit.unadj$coefficients["studydrug2SGLT2i"] + fit.unadj$coefficients["studydrug2SGLT2i:risk_groupeGFR <60mL/min/1.73m2, uACR <3mg/mmol"]
-      SE.redegfr.noalb.unadj[i] <- sqrt(abs(fit.unadj$var[1]) + abs(fit.unadj$var[9,9]) + 2 * vcov(fit.unadj)[1,9])
+      SE.redegfr.noalb.unadj[i] <- sqrt(abs(fit.unadj$var[1]) + abs(fit.unadj$var[nrow(fit.unadj$var)-2,nrow(fit.unadj$var)-2]) + 2 * vcov(fit.unadj)[1,nrow(fit.unadj$var)-2])
       
       COEFS.redegfr.microalb.unadj[i] <- fit.unadj$coefficients["studydrug2SGLT2i"] + fit.unadj$coefficients["studydrug2SGLT2i:risk_groupeGFR <60mL/min/1.73m2, uACR 3-30mg/mmol"]
-      SE.redegfr.microalb.unadj[i] <- sqrt(abs(fit.unadj$var[1]) + abs(fit.unadj$var[10,10]) + 2 * vcov(fit.unadj)[1,10])
+      SE.redegfr.microalb.unadj[i] <- sqrt(abs(fit.unadj$var[1]) + abs(fit.unadj$var[nrow(fit.unadj$var)-1,nrow(fit.unadj$var)-1]) + 2 * vcov(fit.unadj)[1,nrow(fit.unadj$var)-1])
       
       COEFS.redegfr.macroalb.unadj[i] <- fit.unadj$coefficients["studydrug2SGLT2i"] + fit.unadj$coefficients["studydrug2SGLT2i:risk_groupeGFR <60mL/min/1.73m2, uACR ≥30mg/mmol"]
-      SE.redegfr.macroalb.unadj[i] <- sqrt(abs(fit.unadj$var[1]) + abs(fit.unadj$var[11,11]) + 2 * vcov(fit.unadj)[1,11])
+      SE.redegfr.macroalb.unadj[i] <- sqrt(abs(fit.unadj$var[1]) + abs(fit.unadj$var[nrow(fit.unadj$var),nrow(fit.unadj$var)]) + 2 * vcov(fit.unadj)[1,nrow(fit.unadj$var)])
       
       #adjusted analyses
       fit.adj <- coxph(f_adjusted2, cohort[cohort$.imp == i,])
@@ -731,19 +731,19 @@ for (k in kf_key_outcomes) {
       SE.presegfr.noalb.adj[i] <- sqrt(fit.adj$var[1,1])
       
       COEFS.presegfr.microalb.adj[i] <- fit.adj$coefficients["studydrug2SGLT2i"] + fit.adj$coefficients["studydrug2SGLT2i:risk_groupeGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol"]
-      SE.presegfr.microalb.adj[i] <- sqrt(abs(fit.adj$var[1]) + abs(fit.adj$var[45,45]) + 2 * vcov(fit.adj)[1,45])
+      SE.presegfr.microalb.adj[i] <- sqrt(abs(fit.adj$var[1]) + abs(fit.adj$var[nrow(fit.adj$var)-4,nrow(fit.adj$var)-4]) + 2 * vcov(fit.adj)[1,nrow(fit.adj$var)-4])
       
       COEFS.presegfr.macroalb.adj[i] <- fit.adj$coefficients["studydrug2SGLT2i"] + fit.adj$coefficients["studydrug2SGLT2i:risk_groupeGFR ≥60mL/min/1.73m2, uACR ≥30mg/mmol"]
-      SE.presegfr.macroalb.adj[i] <- sqrt(abs(fit.adj$var[1]) + abs(fit.adj$var[46,46]) + 2 * vcov(fit.adj)[1,46])
+      SE.presegfr.macroalb.adj[i] <- sqrt(abs(fit.adj$var[1]) + abs(fit.adj$var[nrow(fit.adj$var)-3,nrow(fit.adj$var)-3]) + 2 * vcov(fit.adj)[1,nrow(fit.adj$var)-3])
       
       COEFS.redegfr.noalb.adj[i] <- fit.adj$coefficients["studydrug2SGLT2i"] + fit.adj$coefficients["studydrug2SGLT2i:risk_groupeGFR <60mL/min/1.73m2, uACR <3mg/mmol"]
-      SE.redegfr.noalb.adj[i] <- sqrt(abs(fit.adj$var[1]) + abs(fit.adj$var[47,47]) + 2 * vcov(fit.adj)[1,47])
+      SE.redegfr.noalb.adj[i] <- sqrt(abs(fit.adj$var[1]) + abs(fit.adj$var[nrow(fit.adj$var)-2,nrow(fit.adj$var)-2]) + 2 * vcov(fit.adj)[1,nrow(fit.adj$var)-2])
       
       COEFS.redegfr.microalb.adj[i] <- fit.adj$coefficients["studydrug2SGLT2i"] + fit.adj$coefficients["studydrug2SGLT2i:risk_groupeGFR <60mL/min/1.73m2, uACR 3-30mg/mmol"]
-      SE.redegfr.microalb.adj[i] <- sqrt(abs(fit.adj$var[1]) + abs(fit.adj$var[48,48]) + 2 * vcov(fit.adj)[1,48])
+      SE.redegfr.microalb.adj[i] <- sqrt(abs(fit.adj$var[1]) + abs(fit.adj$var[nrow(fit.adj$var)-1,nrow(fit.adj$var)-1]) + 2 * vcov(fit.adj)[1,nrow(fit.adj$var)-1])
       
       COEFS.redegfr.macroalb.adj[i] <- fit.adj$coefficients["studydrug2SGLT2i"] + fit.adj$coefficients["studydrug2SGLT2i:risk_groupeGFR <60mL/min/1.73m2, uACR ≥30mg/mmol"]
-      SE.redegfr.macroalb.adj[i] <- sqrt(abs(fit.adj$var[1]) + abs(fit.adj$var[49,49]) + 2 * vcov(fit.adj)[1,49])
+      SE.redegfr.macroalb.adj[i] <- sqrt(abs(fit.adj$var[1]) + abs(fit.adj$var[nrow(fit.adj$var),nrow(fit.adj$var)]) + 2 * vcov(fit.adj)[1,nrow(fit.adj$var)])
       
       if (k == "ckd_egfr40") {
         if (i == n.imp) {
@@ -921,13 +921,13 @@ for (k in kf_key_outcomes) {
       SE.presegfr.noalb.unadj[i] <- sqrt(fit.unadj$var[1,1])
       
       COEFS.presegfr.microalb.unadj[i] <- fit.unadj$coefficients["studydrug2SGLT2i"] + fit.unadj$coefficients["studydrug2SGLT2i:risk_groupeGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol"]
-      SE.presegfr.microalb.unadj[i] <- sqrt(abs(fit.unadj$var[1]) + abs(fit.unadj$var[7,7]) + 2 * vcov(fit.unadj)[1,7])
+      SE.presegfr.microalb.unadj[i] <- sqrt(abs(fit.unadj$var[1]) + abs(fit.unadj$var[nrow(fit.unadj$var)-2,nrow(fit.unadj$var)-2]) + 2 * vcov(fit.unadj)[1,nrow(fit.unadj$var)-2])
       
       COEFS.redegfr.noalb.unadj[i] <- fit.unadj$coefficients["studydrug2SGLT2i"] + fit.unadj$coefficients["studydrug2SGLT2i:risk_groupeGFR <60mL/min/1.73m2, uACR <3mg/mmol"]
-      SE.redegfr.noalb.unadj[i] <- sqrt(abs(fit.unadj$var[1]) + abs(fit.unadj$var[8,8]) + 2 * vcov(fit.unadj)[1,8])
+      SE.redegfr.noalb.unadj[i] <- sqrt(abs(fit.unadj$var[1]) + abs(fit.unadj$var[nrow(fit.unadj$var)-1,nrow(fit.unadj$var)-1]) + 2 * vcov(fit.unadj)[1,nrow(fit.unadj$var)-1])
       
       COEFS.redegfr.microalb.unadj[i] <- fit.unadj$coefficients["studydrug2SGLT2i"] + fit.unadj$coefficients["studydrug2SGLT2i:risk_groupeGFR <60mL/min/1.73m2, uACR 3-30mg/mmol"]
-      SE.redegfr.microalb.unadj[i] <- sqrt(abs(fit.unadj$var[1]) + abs(fit.unadj$var[9,9]) + 2 * vcov(fit.unadj)[1,9])
+      SE.redegfr.microalb.unadj[i] <- sqrt(abs(fit.unadj$var[1]) + abs(fit.unadj$var[nrow(fit.unadj$var),nrow(fit.unadj$var)]) + 2 * vcov(fit.unadj)[1,nrow(fit.unadj$var)])
       
       #adjusted analyses
       fit.adj <- coxph(f_adjusted2, temp2[temp2$.imp == i,])
@@ -936,13 +936,13 @@ for (k in kf_key_outcomes) {
       SE.presegfr.noalb.adj[i] <- sqrt(fit.adj$var[1,1])
       
       COEFS.presegfr.microalb.adj[i] <- fit.adj$coefficients["studydrug2SGLT2i"] + fit.adj$coefficients["studydrug2SGLT2i:risk_groupeGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol"]
-      SE.presegfr.microalb.adj[i] <- sqrt(abs(fit.adj$var[1]) + abs(fit.adj$var[43,43]) + 2 * vcov(fit.adj)[1,43])
+      SE.presegfr.microalb.adj[i] <- sqrt(abs(fit.adj$var[1]) + abs(fit.adj$var[nrow(fit.adj$var)-2,nrow(fit.adj$var)-2]) + 2 * vcov(fit.adj)[1,nrow(fit.adj$var)-2])
       
       COEFS.redegfr.noalb.adj[i] <- fit.adj$coefficients["studydrug2SGLT2i"] + fit.adj$coefficients["studydrug2SGLT2i:risk_groupeGFR <60mL/min/1.73m2, uACR <3mg/mmol"]
-      SE.redegfr.noalb.adj[i] <- sqrt(abs(fit.adj$var[1]) + abs(fit.adj$var[44,44]) + 2 * vcov(fit.adj)[1,44])
+      SE.redegfr.noalb.adj[i] <- sqrt(abs(fit.adj$var[1]) + abs(fit.adj$var[nrow(fit.adj$var)-1,nrow(fit.adj$var)-1]) + 2 * vcov(fit.adj)[1,nrow(fit.adj$var)-1])
       
       COEFS.redegfr.microalb.adj[i] <- fit.adj$coefficients["studydrug2SGLT2i"] + fit.adj$coefficients["studydrug2SGLT2i:risk_groupeGFR <60mL/min/1.73m2, uACR 3-30mg/mmol"]
-      SE.redegfr.microalb.adj[i] <- sqrt(abs(fit.adj$var[1]) + abs(fit.adj$var[45,45]) + 2 * vcov(fit.adj)[1,45])
+      SE.redegfr.microalb.adj[i] <- sqrt(abs(fit.adj$var[1]) + abs(fit.adj$var[nrow(fit.adj$var),nrow(fit.adj$var)]) + 2 * vcov(fit.adj)[1,nrow(fit.adj$var)])
       
     }
     
