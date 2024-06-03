@@ -1020,10 +1020,12 @@ for (k in kf_key_outcomes) {
 
 ## save HRs and display
 flextable(subgroup_SGLT2ivsDPP4iSU_hrs)
+
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/output/")
 save(subgroup_hrs, file=paste0(today, "_subgroup_hrs.Rda"))
 save(subgroup_SGLT2ivsDPP4iSU_hrs, file=paste0(today, "_subgroup_SGLT2ivsDPP4iSU_hrs.Rda"))
-# load("2024-05-15_subgroup_hrs.Rda")
-# load("2024-05-15_subgroup_SGLT2ivsDPP4iSU_hrs.Rda")
+# load("2024-04-30_subgroup_hrs.Rda")
+# load("2024-04-30_subgroup_SGLT2ivsDPP4iSU_hrs.Rda")
 
 subgroup_hrs <- subgroup_hrs %>% cbind(subgroup_SGLT2ivsDPP4iSU_hrs %>% select(-c(outcome, adjusted, unadjusted)))
 
@@ -1065,7 +1067,7 @@ labels_plot$analysis <- factor(labels_plot$analysis, levels = rev(unique(labels_
 
 
 # plot
-p_egfr40_1 <- 
+p_hr_1 <- 
   all_hrs %>%
   filter(outcome == "ckd_egfr40_pp") %>%
   filter(contrast == "SGLT2i vs SU") %>%
@@ -1140,7 +1142,7 @@ p_counts_1 <- labels_plot %>% filter(outcome=="ckd_egfr40_pp") %>%
 
 ## same for SGLT2i vs DPP4
 
-p_egfr40_2 <- 
+p_hr_2 <- 
   all_hrs %>%
   filter(outcome == "ckd_egfr40_pp") %>%
   filter(contrast == "SGLT2i vs DPP4i") %>%
@@ -1214,7 +1216,7 @@ p_counts_2 <- labels_plot %>% filter(outcome=="ckd_egfr40_pp") %>%
 
 ## same for DPP4i vs SU
 
-p_egfr40_3 <- 
+p_hr_3 <- 
   all_hrs %>%
   filter(outcome == "ckd_egfr40_pp") %>%
   filter(contrast == "DPP4i vs SU") %>%
@@ -1302,9 +1304,9 @@ layout <- c(
   area(t = 12, l = 15, b = 17, r = 19)
 )
 
-p_left_1 + p_counts_1 + p_egfr40_1 + p_right_1 + 
-  p_left_2 + p_counts_2 + p_egfr40_2 + p_right_2 + 
-  p_left_3 + p_counts_3 + p_egfr40_3 + p_right_3 + plot_layout(design = layout)
+p_left_1 + p_counts_1 + p_hr_1 + p_right_1 + 
+  p_left_2 + p_counts_2 + p_hr_2 + p_right_2 + 
+  p_left_3 + p_counts_3 + p_hr_3 + p_right_3 + plot_layout(design = layout)
 
 ############################5B FOREST PLOT FOR HRs OVERALL (FIGURE 1)################################################################
 
@@ -1361,7 +1363,7 @@ class(trial_hr$HR) <- class(trial_hr$LB) <- class(trial_hr$UB) <-
   class(all_SGLT2ivsDPP4iSU_hrs$HR) <- class(all_SGLT2ivsDPP4iSU_hrs$LB) <- class(all_SGLT2ivsDPP4iSU_hrs$UB) <- "numeric"
 
 # plot
-p_egfr40_all <- 
+p_hr_all <- 
   all_SGLT2ivsDPP4iSU_hrs %>%
   filter(outcome == "ckd_egfr40") %>%
   ggplot(aes(y = factor(analysis, levels = rev(unique(analysis))))) + 
@@ -1415,7 +1417,7 @@ p_right_all <-
   coord_cartesian(xlim = c(0, 4))
 
 # trial hr
-p_egfr40_trial <- 
+p_hr_trial <- 
   trial_hr %>%
   filter(outcome == "ckd_egfr40") %>%
   ggplot(aes(y = factor(analysis, levels = rev(unique(analysis))))) + 
@@ -1484,8 +1486,8 @@ layout <- c(
 )
 
 # Final plot arrangement
-p_left_all + p_egfr40_all + p_right_all + 
-  p_left_trial + p_egfr40_trial + p_right_trial + plot_layout(design = layout)
+p_left_all + p_hr_all + p_right_all + 
+  p_left_trial + p_hr_trial + p_right_trial + plot_layout(design = layout)
 
 
 ############################5C FOREST PLOT FOR HRs BY SUBGROUP (SUPPLEMENTAL FIGURE)################################################################
@@ -1502,8 +1504,8 @@ names(labels5) <- names(overall)
 labels5 <- labels5 %>% mutate(contrast = "Overall", 
                  analysis = "Overall", 
                  string = "Hazard Ratio (95% CI)",
-                 SGLT2i_nN = "Events/subjects",
-                 `DPP4i/SU_nN` = "")
+                 SGLT2i_nN = "Events/subjects (SGLT2i)",
+                 `DPP4i/SU_nN` = "(DPP4i/SU)")
 
 for (m in unique(overall$outcome)) {
   labels_temp <- labels5 
@@ -1547,7 +1549,7 @@ p_counts_subgroup <- labels_plot3 %>% filter(outcome=="ckd_egfr40") %>%
   theme_void() +
   coord_cartesian(xlim = c(-2, 5))
 
-p_egfr40_subgroup <- 
+p_hr_subgroup <- 
   subgroup_hrs %>%
   filter(outcome == "ckd_egfr40") %>%
   ggplot(aes(y = factor(contrast, levels = rev(unique(contrast))))) + 
@@ -1603,11 +1605,12 @@ p_counts_overall <- labels_plot5 %>% filter(outcome=="ckd_egfr40") %>%
   ggplot(aes(y = factor(contrast, levels = rev(unique(contrast))))) + 
   geom_text(aes(x = 1, label = SGLT2i_nN), hjust = 1, 
             fontface = ifelse(labels_plot5[labels_plot5$outcome == "ckd_egfr40",]$SGLT2i_nN == labels5$SGLT2i_nN, "bold", "plain")) +
-  geom_text(aes(x = 3, label = `DPP4i/SU_nN`), hjust = 1, fontface = "plain") +
+  geom_text(aes(x = 3, label = `DPP4i/SU_nN`), hjust = 1, 
+            fontface = ifelse(labels_plot5[labels_plot5$outcome == "ckd_egfr40",]$`DPP4i/SU_nN` == labels5$`DPP4i/SU_nN`, "bold", "plain")) +
   theme_void() +
   coord_cartesian(xlim = c(-2, 5))
 
-p_egfr40_overall <- 
+p_hr_overall <- 
   overall %>%
   filter(outcome == "ckd_egfr40") %>%
   ggplot(aes(y = factor(contrast, levels = rev(unique(contrast))))) + 
@@ -1676,14 +1679,14 @@ layout <- c(
 )
 
 # Final plot arrangement
-p_counts_subgroup + p_left_subgroup + p_egfr40_subgroup + p_right_subgroup + 
-  p_counts_overall + p_left_overall + p_egfr40_overall + p_right_overall + plot_layout(design = layout)
+p_counts_subgroup + p_left_subgroup + p_hr_subgroup + p_right_subgroup + 
+  p_counts_overall + p_left_overall + p_hr_overall + p_right_overall + plot_layout(design = layout)
 
 
 ############################5D FOREST PLOT FOR HRs OF SECONDARY ANALYSES (SUPPLEMENTAL FIGURE)################################################################
 
 secondary <- all_SGLT2ivsDPP4iSU_hrs[all_SGLT2ivsDPP4iSU_hrs$analysis == "Adjusted",]
-secondary <- secondary %>% filter(!outcome == "any_ae") # will not focus on this
+secondary <- secondary %>% filter(!outcome == "any_ae") # will not display this
 
 labels_plot6 <- secondary
 
@@ -1691,8 +1694,8 @@ labels6 <- data.frame(matrix("", nrow = 1, ncol = length(secondary)))
 names(labels6) <- names(secondary)
 labels6 <- labels6 %>% mutate(analysis = "Overall", 
                               string = "Hazard Ratio (95% CI)",
-                              SGLT2i_nN = "Events/subjects",
-                              `DPP4i/SU_nN` = "")
+                              SGLT2i_nN = "Events/subjects (SGLT2i)",
+                              `DPP4i/SU_nN` = "(DPP4i/SU)")
 
 for (m in unique(secondary$outcome)) {
   labels_temp <- labels6 
@@ -1728,8 +1731,15 @@ for (m in rev(unique(secondary$outcome))) {
     p_counts <- labels_plot6 %>% filter(outcome==m) %>%
     ggplot(aes(y = factor(contrast, levels = rev(unique(contrast))))) + 
     geom_text(aes(x = 1, label = SGLT2i_nN), hjust = 1, 
-              colour = ifelse(labels_plot6[labels_plot6$outcome == m,]$SGLT2i_nN == labels6$SGLT2i_nN, "white", "black")) +
-    geom_text(aes(x = 3, label = `DPP4i/SU_nN`), hjust = 1, fontface = "plain") +
+              colour = ifelse(!m==unique(secondary$outcome)[1] & labels_plot6[labels_plot6$outcome == m,]$SGLT2i_nN == labels6$SGLT2i_nN,
+                              "white", "black"),
+              fontface = ifelse(m==unique(secondary$outcome)[1] & labels_plot6[labels_plot6$outcome == m,]$SGLT2i_nN == labels6$SGLT2i_nN,
+                                "bold", "plain")) +
+    geom_text(aes(x = 3, label = `DPP4i/SU_nN`), hjust = 1, 
+              colour = ifelse(!m==unique(secondary$outcome)[1] & labels_plot6[labels_plot6$outcome == m,]$`DPP4i/SU_nN` == labels6$`DPP4i/SU_nN`,
+                              "white", "black"),
+              fontface = ifelse(m==unique(secondary$outcome)[1] & labels_plot6[labels_plot6$outcome == m,]$`DPP4i/SU_nN` == labels6$`DPP4i/SU_nN`,
+                                "bold", "plain")) +
     theme_void() +
     coord_cartesian(xlim = c(-2, 5))
   
