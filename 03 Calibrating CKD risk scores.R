@@ -37,8 +37,8 @@ n.bootstrap <- 500
 n.quantiles <- 10
 
 # today's date
-today <- as.character(Sys.Date(), format="%Y%m%d")
-
+#today <- as.character(Sys.Date(), format="%Y%m%d")
+today <- "2024-06-06"
 # function to pool estimates from multiple imputations further down
 pool.rubin.KM <- function(EST,SE,n.imp){
   mean.est <- mean(EST)
@@ -62,7 +62,7 @@ pool.rubin.KM <- function(EST,SE,n.imp){
 
 # load data
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-load("2024-04-30_t2d_ckdpc_imputed_data_withweights.Rda")
+load("2024-06-06_t2d_ckdpc_imputed_data_withweights.Rda")
 
 # select imputed data only (ie. remove non-imputed data)
 cohort <- cohort[cohort$.imp > 0,]
@@ -264,7 +264,7 @@ paste0("C statistic: ", round(cstat_est, 4), ", 95% CI ", round(cstat_est_ll, 4)
 ## AUC
 ROC <- roc(cohort, ckd_egfr40_censvar, ckdpc_40egfr_score)
 auc(ROC)
-ci.auc(ROC_cal)
+ci.auc(ROC)
 
 
 ## brier score for raw risk score

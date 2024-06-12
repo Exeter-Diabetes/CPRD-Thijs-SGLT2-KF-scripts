@@ -7,7 +7,7 @@
 
 ## Here we will be calculating HRs for SGLT2i and DPP4i vs SU for:
 ## primary outcome kidney disease progression: fall in eGFR of <=40% from baseline or onset of CKD stage 5
-## secondary outcomes: progression to macroalbuminuria, all-cause mortality, dka, amputation, and other side effects
+## secondary outcomes: progression to macroalbuminuria, all-cause mortality, dka, amputation, and mycotic genital infections
 
 ## Contents:
 # 0 setup
@@ -35,8 +35,8 @@ rm(list=ls())
 
 n.imp <- 10
 set.seed(123)
-today <- as.character(Sys.Date(), format="%Y%m%d")
-
+#today <- as.character(Sys.Date(), format="%Y%m%d")
+today <- "2024-06-06"
 #write function to pool HRs from multiple imputations later on
 pool.rubin.HR <- function(COEFS,SE,n.imp){
   mean.coef <- mean(COEFS)
@@ -58,11 +58,11 @@ pool.rubin.HR <- function(COEFS,SE,n.imp){
   return(output)}
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-load("2024-04-30_t2d_ckdpc_imputed_data.Rda")
+load("2024-06-06_t2d_ckdpc_imputed_data.Rda")
 
-covariates_ps <- "dstartdate_age + malesex + imd2015_10 + ethnicity_5cat + prebmi + prehba1c + pretotalcholesterol + preegfr + uacr + presbp + ckdpc_40egfr_score + ncurrtx + statin + INS + ACEi_or_ARB + smoking_status + dstartdate_dm_dur_all + predrug_hypertension + predrug_af + hosp_admission_prev_year"
+covariates <- "dstartdate_age + malesex + imd2015_10 + ethnicity_4cat + initiation_year + prebmi + prehba1c + pretotalcholesterol + preegfr + uacr + presbp + ckdpc_40egfr_score + ncurrtx + statin + INS + ACEi_or_ARB + smoking_status + dstartdate_dm_dur_all + predrug_hypertension + predrug_af + hosp_admission_prev_year"
 
-covariates <- "dstartdate_age + malesex + imd2015_10 + ethnicity_5cat + initiation_year + prebmi + prehba1c + pretotalcholesterol + preegfr + uacr + presbp + ckdpc_40egfr_score + ncurrtx + MFN + statin + INS + ACEi_or_ARB + smoking_status + dstartdate_dm_dur_all + predrug_hypertension + predrug_af + hosp_admission_prev_year"
+covariates_ps <- "dstartdate_age + malesex + imd2015_10 + ethnicity_4cat + prebmi + prehba1c + pretotalcholesterol + preegfr + uacr + presbp + ckdpc_40egfr_score + ncurrtx + statin + INS + ACEi_or_ARB + smoking_status + dstartdate_dm_dur_all + predrug_hypertension + predrug_af + hosp_admission_prev_year"
 
 ############################1 CALCULATE WEIGHTS################################################################
 
@@ -128,7 +128,7 @@ cohort <- temp
 rm(temp)
 cohort <- cohort %>% filter(!.imp == 0)
 save(cohort, file=paste0(today, "_t2d_ckdpc_imputed_data_withweights.Rda"))
-#load("2024-04-30_t2d_ckdpc_imputed_data_withweights.Rda")
+#load("2024-06-06_t2d_ckdpc_imputed_data_withweights.Rda")
 ############################2 CALCULATE HAZARD RATIOS################################################################
 
 ## 2 calculate hazard ratios (unadjusted, adjusted, weighted) and n events per study drug
@@ -136,7 +136,7 @@ save(cohort, file=paste0(today, "_t2d_ckdpc_imputed_data_withweights.Rda"))
 #outcomes to be studied:
 outcomes_per_drugclass <- c("ckd_egfr40", "ckd_egfr40_pp")
 
-kf_key_outcomes <- c("ckd_egfr40", "death", "macroalb", "dka", "amputation", "side_effect", "any_ae")
+kf_key_outcomes <- c("ckd_egfr40", "death", "macroalb", "dka", "amputation", "side_effect")
 
 #create empty data frame to which we can append the hazard ratios once calculated
 all_sglt2i_hrs <- 
@@ -548,9 +548,9 @@ setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/output/")
 save(all_hrs, file=paste0(today, "_all_hrs.Rda"))
 save(all_SGLT2ivsDPP4iSU_hrs, file=paste0(today, "_all_SGLT2ivsDPP4iSU_hrs.Rda"))
 save(SGLT2ivsDPP4iSU_hrs, file=paste0(today, "_SGLT2ivsDPP4iSU_hrs.Rda"))
-# load("2024-04-30_all_hrs.Rda")
-# load("2024-04-30_all_SGLT2ivsDPP4iSU_hrs.Rda")
-# load("2024-04-30_SGLT2ivsDPP4iSU_hrs.Rda")
+# load("2024-06-06_all_hrs.Rda")
+# load("2024-06-06_all_SGLT2ivsDPP4iSU_hrs.Rda")
+# load("2024-06-06_SGLT2ivsDPP4iSU_hrs.Rda")
 
 # show table with events, follow up time, and hazard ratios
 flextable(all_sglt2i_hrs)
@@ -1024,8 +1024,8 @@ flextable(subgroup_SGLT2ivsDPP4iSU_hrs)
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/output/")
 save(subgroup_hrs, file=paste0(today, "_subgroup_hrs.Rda"))
 save(subgroup_SGLT2ivsDPP4iSU_hrs, file=paste0(today, "_subgroup_SGLT2ivsDPP4iSU_hrs.Rda"))
-# load("2024-04-30_subgroup_hrs.Rda")
-# load("2024-04-30_subgroup_SGLT2ivsDPP4iSU_hrs.Rda")
+# load("2024-06-06_subgroup_hrs.Rda")
+# load("2024-06-06_subgroup_SGLT2ivsDPP4iSU_hrs.Rda")
 
 subgroup_hrs <- subgroup_hrs %>% cbind(subgroup_SGLT2ivsDPP4iSU_hrs %>% select(-c(outcome, adjusted, unadjusted)))
 
@@ -1566,7 +1566,10 @@ p_hr_subgroup <-
   annotate("text", x = 1.25,
            y = length(unique(subgroup_hrs[subgroup_hrs$outcome == "ckd_egfr40",]$contrast)) + 1, 
            label = "") +
-  labs(x="Hazard ratio", y="") +
+  labs(x="Hazard ratio", y="") + 
+  geom_point(aes(x = ifelse(UB > 2, 2.2, NA),
+                 y=1.01), 
+             shape = 62, size = 5, color = "black") + # add symbol to indicate CI extends beyond axis limits
   theme(axis.line.y = element_blank(),
         axis.ticks.y= element_blank(),
         axis.text.y= element_blank(),
@@ -1591,6 +1594,8 @@ p_left_subgroup <-
 p_right_subgroup <-
   labels_plot3 %>%
   filter(outcome == "ckd_egfr40") %>%
+  mutate(string = 
+           ifelse(coalesce(string == lead(string), FALSE), paste0(string, " "), string)) %>% # if hazard ratios are the same, add a space to the end of one of them so they do not get taken as one
   ggplot(aes(y = factor(string, levels = rev(unique(string))))) + 
   geom_text(
     aes(x = 0, label = string),
@@ -1683,10 +1688,10 @@ p_counts_subgroup + p_left_subgroup + p_hr_subgroup + p_right_subgroup +
   p_counts_overall + p_left_overall + p_hr_overall + p_right_overall + plot_layout(design = layout)
 
 
-############################5D FOREST PLOT FOR HRs OF SECONDARY ANALYSES (SUPPLEMENTAL FIGURE)################################################################
+############################5D FOREST PLOT FOR HRs OF SECONDARY OUTCOMES (SUPPLEMENTAL FIGURE)################################################################
 
 secondary <- all_SGLT2ivsDPP4iSU_hrs[all_SGLT2ivsDPP4iSU_hrs$analysis == "Adjusted",]
-secondary <- secondary %>% filter(!outcome == "any_ae") # will not display this
+secondary <- secondary %>% filter(!outcome == "ckd_egfr40") # will not display this in current figure
 
 labels_plot6 <- secondary
 
@@ -1710,7 +1715,7 @@ labels_plot6 <- labels_plot6 %>% mutate(
       outcome == "macroalb", " Progression of albuminuria (uACR ≥30mg/mmol)", ifelse(
         outcome == "dka", " Diabetic keto-acidosis", ifelse(
           outcome == "amputation", " Amputation", ifelse(
-            outcome == "side_effect", " Other side effects*", NA #genital infections, volume depletion, urinary frequency and micturition control problems 
+            outcome == "side_effect", " Mycotic genital infection", NA #genital infections, volume depletion, urinary frequency and micturition control problems 
           )
         )
       )
@@ -1747,9 +1752,9 @@ for (m in rev(unique(secondary$outcome))) {
     secondary %>%
     filter(outcome == m) %>%
     ggplot(aes(y = factor(contrast, levels = rev(unique(contrast))))) + 
-    scale_x_continuous(trans = "log10", breaks = c(0.5, 0.75, 1.0, 1.5, 2.1)) +
+    scale_x_continuous(trans = "log10", breaks = c(0.5, 0.75, 1.0, 1.5, 3.25)) +
     coord_cartesian(ylim=c(1,length(unique(labels_plot6[labels_plot6$outcome == m,]$contrast)) + 1), 
-                    xlim=c(0.5, 2)) +
+                    xlim=c(0.5, 3.25)) +
     theme_classic() +
     geom_point(aes(x=HR), shape=15, size=3) +
     geom_linerange(aes(xmin=LB, xmax=UB)) +

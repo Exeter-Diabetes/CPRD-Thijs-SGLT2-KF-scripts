@@ -23,7 +23,7 @@
 add_surv_vars <- function(cohort_dataset, main_only=FALSE) {
   
   # Add survival variables for outcomes for main analysis
-  main_outcomes <- c("ckd_egfr40", "death", "macroalb", "dka", "amputation", "side_effect", "any_ae")
+  main_outcomes <- c("ckd_egfr40", "death", "macroalb", "dka", "amputation", "side_effect")
   
   cohort <- cohort_dataset %>%
     
@@ -61,26 +61,6 @@ add_surv_vars <- function(cohort_dataset, main_only=FALSE) {
                               #    dstopdate+183,
                               na.rm=TRUE),
            
-           
-           #     mace_outcome=pmin(postdrug_first_myocardialinfarction,
-           #                       postdrug_first_stroke,
-           #                       cv_death_date_any_cause,
-           #                       na.rm=TRUE),
-           #    
-           #     expanded_mace_outcome=pmin(postdrug_first_myocardialinfarction,
-           #                                postdrug_first_stroke,
-           #                                cv_death_date_any_cause,
-           #                                postdrug_first_revasc,
-           #                                postdrug_first_unstableangina,
-           #                                na.rm=TRUE),
-           #       
-           #     hf_outcome=pmin(postdrug_first_heartfailure,
-           #                     hf_death_date_any_cause,
-           #                     na.rm=TRUE),
-           #                      
-           #     
-           #     ckd_345_outcome=postckdstage345date,
-           
            ckd_egfr40_outcome=pmin(egfr_40_decline_date,
                                    postckdstage5date,
                                    kf_death_date_any_cause,
@@ -92,23 +72,9 @@ add_surv_vars <- function(cohort_dataset, main_only=FALSE) {
            
            amputation_outcome=postdrug_first_amputation,
            
-           side_effect_outcome=pmin(postdrug_first_urinary_frequency,
-                                    postdrug_first_micturition_control,
-                                    postdrug_first_volume_depletion,
-                                    postdrug_first_medspecific_gi,
+           side_effect_outcome=pmin(postdrug_first_medspecific_gi,
                                     na.rm=TRUE),
-           
-           any_ae_outcome=pmin(macroalb_date,
-                               postdrug_first_dka,
-                               postdrug_first_amputation,
-                               postdrug_first_urinary_frequency,
-                               postdrug_first_micturition_control,
-                               postdrug_first_volume_depletion,
-                               postdrug_first_medspecific_gi,
-                               na.rm=TRUE),
-           
-           #     hosp_outcome=postdrug_first_all_cause_hosp,
-           #     
+    
            death_outcome=death_date)
   
   
@@ -122,20 +88,16 @@ add_surv_vars <- function(cohort_dataset, main_only=FALSE) {
     censvar_var_5y=paste0(i, "_5y_censvar")
     censtime_var_5y=paste0(i, "_5y_censtime_yrs")
     
-    if (i=="ckd_egfr40") {
-      cohort <- cohort %>%
+
+    
+    cohort <- cohort %>%
         mutate({{censdate_var}}:=pmin(!!sym(outcome_var), cens_itt_3_yrs, na.rm=TRUE),
                {{censvar_var}}:=ifelse(!is.na(!!sym(outcome_var)) & !!sym(censdate_var)==!!sym(outcome_var), 1, 0),
                {{censtime_var}}:=as.numeric(difftime(!!sym(censdate_var), dstartdate, unit="days"))/365.25,
                {{censdate_var_5y}}:=pmin(!!sym(outcome_var), cens_itt, na.rm=TRUE),
                {{censvar_var_5y}}:=ifelse(!is.na(!!sym(outcome_var)) & !!sym(censdate_var_5y)==!!sym(outcome_var), 1, 0),
                {{censtime_var_5y}}:=as.numeric(difftime(!!sym(censdate_var_5y), dstartdate, unit="days"))/365.25)
-    } else {
-      cohort <- cohort %>%
-        mutate({{censdate_var}}:=pmin(!!sym(outcome_var), cens_itt, na.rm=TRUE),
-               {{censvar_var}}:=ifelse(!is.na(!!sym(outcome_var)) & !!sym(censdate_var)==!!sym(outcome_var), 1, 0),
-               {{censtime_var}}:=as.numeric(difftime(!!sym(censdate_var), dstartdate, unit="days"))/365.25)
-    }
+
     
   }
   
@@ -150,17 +112,6 @@ add_surv_vars <- function(cohort_dataset, main_only=FALSE) {
     
     # Split by whether ITT or PP
     sensitivity_outcomes <- c("ckd_egfr40_pp", "death_pp")
-    
-    # cohort <- cohort %>%
-    #    
-    #  mutate(narrow_mace_outcome=pmin(postdrug_first_incident_mi,
-    #                                    postdrug_first_incident_stroke,
-    #                                   cv_death_date_primary_cause,
-    #                                  na.rm=TRUE),
-    #        
-    #         narrow_hf_outcome=pmin(postdrug_first_primary_hhf,
-    #                                hf_death_date_primary_cause,
-    #                                na.rm=TRUE))
     
     
     for (i in sensitivity_outcomes) {

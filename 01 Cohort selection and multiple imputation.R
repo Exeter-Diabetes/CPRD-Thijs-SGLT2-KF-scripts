@@ -23,6 +23,8 @@ rm(list=ls())
 
 set.seed(123)
 
+#today <- as.character(Sys.Date(), format="%Y%m%d")
+today <- "2024-06-06"
 ########################1 COHORT SELECTION####################################################################
 
 # 1 Cohort selection and variable setup
@@ -39,7 +41,7 @@ rm(t2d_1stinstance_a)
 rm(t2d_1stinstance_b)
 
 
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/scripts/CPRD-Thijs-CKD-scripts/Functions/")
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/scripts/CPRD-Thijs-SGLT2-KF-scripts/Functions/")
 source("cohort_definition_kf.R")
 cohort <- define_cohort(t2d_1stinstance, t2d_all_drug_periods)
 
@@ -72,22 +74,24 @@ cohort <- cohort %>%
          
          #and create variable to code whether someone is on oral hyperglycaemic agents
          oha=ifelse(Acarbose+MFN+DPP4+Glinide+GLP1+SGLT2+SU+TZD>add, 1L, 0L),
-         statin=!is.na(cohort$predrug_latest_statins),
-         ACEi=!is.na(cohort$predrug_latest_ace_inhibitors),
-         ARB=!is.na(cohort$predrug_latest_arb),
-         BB=!is.na(cohort$predrug_latest_beta_blockers),
-         CCB=!is.na(cohort$predrug_latest_calcium_channel_blockers),
-         ThZD=!is.na(cohort$predrug_latest_thiazide_diuretics),
-         loopD=!is.na(cohort$predrug_latest_loop_diuretics),
-         MRA=!is.na(cohort$predrug_latest_ksparing_diuretics),
-         steroids=!is.na(cohort$predrug_latest_oralsteroids),
-         immunosuppr=!is.na(cohort$predrug_latest_immunosuppressants),
-         osteoporosis=!is.na(cohort$predrug_latest_osteoporosis)
+         statin=!is.na(predrug_latest_statins),
+         ACEi=!is.na(predrug_latest_ace_inhibitors),
+         ARB=!is.na(predrug_latest_arb),
+         BB=!is.na(predrug_latest_beta_blockers),
+         CCB=!is.na(predrug_latest_calcium_channel_blockers),
+         ThZD=!is.na(predrug_latest_thiazide_diuretics),
+         loopD=!is.na(predrug_latest_loop_diuretics),
+         MRA=!is.na(predrug_latest_ksparing_diuretics),
+         steroids=!is.na(predrug_latest_oralsteroids),
+         immunosuppr=!is.na(predrug_latest_immunosuppressants),
+         osteoporosis=!is.na(predrug_latest_osteoporosis),
+         genital_infection=as.logical(predrug_medspecific_gi)
          )
 
 
 cohort <- cohort %>%
-  #for hba1c take closest result to index date within window of 2 years prior and 7 days post, similar as other biomarkers
+  #default hba1c variable is from previous 6 months to index date
+  #take hba1c within window of 2 years prior and 7 days post, similar as other biomarkers
   mutate(prehba1c = prehba1c2yrs) %>%
   select(patid, malesex, ethnicity_5cat, ethnicity_qrisk2, imd2015_10, regstartdate, gp_record_end, death_date, 
          drugclass, studydrug, dstartdate, dstopdate, drugline_all, drugsubstances, ncurrtx, DPP4, GLP1, 
@@ -105,8 +109,7 @@ cohort <- cohort %>%
          predrug_latest_calcium_channel_blockers, predrug_latest_thiazide_diuretics,
          #add variables necessary for PS weights later on
          predrug_dka, predrug_falls, predrug_urinary_frequency, predrug_volume_depletion, 
-         predrug_micturition_control, predrug_dementia, hosp_admission_prev_year, 
-         predrug_medspecific_gi,
+         predrug_micturition_control, predrug_dementia, hosp_admission_prev_year,
          statin, ACEi, ARB, BB, CCB, ThZD, loopD, MRA, steroids, immunosuppr, osteoporosis
   )
 
@@ -183,7 +186,7 @@ meth[c("death_date", "preacr", "last_sglt2_stop", "preckdstage", "predrug_earlie
        "predrug_latest_arb",
        "predrug_latest_beta_blockers", "predrug_latest_calcium_channel_blockers",
        "ethnicity_qrisk2", 
-       "predrug_latest_thiazide_diuretics", "next_glp1_start" )] <- ""
+       "predrug_latest_thiazide_diuretics")] <- ""
 
 meth[c("qrisk2_smoking_cat", "imd2015_10")] <- "polyreg"
 
@@ -205,14 +208,7 @@ complete_vars <- names(ini$nmis[ini$nmis == 0])
 #inspect complete_vars by printing it > print(complete_vars) then choose variables that we want to omit
 outlist1 <- c("patid", "gp_record_end", "drugclass", "drugline_all", "ncurrtx", 
               "DPP4", "GLP1", "SGLT2", "SU", "INS", 
-              "cens_itt", "cens_pp", "cens_itt_3_yrs", "cens_pp_3_yrs", 
-              "ckd_345_censdate", "ckd_345_censtime_yrs", 
-              "ckd_egfr40_censdate", "ckd_egfr40_censtime_yrs", 
-              "ckd_egfr40_5y_censvar", "ckd_egfr40_5y_censdate", "ckd_egfr40_5y_censtime_yrs", 
-              "death_censdate", "death_censtime_yrs", 
-              "ckd_345_pp_censdate", "ckd_345_pp_censvar", "ckd_345_pp_censtime_yrs", 
-              "ckd_egfr40_pp_censdate", "ckd_egfr40_pp_censvar", "ckd_egfr40_pp_censtime_yrs", 
-              "death_pp_censdate", "death_pp_censvar", "death_pp_censtime_yrs", 
+              names(cohort)[grep("cens", names(cohort))], 
               "oha", "predrug_angina", "predrug_myocardialinfarction", "predrug_stroke", 
               "predrug_revasc", "predrug_heartfailure", "initiation_year", "ethnicity_5cat")
 
@@ -495,6 +491,8 @@ temp <- temp %>% mutate(
   ACEi_or_ARB = ifelse(temp$ACEi + temp$ARB > 0, T, F),
   macroalbuminuria = ifelse(uacr < 30, F, T),
   microalbuminuria = ifelse(uacr <3, F, ifelse(macroalbuminuria == T, F, T)),
+  egfr_below_60 = ifelse(preegfr < 60, T, F),
+  studydrug = ifelse(studydrug == "SGLT2", "SGLT2i", ifelse(studydrug == "DPP4", "DPP4i", "SU")),
   studydrug2 = ifelse(!studydrug == "SGLT2i", "DPP4i/SU", "SGLT2i"),
   ncurrtx = ifelse(ncurrtx==1, "1.", ifelse(ncurrtx==2, "2.", ifelse(ncurrtx==3, "3.", "4+"))),
   risk_group = ifelse(macroalbuminuria == T, 
@@ -504,34 +502,39 @@ temp <- temp %>% mutate(
                              ifelse(albuminuria == F, "eGFR ≥60mL/min/1.73m2, uACR <3mg/mmol", "eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol")))
 )
 
+temp <- temp %>% mutate(
+  ethnicity_4cat = ifelse(!ethnicity_5cat %in% c("White", "South Asian", "Black"), "Other", as.character(ethnicity_5cat)),
+  initiation_year = ifelse(initiation_year %in% c("2019", "2020"), "2019-2020", as.character(initiation_year)),
+  ncurrtx = ifelse(ncurrtx %in% c("3.", "4+"), "3+", as.character(ncurrtx))
+)
+
 # create table one: this will be an average of the imputed datasets (n to be divided by n.imp)
 
 #variables to be shown
-vars <- c("dstartdate_age", "malesex", "ethnicity_5cat", "imd2015_10",             # sociodemographic variables
+vars <- c("dstartdate_age", "malesex", "ethnicity_4cat", "imd2015_10",             # sociodemographic variables
           "prebmi", "presbp", "predbp", "pretotalcholesterol", "prehdl", "preldl", # vital signs and laboratory measurements
           "pretriglyceride", "prehba1c",  "preegfr",           
-          "preckdstage", "egfr_below_60", "uacr", "risk_group", "albuminuria", 
-          "microalbuminuria", "macroalbuminuria",
+          "preckdstage", "uacr", 
           "dstartdate_dm_dur_all", "smoking_status", "predrug_hypertension",   # comorbidities
-          "predrug_af", "predrug_dka", "osteoporosis", 
+          "predrug_af", "predrug_dka", "genital_infection", "osteoporosis", 
           "predrug_acutepancreatitis", "predrug_falls", 
           "predrug_urinary_frequency", "predrug_volume_depletion", 
           "predrug_micturition_control", "predrug_dementia", "hosp_admission_prev_year",
           "initiation_year",
-          "ncurrtx", "MFN", "TZD", "INS", "ACEi_or_ARB",                                   # medications
+          "ncurrtx", "MFN", "INS", "ACEi_or_ARB",                                   # medications
           "cv_high_risk", "qrisk2_above_10_pct"                                     # CV risk
           
 )
 
 #categorical variables
-factors <- c("malesex", "ethnicity_qrisk2", "imd2015_10", "smoking_status", "predrug_hypertension", 
-             "predrug_af", "predrug_dka", "osteoporosis", "predrug_acutepancreatitis", 
+factors <- c("malesex", "ethnicity_4cat", "imd2015_10", "smoking_status", "predrug_hypertension", 
+             "predrug_af", "predrug_dka", "genital_infection", "osteoporosis", "predrug_acutepancreatitis", 
              "predrug_falls", "predrug_urinary_frequency", "predrug_volume_depletion", 
              "predrug_micturition_control", "predrug_dementia", "hosp_admission_prev_year",
              "initiation_year",
-             "ncurrtx", "MFN", "TZD", "INS", "ACEi_or_ARB",
+             "ncurrtx", "MFN", "INS", "ACEi_or_ARB",
              "cv_high_risk", "qrisk2_above_10_pct", 
-             "preckdstage", "risk_group", "egfr_below_60", "albuminuria", "microalbuminuria", "macroalbuminuria")
+             "preckdstage", "risk_group")
 
 nonnormal <- c("uacr", "dstartdate_dm_dur_all")
 
@@ -543,7 +546,7 @@ tabforprint <- print(table, nonnormal = nonnormal, quote = FALSE, noSpaces = TRU
 ## Save to a CSV file
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/output/")
 #my computer is set to continental settings, therefore I am using write.csv2 instead of write.csv
-today <- as.character(Sys.Date(), format="%Y%m%d")
+
 write.csv2(tabforprint, file = paste0(today, "_baseline_table.csv"))
 
 # get baseline table by eGFR/uACR subgroups:
@@ -562,3 +565,4 @@ write.csv2(tabforprint2, file = paste0(today, "_baseline_table_by_subgroup.csv")
 # save imputed dataset so this can be used in the subsequent scripts
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
 save(temp, file=paste0(today, "_t2d_ckdpc_imputed_data.Rda"))
+
