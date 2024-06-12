@@ -107,10 +107,10 @@ cohort <- cohort %>%
          predrug_earliest_thiazide_diuretics, predrug_latest_ace_inhibitors, 
          predrug_latest_arb, predrug_latest_beta_blockers, 
          predrug_latest_calcium_channel_blockers, predrug_latest_thiazide_diuretics,
-         #add variables necessary for PS weights later on
          predrug_dka, predrug_falls, predrug_urinary_frequency, predrug_volume_depletion, 
          predrug_micturition_control, predrug_dementia, hosp_admission_prev_year,
-         statin, ACEi, ARB, BB, CCB, ThZD, loopD, MRA, steroids, immunosuppr, osteoporosis
+         statin, ACEi, ARB, BB, CCB, ThZD, loopD, MRA, steroids, immunosuppr, 
+         osteoporosis, genital_infection
   )
 
 # set SU as reference group

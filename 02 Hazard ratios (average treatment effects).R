@@ -1712,7 +1712,7 @@ labels_plot6 <- labels_plot6 %>% mutate(
   contrast = ifelse(
     outcome == "ckd_egfr40", " Kidney disease progression",
     ifelse(outcome == "death", " All-cause mortality", ifelse(
-      outcome == "macroalb", " Progression of albuminuria (uACR ≥30mg/mmol)", ifelse(
+      outcome == "macroalb", " Progression to significant albuminuria (≥30mg/mmol)", ifelse(
         outcome == "dka", " Diabetic keto-acidosis", ifelse(
           outcome == "amputation", " Amputation", ifelse(
             outcome == "side_effect", " Mycotic genital infection", NA #genital infections, volume depletion, urinary frequency and micturition control problems 

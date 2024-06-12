@@ -28,7 +28,7 @@ cols <- c("SGLT2i" = "#E69F00", "GLP1" = "#56B4E9", "SU" = "#CC79A7", "DPP4i" = 
 cols <- c(cols, "DPP4i/SU" = "#0072B2")
 
 # covariates for multivariable adjustment
-covariates <- "dstartdate_age + malesex + imd2015_10 + ethnicity_4cat + prebmi + prehba1c + preegfr + uacr + presbp + ckdpc_40egfr_score + MFN + statin + ACEi_or_ARB + smoking_status + dstartdate_dm_dur_all + predrug_hypertension + hosp_admission_prev_year"
+covariates <- "dstartdate_age + malesex + imd2015_10 + ethnicity_4cat + prebmi + prehba1c + preegfr + uacr + presbp + ckdpc_40egfr_score + INS + statin + ACEi_or_ARB + smoking_status + dstartdate_dm_dur_all + predrug_hypertension + hosp_admission_prev_year"
 # these are slightly pruned compared with the covariates in previous codes - in order for models to converge
 
 # function to pool estimates from multiple imputations further down
@@ -117,6 +117,11 @@ centre_and_reference <- function(df, covariates) {
            across(all_of(covariates), ~ if(is.factor(.)) relevel(., ref = names(sort(table(.), decreasing = TRUE))[1]) else . ))  # Set most frequent level as reference for factor
 }
 
+# define outcomes to be analysed
+outcomes <- c("ckd_egfr40", "death", "macroalb", "dka", "amputation", "side_effect")
+# create regex pattern of censoring variables to select
+outcome_variables <- paste0("(", paste(outcomes, collapse = "|"), ")(?!.*(5y|pp)).*(_censtime_yrs|_censvar)$")
+
 cohort <- cohort %>%
   mutate(across(contains("predrug_"), as.logical),
          hosp_admission_prev_year=as.logical(hosp_admission_prev_year),
@@ -125,14 +130,15 @@ cohort <- cohort %>%
          malesex=as.factor(malesex),
          initiation_year=as.factor(initiation_year)) %>%
   select(patid, .imp, risk_group, studydrug2, benefit_decile,
-         ckd_egfr40_censtime_yrs, ckd_egfr40_censvar, macroalb_censtime_yrs, macroalb_censvar, 
-         all_of(unlist(strsplit(covariates, " \\+ ")))) %>% centre_and_reference(unlist(strsplit(covariates, " \\+ ")))
+         matches(outcome_variables, perl = TRUE), 
+         all_of(unlist(strsplit(covariates, " \\+ ")))) %>% 
+  centre_and_reference(unlist(strsplit(covariates, " \\+ ")))
+
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
 save(cohort, file=paste0(today, "_recalibrated_data_centred_predictors.Rda"))
 
-rm(list = setdiff(ls(), c("n.imp", "covariates", "today")))
+rm(list = setdiff(ls(), c("n.imp", "covariates", "today", "outcomes")))
 
-outcomes <- c("ckd_egfr40", "death", "macroalb", "dka", "amputation", "side_effect")
 
 for (k in outcomes) {
   
@@ -422,14 +428,14 @@ for (k in outcomes) {
                             uq_benefit = ~quantile(., prob = .75)),
                        .names = "{.fn}_{.col}")) %>%
       group_by(risk_group) %>%
-      summarise(across(contains("_mean_benefit"), ~mean(.), .names = "{sub('_mean_benefit', '', .col)}"),
-                across(contains("_se_benefit"), ~mean(.), .names = "{sub('_se_benefit', 'se_benefit', .col)}"),
-                across(contains("_median_benefit"), ~mean(.), .names = "{sub('_median_benefit', 'median_benefit', .col)}"),
-                across(contains("_lq_benefit"), ~mean(.), .names = "{sub('_lq_benefit', 'lq_benefit', .col)}"),
-                across(contains("_uq_benefit"), ~mean(.), .names = "{sub('_uq_benefit', 'uq_benefit', .col)}")) %>%
-      mutate(across(contains("_benefit"),
-                    list(lc_benefit = ~. - 1.96 * get(sub("_benefit", "se_benefit", cur_column())),
-                         uc_benefit = ~. + 1.96 * get(sub("_benefit", "se_benefit", cur_column()))),
+      summarise(across(contains("mean_benefit"), ~mean(.), .names = "{sub('mean_benefit', '', .col)}"),
+                across(contains("se_benefit"), ~mean(.), .names = "{sub('se_benefit','', .col)}"),
+                across(contains("median_benefit"), ~mean(.), .names = "{sub('median_benefit','', .col)}"),
+                across(contains("lq_benefit"), ~mean(.), .names = "{sub('lq_benefit', '',.col)}"),
+                across(contains("uq_benefit"), ~mean(.), .names = "{sub('uq_benefit','', .col)}")) %>%
+      mutate(across(contains("mean_benefit"),
+                    list(lc_benefit = ~. - 1.96 * get(sub("mean_benefit", "se_benefit", cur_column())),
+                         uc_benefit = ~. + 1.96 * get(sub("mean_benefit", "se_benefit", cur_column()))),
                     .names = "{.col}_{.fn}"))
   } else {
     temp <- cohort %>%
