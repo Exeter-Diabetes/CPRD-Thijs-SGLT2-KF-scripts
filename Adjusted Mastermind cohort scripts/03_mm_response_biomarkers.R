@@ -253,10 +253,18 @@ next_egfr <- baseline_biomarkers %>%
 egfr40 <- baseline_biomarkers %>%
   select(patid, drugclass, dstartdate, preegfr, preegfrdate) %>%
   left_join(egfr_long, by="patid") %>%
-  filter(datediff(date, preegfrdate)>0 & testvalue<=0.4*preegfr) %>%
+  filter(datediff(date, preegfrdate)>0 & testvalue<=0.6*preegfr) %>%
   group_by(patid, drugclass, dstartdate) %>%
   summarise(egfr_40_decline_date=min(date, na.rm=TRUE)) %>%
   analysis$cached("response_biomarkers_egfr40", indexes=c("patid", "dstartdate", "drugclass"))
+
+egfr50 <- baseline_biomarkers %>%
+  select(patid, drugclass, dstartdate, preegfr, preegfrdate) %>%
+  left_join(egfr_long, by="patid") %>%
+  filter(datediff(date, preegfrdate)>0 & testvalue<=0.5*preegfr) %>%
+  group_by(patid, drugclass, dstartdate) %>%
+  summarise(egfr_50_decline_date=min(date, na.rm=TRUE)) %>%
+  analysis$cached("response_biomarkers_egfr50", indexes=c("patid", "dstartdate", "drugclass"))
 
 
 analysis = cprd$analysis("Thijs_ckd")
@@ -286,6 +294,7 @@ new_macroalb <- baseline_biomarkers %>%
 response_biomarkers <- response_biomarkers %>%
   left_join(next_egfr, by=c("patid", "drugclass", "dstartdate")) %>%
   left_join(egfr40, by=c("patid", "drugclass", "dstartdate")) %>%
+  left_join(egfr50, by=c("patid", "drugclass", "dstartdate")) %>%
   left_join(next_acr, by=c("patid", "drugclass", "dstartdate")) %>%
   left_join(new_macroalb, by=c("patid", "drugclass", "dstartdate")) %>%
   relocate(height, .after=timeprevcombo) %>%

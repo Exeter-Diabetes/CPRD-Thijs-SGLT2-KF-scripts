@@ -6,8 +6,7 @@
 ## 'mace': stroke, MI, CV death
 ## 'expanded_mace': stroke, MI, CV death, revasc, HES unstable angina
 ## 'hf'
-## 'ckd_345': onset of CKD stage 3a-5
-## 'ckd_egfr40': fall in eGFR of <=40% from baseline or onset of CKD stage 5 OR death from renal causes
+## 'ckd_egfr40': decline in eGFR of <=40% from baseline or onset of CKD stage 5 OR death from renal causes
 ## 'hosp': all-cause hospitalisation
 ## 'death': all-cause mortality
 
@@ -23,7 +22,7 @@
 add_surv_vars <- function(cohort_dataset, main_only=FALSE) {
   
   # Add survival variables for outcomes for main analysis
-  main_outcomes <- c("ckd_egfr40", "death", "macroalb", "dka", "amputation", "side_effect")
+  main_outcomes <- c("ckd_egfr40", "ckd_egfr50", "death", "macroalb", "dka", "amputation", "side_effect")
   
   cohort <- cohort_dataset %>%
     
@@ -62,6 +61,11 @@ add_surv_vars <- function(cohort_dataset, main_only=FALSE) {
                               na.rm=TRUE),
            
            ckd_egfr40_outcome=pmin(egfr_40_decline_date,
+                                   postckdstage5date,
+                                   kf_death_date_any_cause,
+                                   na.rm=TRUE),
+           
+           ckd_egfr50_outcome=pmin(egfr_50_decline_date,
                                    postckdstage5date,
                                    kf_death_date_any_cause,
                                    na.rm=TRUE),

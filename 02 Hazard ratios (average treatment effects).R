@@ -2,7 +2,7 @@
 ## in the literature and in this CPRD cohort
 ## we will compare hazard ratios for SGLT2i vs SU in CPRD to those from trials.
 
-## for reference, the trial meta-analysis HR reported in Lancet. 2022 Nov 19; 400(10365): 1788–1801 is:
+## for reference, the trial meta-analysis RR reported in Lancet (Nuffield Group 2022) is:
 # HR 0.62 (0.56 - 0.68)
 
 ## Here we will be calculating HRs for SGLT2i and DPP4i vs SU for:
@@ -36,7 +36,7 @@ rm(list=ls())
 n.imp <- 10
 set.seed(123)
 #today <- as.character(Sys.Date(), format="%Y%m%d")
-today <- "2024-06-06"
+today <- "2024-07-13"
 #write function to pool HRs from multiple imputations later on
 pool.rubin.HR <- function(COEFS,SE,n.imp){
   mean.coef <- mean(COEFS)
@@ -58,11 +58,13 @@ pool.rubin.HR <- function(COEFS,SE,n.imp){
   return(output)}
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-load("2024-06-06_t2d_ckdpc_imputed_data.Rda")
+load("2024-07-13_t2d_ckdpc_imputed_data.Rda")
 
-covariates <- "dstartdate_age + malesex + imd2015_10 + ethnicity_4cat + initiation_year + prebmi + prehba1c + pretotalcholesterol + preegfr + uacr + presbp + ckdpc_40egfr_score + ncurrtx + statin + INS + ACEi_or_ARB + smoking_status + dstartdate_dm_dur_all + predrug_hypertension + predrug_af + hosp_admission_prev_year"
+covariates <- c("dstartdate_age", "malesex", "imd2015_10", "ethnicity_4cat", "initiation_year", "prebmi", "prehba1c",
+                "pretotalcholesterol", "preegfr", "uacr", "presbp", "ckdpc_40egfr_score", "ncurrtx", "statin", "INS", 
+                "ACEi_or_ARB", "smoking_status", "dstartdate_dm_dur_all", "predurg_hypertension", "predrug_af", "hosp_admission_prev_year")
 
-covariates_ps <- "dstartdate_age + malesex + imd2015_10 + ethnicity_4cat + prebmi + prehba1c + pretotalcholesterol + preegfr + uacr + presbp + ckdpc_40egfr_score + ncurrtx + statin + INS + ACEi_or_ARB + smoking_status + dstartdate_dm_dur_all + predrug_hypertension + predrug_af + hosp_admission_prev_year"
+covariates_ps <- covariates[-5]
 
 ############################1 CALCULATE WEIGHTS################################################################
 
@@ -76,9 +78,9 @@ temp$IPTW2 <- temp$overlap2 <- NA
 temp2 <- temp[temp$.imp == 0,]
 
 # propensity score formula
-ps.formula <- formula(paste("studydrug ~ ", covariates_ps))
+ps.formula <- formula(paste("studydrug ~ ", paste(covariates_ps, collapse=" + ")))
 
-ps.formula2 <- formula(paste("studydrug2 ~ ", covariates_ps))
+ps.formula2 <- formula(paste("studydrug2 ~ ", paste(covariates_ps, collapse=" + ")))
 
 
 #calculate weights in each imputed dataset
@@ -95,6 +97,24 @@ for (i in 1:n.imp) {
   w.overlap2 <- SumStat(ps.formula=ps.formula2, 
                        data = imp.x, 
                        weight = c("IPW", "overlap"))
+  
+  # truncate IPTW at 2nd and 98% percentile
+  w.overlap$ps.weights$IPW <- ifelse(w.overlap$ps.weights$IPW < quantile(w.overlap$ps.weights$IPW, probs = c(0.02, 0.98))[1], 
+                                     quantile(w.overlap$ps.weights$IPW, probs = c(0.02, 0.98))[1],
+                                     ifelse(
+                                       w.overlap$ps.weights$IPW > quantile(w.overlap$ps.weights$IPW, probs = c(0.02, 0.98))[2],
+                                       quantile(w.overlap$ps.weights$IPW, probs = c(0.02, 0.98))[2],
+                                       w.overlap$ps.weights$IPW
+                                     ))
+  
+  
+  w.overlap2$ps.weights$IPW <- ifelse(w.overlap2$ps.weights$IPW < quantile(w.overlap2$ps.weights$IPW, probs = c(0.02, 0.98))[1], 
+                                      quantile(w.overlap2$ps.weights$IPW, probs = c(0.02, 0.98))[1],
+                                      ifelse(
+                                        w.overlap2$ps.weights$IPW > quantile(w.overlap2$ps.weights$IPW, probs = c(0.02, 0.98))[2],
+                                        quantile(w.overlap2$ps.weights$IPW, probs = c(0.02, 0.98))[2],
+                                        w.overlap2$ps.weights$IPW
+                                      ))
   
   ## Add weights to data frame
   weights <- w.overlap$ps.weights # note that these do not contain an index variable but are in the same order as our data frame
@@ -116,10 +136,41 @@ for (i in 1:n.imp) {
 temp <- temp2
 rm(temp2)
 
-#plot SMD in weighted / unweighted populations
-plot(w.overlap)
-#density plot of propensity scores
-plot(w.overlap, type = "density")
+#plot SMD in weighted / unweighted populations (love plot - shows balance by variable)
+plot(w.overlap2)
+#histogram of propensity scores by treatment group (I have amended the code from the package to fit with our colours)
+plot.hist.ps.2drugs<-function(x, weighted.var=TRUE, threshold=0.1, metric="ASD", breaks=50,...){
+#get object info
+m<-length(names(x$ps.weights)[-c(1,2)])+1
+zname<-names(x$ps.weights)[1]
+Z<-unlist(x$ps.weights[zname])
+ncate<-length(unique(Z))
+metric<-toupper(metric)
+
+#extract original treatment labels
+dic0<-rep(NA,ncate)
+for (i in 1:ncate){
+  dic0[i]<-as.character(x$ps.weights[which(x$ps.weights$zindex==i)[1],1])
+}
+e<-x$propensity[,2]
+z<-x$ps.weights$zindex
+#enough room for 8 character-strings in legend
+par(mar=c(5,4,4,10.1),xpd=TRUE)
+he1<-hist(e[z==1],breaks=breaks,plot = FALSE)
+ylim1<-max(he1$counts)+0.5
+he2<-hist(e[z==2],breaks=breaks,plot = FALSE)
+ylim2<-max(he2$counts+0.5)
+ylims<-max(c(ylim1,ylim2))
+
+hist(e[z==1],breaks=breaks,col="#0072B2",border="black",bty='L',
+     main=NULL,ylab=NULL,xlim=c(max(min(e)-0.2,0),min(max(e)+0.2,1)),xlab="Estimated propensity score",
+     freq=T,cex.lab = 1.5, cex.axis = 1.5 ,cex.main = 2, cex = 2,bty='L',ylim = c(0,ylims))
+hist(e[z==2],breaks=breaks,add=TRUE,col=rgb(230/255, 159/255, 0, alpha = 0.9),freq=T)
+
+legend("right",inset=c(-0.2, 0), title="",legend=dic0,col=c("#0072B2","#E69F00"),
+       lty=1,lwd=1.5,bty='n',cex=1.5,seg.len = 0.65,xjust = 1)
+}
+plot.hist.ps.2drugs(w.overlap2)
 
 summary(w.overlap, weighted.var = TRUE, metric = "ASD")
 
@@ -128,7 +179,7 @@ cohort <- temp
 rm(temp)
 cohort <- cohort %>% filter(!.imp == 0)
 save(cohort, file=paste0(today, "_t2d_ckdpc_imputed_data_withweights.Rda"))
-#load("2024-06-06_t2d_ckdpc_imputed_data_withweights.Rda")
+#load("2024-07-13_t2d_ckdpc_imputed_data_withweights.Rda")
 ############################2 CALCULATE HAZARD RATIOS################################################################
 
 ## 2 calculate hazard ratios (unadjusted, adjusted, weighted) and n events per study drug
@@ -136,7 +187,7 @@ save(cohort, file=paste0(today, "_t2d_ckdpc_imputed_data_withweights.Rda"))
 #outcomes to be studied:
 outcomes_per_drugclass <- c("ckd_egfr40", "ckd_egfr40_pp")
 
-kf_key_outcomes <- c("ckd_egfr40", "death", "macroalb", "dka", "amputation", "side_effect")
+kf_key_outcomes <- c("ckd_egfr40", "ckd_egfr50", "death", "macroalb", "dka", "amputation", "side_effect")
 
 #create empty data frame to which we can append the hazard ratios once calculated
 all_sglt2i_hrs <- 
@@ -184,7 +235,7 @@ for (k in outcomes_per_drugclass) {
   # write formulas for adjusted and unadjusted analyses
   f <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug"))
   
-  f_adjusted <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug + ", covariates))
+  f_adjusted <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug + ", paste(covariates, collapse=" + ")))
   
   # create empty vectors to store the hazard ratios from every imputed dataset
   # for the unadjusted survival models
@@ -461,7 +512,7 @@ for (k in kf_key_outcomes) {
   # write formulas for adjusted and unadjusted analyses
   f2 <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2"))
   
-  f_adjusted2 <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2 + ", covariates))
+  f_adjusted2 <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2 + ", paste(covariates, collapse=" + ")))
   
   # create empty vectors to store the hazard ratios from every imputed dataset
   # for the unadjusted survival models
@@ -548,9 +599,9 @@ setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/output/")
 save(all_hrs, file=paste0(today, "_all_hrs.Rda"))
 save(all_SGLT2ivsDPP4iSU_hrs, file=paste0(today, "_all_SGLT2ivsDPP4iSU_hrs.Rda"))
 save(SGLT2ivsDPP4iSU_hrs, file=paste0(today, "_SGLT2ivsDPP4iSU_hrs.Rda"))
-# load("2024-06-06_all_hrs.Rda")
-# load("2024-06-06_all_SGLT2ivsDPP4iSU_hrs.Rda")
-# load("2024-06-06_SGLT2ivsDPP4iSU_hrs.Rda")
+# load("2024-07-13_all_hrs.Rda")
+# load("2024-07-13_all_SGLT2ivsDPP4iSU_hrs.Rda")
+# load("2024-07-13_SGLT2ivsDPP4iSU_hrs.Rda")
 
 # show table with events, follow up time, and hazard ratios
 flextable(all_sglt2i_hrs)
@@ -558,10 +609,6 @@ flextable(all_dpp4i_hrs)
 flextable(all_SGLT2ivsDPP4i_hrs)
 flextable(all_SGLT2ivsDPP4iSU_hrs)
 flextable(SGLT2ivsDPP4iSU_hrs)
-
-# prep all_hrs dataframe for forest plot to show hazard ratios and add literature-reported HR
-trial_hr <- cbind(outcome = "ckd_egfr40", contrast = "SGLT2i vs SU", analysis = "Meta-analysis of RCTs", 
-                  HR = 0.62, LB = 0.56, UB = 0.68, string = "0.62 (0.56, 0.68)")
 
 all_hrs$model <- paste0(all_hrs$string, " [", all_hrs$analysis, "]")
 all_hrs$model <- factor(all_hrs$model, levels = unique(all_hrs$model))
@@ -680,7 +727,7 @@ for (k in kf_key_outcomes) {
     # write formulas for adjusted and unadjusted analyses
     f2 <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2*risk_group"))
     
-    f_adjusted2 <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2*risk_group + ", covariates))
+    f_adjusted2 <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2*risk_group + ", paste(covariates, collapse=" + ")))
     
     # create empty vectors to store the hazard ratios from every imputed dataset
     # for the unadjusted survival models
@@ -747,7 +794,7 @@ for (k in kf_key_outcomes) {
       
       if (k == "ckd_egfr40") {
         if (i == n.imp) {
-          f_adjusted3 <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2 + risk_group + ", covariates))
+          f_adjusted3 <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2 + risk_group + ", paste(covariates, collapse=" + ")))
           fit.no_interaction <- coxph(f_adjusted3, cohort[cohort$.imp == i,])
           
           loglikelihood_test <- anova(fit.no_interaction, fit.adj, test = "Chisq")
@@ -891,7 +938,7 @@ for (k in kf_key_outcomes) {
     # write formulas for adjusted and unadjusted analyses
     f2 <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2*risk_group"))
     
-    f_adjusted2 <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2*risk_group + ", covariates))
+    f_adjusted2 <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2*risk_group + ", paste(covariates, collapse=" + ")))
     
     # create empty vectors to store the hazard ratios from every imputed dataset
     # for the unadjusted survival models
@@ -1024,20 +1071,6 @@ flextable(subgroup_SGLT2ivsDPP4iSU_hrs)
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/output/")
 save(subgroup_hrs, file=paste0(today, "_subgroup_hrs.Rda"))
 save(subgroup_SGLT2ivsDPP4iSU_hrs, file=paste0(today, "_subgroup_SGLT2ivsDPP4iSU_hrs.Rda"))
-# load("2024-06-06_subgroup_hrs.Rda")
-# load("2024-06-06_subgroup_SGLT2ivsDPP4iSU_hrs.Rda")
-
-subgroup_hrs <- subgroup_hrs %>% cbind(subgroup_SGLT2ivsDPP4iSU_hrs %>% select(-c(outcome, adjusted, unadjusted)))
-
-subgroup_hrs <- subgroup_hrs %>%
-  separate(`DPP4i/SU_events`, into = c("DPP4i/SU_events_number", "DPP4i/SU_events_percentage"), sep = " \\(", remove = FALSE) %>%
-  separate(SGLT2i_events, into = c("SGLT2i_events_number", "SGLT2i_events_percentage"), sep = " \\(", remove = FALSE) %>%
-  mutate(
-    `DPP4i/SU_events_percentage` = str_replace(`DPP4i/SU_events_percentage`, "\\)", ""),
-    SGLT2i_events_percentage = str_replace(SGLT2i_events_percentage, "\\)", ""),
-    `DPP4i/SU_nN` = paste0(`DPP4i/SU_events_number`, "/", `DPP4i/SU_count`),
-    SGLT2i_nN = paste0(SGLT2i_events_number, "/", SGLT2i_count)
-  )
 
 ############################5A FOREST PLOT FOR HRs PER DRUG CLASS (SUPPLEMENTAL FIGURE)################################################################
 
@@ -1086,7 +1119,6 @@ p_hr_1 <-
            y = length(unique(all_hrs[all_hrs$outcome == "ckd_egfr40_pp",]$analysis)) + 1, 
            label = "Favours SU") +
   labs(x="", y="") +
-  ggtitle("40% decline in eGFR / ESKD") +
   theme(axis.line.y = element_blank(),
         axis.ticks.y= element_blank(),
         axis.text.y= element_blank(),
@@ -1161,7 +1193,6 @@ p_hr_2 <-
            y = length(unique(all_hrs[all_hrs$outcome == "ckd_egfr40" & !all_hrs$analysis == "Meta-analysis of RCTs",]$analysis)) + 1, 
            label = "Favours DPP4i") +
   labs(x="", y="") +
-  # ggtitle(label = "", subtitle="SGLT2i vs DPP4i") +
   theme(axis.line.y = element_blank(),
         axis.ticks.y= element_blank(),
         axis.text.y= element_blank(),
@@ -1235,7 +1266,6 @@ p_hr_3 <-
            y = length(unique(all_hrs[all_hrs$outcome == "ckd_egfr40_pp" & !all_hrs$analysis == "Meta-analysis of RCTs",]$analysis)) + 1, 
            label = "Favours SU") +
   labs(x="Hazard Ratio", y="") +
-  # ggtitle(label = "", subtitle="DPP4i vs SU") +
   theme(axis.line.y = element_blank(),
         axis.ticks.y= element_blank(),
         axis.text.y= element_blank(),
@@ -1381,7 +1411,6 @@ p_hr_all <-
   #          y = length(unique(all_SGLT2ivsDPP4iSU_hrs[all_SGLT2ivsDPP4iSU_hrs$outcome == "ckd_egfr40",]$analysis)) + 1, 
   #          label = "Favours DPP4i/SU") +
   labs(x="Hazard Ratio", y="") +
-  # ggtitle("40% decline in eGFR / ESKD") +
   theme(axis.line.y = element_blank(),
         axis.ticks.y= element_blank(),
         axis.text.y= element_blank(),
@@ -1435,7 +1464,6 @@ p_hr_trial <-
            y = length(unique(trial_hr[trial_hr$outcome == "ckd_egfr40",]$analysis)) + 1, 
            label = "Favours\nDPP4i/SU") +
   labs(x="", y="") +
-  ggtitle("40% decline in eGFR / ESKD") +
   theme(axis.line.y = element_blank(),
         axis.ticks.y= element_blank(),
         axis.text.y= element_blank(),
@@ -1492,6 +1520,20 @@ p_left_all + p_hr_all + p_right_all +
 
 ############################5C FOREST PLOT FOR HRs BY SUBGROUP (SUPPLEMENTAL FIGURE)################################################################
 
+# load("2024-07-13_subgroup_hrs.Rda")
+# load("2024-07-13_subgroup_SGLT2ivsDPP4iSU_hrs.Rda")
+
+subgroup_hrs <- subgroup_hrs %>% cbind(subgroup_SGLT2ivsDPP4iSU_hrs %>% select(-c(outcome, adjusted, unadjusted)))
+
+subgroup_hrs <- subgroup_hrs %>%
+  separate(`DPP4i/SU_events`, into = c("DPP4i/SU_events_number", "DPP4i/SU_events_percentage"), sep = " \\(", remove = FALSE) %>%
+  separate(SGLT2i_events, into = c("SGLT2i_events_number", "SGLT2i_events_percentage"), sep = " \\(", remove = FALSE) %>%
+  mutate(
+    `DPP4i/SU_events_percentage` = str_replace(`DPP4i/SU_events_percentage`, "\\)", ""),
+    SGLT2i_events_percentage = str_replace(SGLT2i_events_percentage, "\\)", ""),
+    `DPP4i/SU_nN` = paste0(`DPP4i/SU_events_number`, "/", `DPP4i/SU_count`),
+    SGLT2i_nN = paste0(SGLT2i_events_number, "/", SGLT2i_count)
+  )
 
 # prep data frames with row for overall
 overall <- all_SGLT2ivsDPP4iSU_hrs[all_SGLT2ivsDPP4iSU_hrs$analysis == "Adjusted",]
@@ -1553,9 +1595,9 @@ p_hr_subgroup <-
   subgroup_hrs %>%
   filter(outcome == "ckd_egfr40") %>%
   ggplot(aes(y = factor(contrast, levels = rev(unique(contrast))))) + 
-  scale_x_continuous(trans = "log10", breaks = c(0.15, 0.30, 0.5, 0.75, 1.0, 1.5)) +
+  scale_x_continuous(trans = "log10", breaks = c(0.25, 0.5, 0.75, 1.0, 1.5)) +
   coord_cartesian(ylim=c(1,length(unique(subgroup_hrs[subgroup_hrs$outcome == "ckd_egfr40",]$contrast)) + 1), 
-                  xlim=c(0.15, 2)) +
+                  xlim=c(0.25, 2)) +
   theme_classic() +
   geom_point(aes(x=HR), shape=15, size=3) +
   geom_linerange(aes(xmin=LB, xmax=UB)) +
@@ -1619,9 +1661,9 @@ p_hr_overall <-
   overall %>%
   filter(outcome == "ckd_egfr40") %>%
   ggplot(aes(y = factor(contrast, levels = rev(unique(contrast))))) + 
-  scale_x_continuous(trans = "log10", breaks = c(0.15, 0.30, 0.5, 0.75, 1.0, 1.5)) +
+  scale_x_continuous(trans = "log10", breaks = c(0.25, 0.5, 0.75, 1.0, 1.5)) +
   coord_cartesian(ylim=c(1,length(unique(overall[overall$outcome == "ckd_egfr40",]$contrast)) + 1), 
-                  xlim=c(0.15, 2)) +
+                  xlim=c(0.25, 2)) +
   theme_classic() +
   geom_point(aes(x=HR), shape=15, size=3, colour = "#D55E00") +
   geom_linerange(aes(xmin=LB, xmax=UB), colour = "#D55E00") +
@@ -1633,7 +1675,6 @@ p_hr_overall <-
            y = length(unique(overall[overall$outcome == "ckd_egfr40",]$contrast)) + 1, 
            label = "Favours\nDPP4i/SU") +
   labs(x="Hazard Ratio", y="") +
-  ggtitle("40% decline in eGFR / ESKD") +
   theme(axis.line.y = element_blank(),
         axis.ticks.y= element_blank(),
         axis.text.y= element_blank(),
@@ -1691,7 +1732,7 @@ p_counts_subgroup + p_left_subgroup + p_hr_subgroup + p_right_subgroup +
 ############################5D FOREST PLOT FOR HRs OF SECONDARY OUTCOMES (SUPPLEMENTAL FIGURE)################################################################
 
 secondary <- all_SGLT2ivsDPP4iSU_hrs[all_SGLT2ivsDPP4iSU_hrs$analysis == "Adjusted",]
-secondary <- secondary %>% filter(!outcome == "ckd_egfr40") # will not display this in current figure
+secondary <- secondary %>% filter(!outcome %in% c("ckd_egfr40", "death")) # will not display this in current figure
 
 labels_plot6 <- secondary
 
@@ -1752,7 +1793,7 @@ for (m in rev(unique(secondary$outcome))) {
     secondary %>%
     filter(outcome == m) %>%
     ggplot(aes(y = factor(contrast, levels = rev(unique(contrast))))) + 
-    scale_x_continuous(trans = "log10", breaks = c(0.5, 0.75, 1.0, 1.5, 3.25)) +
+    scale_x_continuous(trans = "log10", breaks = c(0.5, 0.75, 1.0, 1.5, 2.25, 3.25)) +
     coord_cartesian(ylim=c(1,length(unique(labels_plot6[labels_plot6$outcome == m,]$contrast)) + 1), 
                     xlim=c(0.5, 3.25)) +
     theme_classic() +

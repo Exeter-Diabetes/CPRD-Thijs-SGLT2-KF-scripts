@@ -38,7 +38,7 @@ n.quantiles <- 10
 
 # today's date
 #today <- as.character(Sys.Date(), format="%Y%m%d")
-today <- "2024-06-06"
+today <- "2024-07-13"
 # function to pool estimates from multiple imputations further down
 pool.rubin.KM <- function(EST,SE,n.imp){
   mean.est <- mean(EST)
@@ -62,7 +62,7 @@ pool.rubin.KM <- function(EST,SE,n.imp){
 
 # load data
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-load("2024-06-06_t2d_ckdpc_imputed_data_withweights.Rda")
+load("2024-07-13_t2d_ckdpc_imputed_data_withweights.Rda")
 
 # select imputed data only (ie. remove non-imputed data)
 cohort <- cohort[cohort$.imp > 0,]
@@ -233,8 +233,8 @@ p_ckd40_uncal_bydeciles_dpp4isu <- ggplot(data=bind_rows(empty_tick,obs_v_pred),
   geom_abline(intercept = 0, slope = 1, lty = 2) +
   theme_bw() +
   xlab("Raw CKD-PC risk score (%)") + ylab("Observed risk (%)")+
-  scale_x_continuous(limits=c(0,8))+
-  scale_y_continuous(limits=c(-1,7)) +
+  scale_x_continuous(limits=c(0,100), breaks = c(0,2.5,5,7.5,10,12.5))+
+  scale_y_continuous(limits=c(-1,100)) +
   scale_colour_manual(values = cols) +
   theme(panel.border=element_blank(), panel.grid.major=element_blank(),panel.grid.minor=element_blank(),
         axis.line.x=element_line(colour = "black"), axis.line.y=element_line(colour="black"),
@@ -244,8 +244,8 @@ p_ckd40_uncal_bydeciles_dpp4isu <- ggplot(data=bind_rows(empty_tick,obs_v_pred),
         plot.title=element_text(hjust = 0.5),
         plot.subtitle=element_text(hjust = 0.5,size=rel(1.2)),
         legend.position = "none") +
-  ggtitle("Calibration plot of CKD-PC risk score for 40% decline in eGFR / ESKD", subtitle = "Raw risk score, binned by risk decile") +
-  coord_cartesian(xlim = c(0,7.5), ylim = c(0,7.5))
+  ggtitle("Raw risk score, by risk decile") +
+  coord_cartesian(xlim = c(0,13), ylim = c(0,12))
 
 
 p_ckd40_uncal_bydeciles_dpp4isu
@@ -259,7 +259,7 @@ cstat_est <- summary(raw_mod)$concordance[1]
 cstat_est_ll <- summary(raw_mod)$concordance[1]-(1.96*summary(raw_mod)$concordance[2])
 cstat_est_ul <- summary(raw_mod)$concordance[1]+(1.96*summary(raw_mod)$concordance[2])
 paste0("C statistic: ", round(cstat_est, 4), ", 95% CI ", round(cstat_est_ll, 4), "-", round(cstat_est_ul,4))
-# C statistic: 0.7693, 95% CI 0.7642-0.7744
+# C statistic: 0.7262, 95% CI 0.7232-0.7291
 
 ## AUC
 ROC <- roc(cohort, ckd_egfr40_censvar, ckdpc_40egfr_score)
@@ -473,8 +473,8 @@ p_ckd40_interim_bydeciles_dpp4isu <- ggplot(data=bind_rows(empty_tick,obs_v_pred
   geom_abline(intercept = 0, slope = 1, lty = 2) +
   theme_bw() +
   xlab("Recalibrated CKD-PC risk score (%)") + ylab("Observed risk (%)")+
-  scale_x_continuous(limits=c(0,8))+
-  scale_y_continuous(limits=c(-1,7)) +
+  scale_x_continuous(limits=c(0,100), breaks = c(0,2.5,5,7.5,10,12.5))+
+  scale_y_continuous(limits=c(-1,100)) +
   scale_colour_manual(values = cols) +
   theme(panel.border=element_blank(), panel.grid.major=element_blank(),panel.grid.minor=element_blank(),
         axis.line.x=element_line(colour = "black"), axis.line.y=element_line(colour="black"),
@@ -484,8 +484,8 @@ p_ckd40_interim_bydeciles_dpp4isu <- ggplot(data=bind_rows(empty_tick,obs_v_pred
         plot.title=element_text(hjust = 0.5),
         plot.subtitle=element_text(hjust = 0.5,size=rel(1.2)),
         legend.position = "none") +
-  ggtitle("Calibration plot of CKD-PC risk score for 40% decline in eGFR / ESKD", subtitle = "Recalibrated risk score (baseline hazard updated), binned by risk decile") +
-  coord_cartesian(xlim = c(0,7.5), ylim = c(0,7.5))
+  ggtitle("Recalibrated risk score (baseline hazard updated), by risk decile") +
+  coord_cartesian(xlim = c(0,13), ylim = c(0,12))
 
 
 p_ckd40_interim_bydeciles_dpp4isu
@@ -497,7 +497,7 @@ cstat_est <- summary(surv_mod_ckd40)$concordance[1]
 cstat_est_ll <- summary(surv_mod_ckd40)$concordance[1]-(1.96*summary(surv_mod_ckd40)$concordance[2])
 cstat_est_ul <- summary(surv_mod_ckd40)$concordance[1]+(1.96*summary(surv_mod_ckd40)$concordance[2])
 paste0("C statistic: ", round(cstat_est, 4), ", 95% CI ", round(cstat_est_ll, 4), "-", round(cstat_est_ul,4))
-# C statistic: 0.7693, 95% CI 0.7642-0.7744
+# C statistic: 0.7262, 95% CI 0.7232-0.7291
 
 ## AUC
 ROC_cal <- roc(cohort, ckd_egfr40_censvar, ckdpc_40egfr_score_cal_bh)
@@ -732,8 +732,8 @@ p_ckd40_cal_bydeciles_dpp4isu <- ggplot(data=bind_rows(empty_tick,obs_v_pred), a
   geom_abline(intercept = 0, slope = 1, lty = 2) +
   theme_bw() +
   xlab("Recalibrated CKD-PC risk score (%)") + ylab("Observed risk (%)")+
-  scale_x_continuous(limits=c(0,6))+
-  scale_y_continuous(limits=c(-1,7)) +
+  scale_x_continuous(limits=c(0,100), breaks = c(0,2.5,5,7.5,10,12.5))+
+  scale_y_continuous(limits=c(-1,100)) +
   scale_colour_manual(values = cols) +
   theme(panel.border=element_blank(), panel.grid.major=element_blank(),panel.grid.minor=element_blank(),
         axis.line.x=element_line(colour = "black"), axis.line.y=element_line(colour="black"),
@@ -743,8 +743,8 @@ p_ckd40_cal_bydeciles_dpp4isu <- ggplot(data=bind_rows(empty_tick,obs_v_pred), a
         plot.title=element_text(hjust = 0.5),
         plot.subtitle=element_text(hjust = 0.5,size=rel(1.2)),
         legend.position = "none") +
-  ggtitle("Calibration plot of CKD-PC risk score for 40% decline in eGFR / ESKD", subtitle = "Recalibrated risk score (calibration slope applied), binned by risk decile") +
-  coord_cartesian(xlim = c(0,7.5), ylim = c(0,7.5))
+  ggtitle("Recalibrated risk score (calibration slope applied), by risk decile") +
+  coord_cartesian(xlim = c(0,13), ylim = c(0,12))
 
 
 p_ckd40_cal_bydeciles_dpp4isu
@@ -756,7 +756,7 @@ cstat_est <- summary(recal_mod2)$concordance[1]
 cstat_est_ll <- summary(recal_mod2)$concordance[1]-(1.96*summary(recal_mod2)$concordance[2])
 cstat_est_ul <- summary(recal_mod2)$concordance[1]+(1.96*summary(recal_mod2)$concordance[2])
 paste0("C statistic: ", round(cstat_est, 4), ", 95% CI ", round(cstat_est_ll, 4), "-", round(cstat_est_ul,4))
-# C statistic: 0.7693, 95% CI 0.7642-0.7744
+# C statistic: 0.7262, 95% CI 0.7232-0.7291
 
 ## AUC
 ROC_cal <- roc(cohort, ckd_egfr40_censvar, ckdpc_40egfr_score_cal)

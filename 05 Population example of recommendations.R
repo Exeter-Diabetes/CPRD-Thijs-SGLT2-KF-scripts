@@ -41,7 +41,7 @@ cohort <- cohort %>% mutate(
                                          "Offer SGLT2-inhibitor (renal indication)",
 
                                          ifelse(
-                                           microalbuminuria == T & preegfr >=20 | (preegfr < 90 & preegfr >= 20),
+                                           microalbuminuria == T & preegfr >=20 | (preegfr < 80 & preegfr >= 20),
                                            "Consider SGLT2-inhibitor / option",
                                            "No renal indication"
                                          )))),
@@ -67,85 +67,126 @@ cohort <- cohort %>% mutate(
 cohort$indication_NICE %>% summary()
 cohort$indication_KDIGO %>% summary()
 
-exclude2 <- cohort %>% filter(!indication_KDIGO == "Offer SGLT2-inhibitor (renal indication)")
-cohort <- cohort %>% filter(indication_KDIGO == "Offer SGLT2-inhibitor (renal indication)")
-
-## as "new indication" we will set everyone with microalbuminuria, preserved eGFR, and high risk (>90 percentile) as consider
-## and everyone with reduced eGFR and normoalbuminuria as consider
-## everyone with reduced eGFR and microalbuminuria as offer
-## and everyone with preserved eGFR otherwise as no renal indication
-
-threshold_1 <- as.numeric(quantile(cohort[cohort$egfr_below_60 == F & cohort$microalbuminuria == T,]$uacr, 
-                                   0.90))
+## proportion treated for kidney protection alone according to current guidelines
 
 cohort <- cohort %>% mutate(
-  newindication = ifelse(macroalbuminuria == T, 
-                      ifelse(egfr_below_60 == F, "eGFR ≥60mL/min/1.73m2, uACR ≥30mg/mmol", "eGFR <60mL/min/1.73m2, uACR ≥30mg/mmol"), 
-                      ifelse(egfr_below_60 == T, 
-                             ifelse(microalbuminuria == T, "eGFR <60mL/min/1.73m2, uACR 3-30mg/mmol", "eGFR <60mL/min/1.73m2, uACR <3mg/mmol"),
-                             ifelse(microalbuminuria == F, "eGFR ≥60mL/min/1.73m2, uACR <3mg/mmol", "eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol"))),
-  newindication = ifelse(newindication == "eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol", 
-                         ifelse(uacr < threshold_1, 
-                                paste0("eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol, CKD-PC risk score 0-90th percentile"),
-                                paste0("eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol, CKD-PC risk score ≥90th percentile")), 
-                         as.character(newindication)),
-  newindication = newindication %>%
-    factor(levels = c("eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol, CKD-PC risk score 0-90th percentile",
-                      "eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol, CKD-PC risk score ≥90th percentile", 
-                      "eGFR ≥60mL/min/1.73m2, uACR ≥30mg/mmol",
-                      "eGFR <60mL/min/1.73m2, uACR <3mg/mmol", 
-                      "eGFR <60mL/min/1.73m2, uACR 3-30mg/mmol", 
-                      "eGFR <60mL/min/1.73m2, uACR ≥30mg/mmol"))
+  indication_renal = ifelse(indication_KDIGO == "Offer SGLT2-inhibitor (renal indication)", "treat", "do not treat"),
+  all_patients = "all_patients"
 )
 
-cohort$newindication %>% summary()
+## subset with guideline indication only
+
+exclude2 <- cohort %>% filter(!indication_KDIGO == "Offer SGLT2-inhibitor (renal indication)")
+cohort2 <- cohort %>% filter(indication_KDIGO == "Offer SGLT2-inhibitor (renal indication)")
+
+
+## treatment groups in subset
+
+threshold_1 <- as.numeric(quantile(cohort2[cohort2$egfr_below_60 == F & cohort2$microalbuminuria == T,]$uacr, 
+                                   0.80))
+
+cohort2 <- cohort2 %>% mutate(
+  newindication = ifelse(macroalbuminuria == T,
+                         "uACR ≥30mg/mmol",
+                      ifelse(egfr_below_60 == T, 
+                             "eGFR <60mL/min/1.73m2",
+                             ifelse(microalbuminuria == F, "eGFR ≥60mL/min/1.73m2, uACR <3mg/mmol", 
+                                    "eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol"))),
+  newindication = ifelse(newindication == "eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol", 
+                         ifelse(uacr < threshold_1, 
+                                paste0("eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol, CKD-PC risk score 0-80th percentile"),
+                                paste0("eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol, CKD-PC risk score ≥80th percentile")), 
+                         as.character(newindication)),
+  newindication = newindication %>%
+    factor(levels = c("eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol, CKD-PC risk score 0-80th percentile",
+                      "eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol, CKD-PC risk score ≥80th percentile", 
+                      "eGFR <60mL/min/1.73m2", 
+                      "uACR ≥30mg/mmol"))
+)
+
+cohort2$newindication %>% summary()
 
 ######################################2 PLOTS#########################################
 
-## sankey plot: KDIGO/EASD/ADA recommendations
+## sankey plot: population vs KDIGO/EASD/ADA recommendations
 
-# make long data frame
-test2 <- cohort %>%
-  make_long(indication_KDIGO, newindication) 
+long <- cohort %>% make_long(all_patients, indication_KDIGO) %>% 
+  mutate(node = factor(node, levels = c(
+    "all_patients",
+    "No renal indication",
+    "Offer SGLT2-inhibitor (cardiovascular indication)",
+    "Offer SGLT2-inhibitor (renal indication)"  
+  )),
+  next_node = factor(next_node, levels = c(
+    "all_patients",
+    "No renal indication",
+    "Offer SGLT2-inhibitor (cardiovascular indication)",
+    "Offer SGLT2-inhibitor (renal indication)"
+  )))
 
-test2 <- test2 %>% mutate(
-  node = ifelse(node == "Offer SGLT2-inhibitor (renal indication)", "Treatment recommended\nby KDIGO/ADA/EASD guidelines", as.character(node)),
-  node = factor(node, levels = c("Treatment recommended\nby KDIGO/ADA/EASD guidelines", 
-                                 "eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol, CKD-PC risk score 0-90th percentile",
-                                 "eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol, CKD-PC risk score ≥90th percentile", 
-                                 "eGFR ≥60mL/min/1.73m2, uACR ≥30mg/mmol",
-                                 "eGFR <60mL/min/1.73m2, uACR <3mg/mmol", 
-                                 "eGFR <60mL/min/1.73m2, uACR 3-30mg/mmol", 
-                                 "eGFR <60mL/min/1.73m2, uACR ≥30mg/mmol")),
-  next_node = factor(next_node, levels = c("Treatment recommended\nby KDIGO/ADA/EASD guidelines", 
-                                           "eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol, CKD-PC risk score 0-90th percentile",
-                                           "eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol, CKD-PC risk score ≥90th percentile", 
-                                           "eGFR ≥60mL/min/1.73m2, uACR ≥30mg/mmol",
-                                           "eGFR <60mL/min/1.73m2, uACR <3mg/mmol", 
-                                           "eGFR <60mL/min/1.73m2, uACR 3-30mg/mmol", 
-                                           "eGFR <60mL/min/1.73m2, uACR ≥30mg/mmol")),
-  x = ifelse(x == "indication_KDIGO", "KDIGO/EASD/ADA recommendations", "Targeted SGLT2-inhibitor treatment")
-) 
-
-ggplot(test2, aes(x = x, 
+ggplot(long, aes(x = x, 
                   next_x = next_x, 
                   node = fct_rev(node), 
                   next_node = fct_rev(next_node),
                   fill = node,
                   label = fct_rev(node))) +
   theme_sankey() +
-  scale_fill_manual(values = c("#E69F00", "grey", "#D55E00", "#D55E00", "#D55E00", "#D55E00", "#D55E00")) + 
-  ggtitle("People with type 2 diabetes that KDIGO/ADA/EASD guidelines recommend treating for kidney protection",
-          subtitle = paste0(c("UK-representative cohort from CPRD with non-missing eGFR/uACR on 01/07/2020"), collapse = "")) +
-  guides(fill = guide_legend(title="")) +
+  scale_fill_manual(values = c("grey", "grey", "#D55E00", "#E69F00")) + 
+  ggtitle("",
+          subtitle = paste0(c(""), collapse = "")) +
+  guides(fill = "none") +
+  geom_sankey(flow.alpha = 0.4, node.color = 1, flow.fill = "grey", flow.color = "grey85", width = .25, smooth = 4, space = 16000) +
+  # geom_sankey_label(aes(group = next_node, label = fct_rev(node)), hjust = 0.5, vjust = 0.5, color = 1, fill = "white", size=rel(3)) +
+  theme(plot.subtitle=element_text(size=rel(1))) +
+  xlab("")
+
+for (k in levels(as.factor(long$x))) {
+  for (i in levels(long$node)) {
+    print(paste0(c(k, ": ", i, " ", round(nrow(long[long$x == k & long$node == i,])/nrow(long[long$x == k,])*100,2), "%"), collapse = ""))
+  }
+}
+
+
+## sankey plot: KDIGO/EASD/ADA recommendations vs treatment groups
+
+# make long data frame
+long2 <- cohort2 %>%
+  make_long(indication_KDIGO, newindication) 
+
+long2 <- long2 %>% mutate(
+  node = ifelse(node == "Offer SGLT2-inhibitor (renal indication)", "Treatment recommended\nby KDIGO/ADA/EASD guidelines", as.character(node)),
+  node = factor(node, levels = c("Treatment recommended\nby KDIGO/ADA/EASD guidelines", 
+                                 "eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol, CKD-PC risk score 0-80th percentile",
+                                 "eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol, CKD-PC risk score ≥80th percentile", 
+                                 "eGFR <60mL/min/1.73m2", 
+                                 "uACR ≥30mg/mmol")),
+  next_node = factor(next_node, levels = c("Treatment recommended\nby KDIGO/ADA/EASD guidelines", 
+                                           "eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol, CKD-PC risk score 0-80th percentile",
+                                           "eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol, CKD-PC risk score ≥80th percentile", 
+                                           "eGFR <60mL/min/1.73m2", 
+                                           "uACR ≥30mg/mmol")),
+  x = ifelse(x == "indication_KDIGO", "KDIGO/EASD/ADA recommendations", "Targeted SGLT2-inhibitor treatment")
+) 
+
+ggplot(long2, aes(x = x, 
+                  next_x = next_x, 
+                  node = fct_rev(node), 
+                  next_node = fct_rev(next_node),
+                  fill = node,
+                  label = fct_rev(node))) +
+  theme_sankey() +
+  scale_fill_manual(values = c("#E69F00", "grey", "#D55E00", "#D55E00", "#D55E00")) + 
+  ggtitle("",
+          subtitle = paste0(c(""), collapse = "")) +
+  guides(fill = "none") +
   geom_sankey(flow.alpha = 0.4, node.color = 1, flow.fill = "grey", flow.color = "grey85", width = .25, smooth = 4, space = 2800) +
   # geom_sankey_label(aes(group = next_node, label = fct_rev(node)), hjust = 0.5, vjust = 0.5, color = 1, fill = "white", size=rel(3)) +
   theme(plot.subtitle=element_text(size=rel(1))) +
   xlab("")
 
 # percentages per indication_KDIGO:
-for (k in levels(as.factor(test2$x))) {
-  for (i in levels(test2$node)) {
-    print(paste0(c(k, ": ", i, " ", round(nrow(test2[test2$x == k & test2$node == i,])/nrow(test2[test2$x == k,])*100,2), "%"), collapse = ""))
+for (k in levels(as.factor(long2$x))) {
+  for (i in levels(long2$node)) {
+    print(paste0(c(k, ": ", i, " ", round(nrow(long2[long2$x == k & long2$node == i,])/nrow(long2[long2$x == k,])*100,2), "%"), collapse = ""))
   }
 }

@@ -24,7 +24,7 @@ rm(list=ls())
 set.seed(123)
 
 #today <- as.character(Sys.Date(), format="%Y%m%d")
-today <- "2024-06-06"
+today <- "2024-07-13"
 ########################1 COHORT SELECTION####################################################################
 
 # 1 Cohort selection and variable setup
@@ -32,9 +32,9 @@ today <- "2024-06-06"
 ## A Cohort selection (see cohort_definition_kf function for details)
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-load("2024-04-30_t2d_1stinstance_a.Rda")
-load("2024-04-30_t2d_1stinstance_b.Rda")
-load("2024-04-30_t2d_all_drug_periods.Rda")
+load("2024-07-23_t2d_1stinstance_a.Rda")
+load("2024-07-23_t2d_1stinstance_b.Rda")
+load("2024-07-13_t2d_all_drug_periods.Rda")
 
 t2d_1stinstance <- rbind(t2d_1stinstance_a, t2d_1stinstance_b)
 rm(t2d_1stinstance_a)
@@ -63,7 +63,7 @@ if ("dstopdate.x" %in% names(cohort)) {
   )
 }
 
-rm(list=setdiff(ls(), "cohort"))
+rm(list=setdiff(ls(), c("cohort", "today")))
 
 ## C Just keep variables of interest
 
@@ -472,8 +472,7 @@ print(paste0("Number of drug episodes in study population ", q/n.imp))
 
 # 5 tabulate and save imputed dataset for further analyses
 
-
-# add variable for "high CV risk" according to ADA
+# add variables
 
 temp <- temp %>% mutate(
   obesity = ifelse(prebmi < 30, F, T),
@@ -508,32 +507,40 @@ temp <- temp %>% mutate(
   ncurrtx = ifelse(ncurrtx %in% c("3.", "4+"), "3+", as.character(ncurrtx))
 )
 
+
+# save imputed dataset so this can be used in the subsequent scripts
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
+save(temp, file=paste0(today, "_t2d_ckdpc_imputed_data.Rda"))
+
+
+
+
 # create table one: this will be an average of the imputed datasets (n to be divided by n.imp)
 
 #variables to be shown
 vars <- c("dstartdate_age", "malesex", "ethnicity_4cat", "imd2015_10",             # sociodemographic variables
           "prebmi", "presbp", "predbp", "pretotalcholesterol", "prehdl", "preldl", # vital signs and laboratory measurements
-          "pretriglyceride", "prehba1c",  "preegfr",           
-          "preckdstage", "uacr", 
+          "pretriglyceride", "prehba1c",  "preegfr",
+          "preckdstage", "uacr",
           "dstartdate_dm_dur_all", "smoking_status", "predrug_hypertension",   # comorbidities
-          "predrug_af", "predrug_dka", "genital_infection", "osteoporosis", 
-          "predrug_acutepancreatitis", "predrug_falls", 
-          "predrug_urinary_frequency", "predrug_volume_depletion", 
+          "predrug_af", "predrug_dka", "genital_infection", "osteoporosis",
+          "predrug_acutepancreatitis", "predrug_falls",
+          "predrug_urinary_frequency", "predrug_volume_depletion",
           "predrug_micturition_control", "predrug_dementia", "hosp_admission_prev_year",
           "initiation_year",
           "ncurrtx", "MFN", "INS", "ACEi_or_ARB",                                   # medications
           "cv_high_risk", "qrisk2_above_10_pct"                                     # CV risk
-          
+
 )
 
 #categorical variables
-factors <- c("malesex", "ethnicity_4cat", "imd2015_10", "smoking_status", "predrug_hypertension", 
-             "predrug_af", "predrug_dka", "genital_infection", "osteoporosis", "predrug_acutepancreatitis", 
-             "predrug_falls", "predrug_urinary_frequency", "predrug_volume_depletion", 
+factors <- c("malesex", "ethnicity_4cat", "imd2015_10", "smoking_status", "predrug_hypertension",
+             "predrug_af", "predrug_dka", "genital_infection", "osteoporosis", "predrug_acutepancreatitis",
+             "predrug_falls", "predrug_urinary_frequency", "predrug_volume_depletion",
              "predrug_micturition_control", "predrug_dementia", "hosp_admission_prev_year",
              "initiation_year",
              "ncurrtx", "MFN", "INS", "ACEi_or_ARB",
-             "cv_high_risk", "qrisk2_above_10_pct", 
+             "cv_high_risk", "qrisk2_above_10_pct",
              "preckdstage", "risk_group")
 
 nonnormal <- c("uacr", "dstartdate_dm_dur_all")
@@ -552,8 +559,8 @@ write.csv2(tabforprint, file = paste0(today, "_baseline_table.csv"))
 # get baseline table by eGFR/uACR subgroups:
 vars <- c(vars, "studydrug")
 factors <- c(factors, "studydrug")
-table <- CreateTableOne(vars = vars, strata = "risk_group", data = temp %>% filter(!.imp == 0) %>% 
-                          group_by(.imp, patid) %>% filter(!duplicated(studydrug2)) %>% ungroup(), 
+table <- CreateTableOne(vars = vars, strata = "risk_group", data = temp %>% filter(!.imp == 0) %>%
+                          group_by(.imp, patid) %>% filter(!duplicated(studydrug2)) %>% ungroup(),
                         factorVars = factors, test = F)
 
 tabforprint2 <- print(table, nonnormal = nonnormal, quote = FALSE, noSpaces = TRUE, printToggle = T)
@@ -561,8 +568,20 @@ tabforprint2 <- print(table, nonnormal = nonnormal, quote = FALSE, noSpaces = TR
 write.csv2(tabforprint2, file = paste0(today, "_baseline_table_by_subgroup.csv"))
 
 
+# events rates (sum of events divided by sum of person-years) by studydrug
+outcomes <- c("ckd_egfr40", "ckd_egfr50", "macroalb", "dka", "side_effect", "death", "amputation")
 
-# save imputed dataset so this can be used in the subsequent scripts
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-save(temp, file=paste0(today, "_t2d_ckdpc_imputed_data.Rda"))
-
+for (k in outcomes) {
+  censvar_var=paste0(k, "_censvar")
+  censtime_var=paste0(k, "_censtime_yrs")  
+  
+  for (m in levels(as.factor(temp$studydrug2))) {
+    events <- temp %>% filter(.imp !=0 & studydrug2 == m) %>% select(censvar_var) %>% sum()
+    pyears <- temp %>% filter(.imp !=0 & studydrug2 == m) %>% select(censtime_var) %>% sum()
+    print(paste0(m, " event rate for ", k, ": ", round(events/pyears*1000,1), " per 1000 patient-years"))
+    rm(events)
+    rm(pyears)
+  }
+  rm(censvar_var)
+  rm(censtime_var)
+}
