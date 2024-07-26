@@ -115,7 +115,7 @@ add_surv_vars <- function(cohort_dataset, main_only=FALSE) {
   else {
     
     # Split by whether ITT or PP
-    sensitivity_outcomes <- c("ckd_egfr40_pp", "death_pp")
+    sensitivity_outcomes <- c("ckd_egfr40_pp", "ckd_egfr50_pp")
     
     
     for (i in sensitivity_outcomes) {

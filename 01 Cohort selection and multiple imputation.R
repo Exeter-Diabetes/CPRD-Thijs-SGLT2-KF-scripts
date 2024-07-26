@@ -353,14 +353,19 @@ temp <- temp %>%
   
   rename(qrisk2_score_10yr=qrisk2_score) 
 
-#ckdpc incident ckd and ckd progression risk scores
+#ckdpc kidney disease progression risk score
+
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/scripts/CPRD-Thijs-SGLT2-KF-scripts/Functions/")
+source("calculate_ckdpc_40egfr_risk.R")
+source("calculate_ckdpc_50egfr_risk.R")
+
 temp <- temp %>% 
   
   mutate(sex2=ifelse(sex=="male", "male", ifelse(sex=="female", "female", NA))) %>%
-  
-  calculate_ckdpc_egfr60_risk(age=dstartdate_age, sex=sex2, black_eth=black_ethnicity, egfr=preegfr, cvd=cvd, hba1c=prehba1c, insulin=INS, oha=oha, ever_smoker=ever_smoker, hypertension=hypertension, bmi=prebmi, acr=uacr, remote=FALSE) %>%
-  
-  calculate_ckdpc_40egfr_risk(age=dstartdate_age, sex=sex2, egfr=preegfr, acr=uacr, sbp=presbp, bp_meds=bp_meds_ckdpc, hf=predrug_heartfailure, chd=chd, af=predrug_af, current_smoker=current_smoker, ex_smoker=ex_smoker, bmi=prebmi, hba1c=prehba1c, oha=oha, insulin=INS, remote=FALSE) 
+
+  calculate_ckdpc_40egfr_risk(age=dstartdate_age, sex=sex2, egfr=preegfr, acr=uacr, sbp=presbp, bp_meds=bp_meds_ckdpc, hf=predrug_heartfailure, chd=chd, af=predrug_af, current_smoker=current_smoker, ex_smoker=ex_smoker, bmi=prebmi, hba1c=prehba1c, oha=oha, insulin=INS, remote=FALSE) %>%
+ 
+   calculate_ckdpc_50egfr_risk(age=dstartdate_age, sex=sex2, egfr=preegfr, acr=uacr, sbp=presbp, bp_meds=bp_meds_ckdpc, hf=predrug_heartfailure, chd=chd, af=predrug_af, current_smoker=current_smoker, ex_smoker=ex_smoker, bmi=prebmi, hba1c=prehba1c, oha=oha, insulin=INS, remote=FALSE) 
 
 
 ########################4 REMOVE RISK SCORE VALUES OUTSIDE OF RANGE####################################################################
@@ -401,6 +406,7 @@ ckdpc_outofrange %>% filter(hba1c_val=="over") %>% summarise(median=median(prehb
 ### SBP: missing or 70-210
 ### Age: 25-84
 ### Also exclude if BMI<20 as v. different from development cohort
+
 temp <- temp %>% mutate(qdiabeteshf_5yr_score=ifelse((is.na(precholhdl) | (precholhdl>=1 & precholhdl<=11)) &
                                                        prehba1c>=40 & prehba1c<=150 &
                                                        (is.na(presbp) | (presbp>=70 & presbp<=210)) &

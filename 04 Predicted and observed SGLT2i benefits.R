@@ -24,8 +24,8 @@ today <- "2024-07-13"
 
 # covariates for multivariable adjustment
 covariates <- c("dstartdate_age", "malesex", "imd2015_10", "ethnicity_4cat", "initiation_year", "prebmi", "prehba1c",
-                "pretotalcholesterol", "preegfr", "uacr", "presbp", "ckdpc_40egfr_score", "ncurrtx", "statin", "INS", 
-                "ACEi_or_ARB", "smoking_status", "dstartdate_dm_dur_all", "predurg_hypertension", "predrug_af", "hosp_admission_prev_year")
+                "pretotalcholesterol", "preegfr", "uacr", "presbp", "ckdpc_50egfr_score", "ncurrtx", "statin", "INS", 
+                "ACEi_or_ARB", "smoking_status", "dstartdate_dm_dur_all", "predrug_hypertension", "predrug_af", "hosp_admission_prev_year")
 
 # function to pool estimates from multiple imputations further down
 pool.rubin.KM <- function(EST,SE,n.imp){
@@ -60,15 +60,11 @@ cohort$studydrug2 <- as.factor(cohort$studydrug2)
 trial_hr_kf_sglt2i <- 0.62
 
 cohort <- cohort %>% 
-  mutate(ckdpc_40egfr_cal=(100-ckdpc_40egfr_score_cal)/100,
-         ckdpc_40egfr_cal_sglt2i=ckdpc_40egfr_cal^trial_hr_kf_sglt2i,
-         ckdpc_40egfr_sglt2i_benefit=ckdpc_40egfr_cal_sglt2i - ckdpc_40egfr_cal)
+  mutate(ckdpc_50egfr_cal=(100-ckdpc_50egfr_score_cal)/100,
+         ckdpc_50egfr_cal_sglt2i=ckdpc_50egfr_cal^trial_hr_kf_sglt2i,
+         ckdpc_50egfr_sglt2i_benefit=ckdpc_50egfr_cal_sglt2i - ckdpc_50egfr_cal)
 
-cohort$benefit_decile <- ntile(cohort$ckdpc_40egfr_sglt2i_benefit, n.quantiles)
-
-# calculate predicted NNT = 1/ARR
-cohort  <- cohort %>%
-  mutate(nnt_predicted = 1/(ckdpc_40egfr_sglt2i_benefit))
+cohort$benefit_decile <- ntile(cohort$ckdpc_50egfr_sglt2i_benefit, n.quantiles)
 
 cohort <- cohort %>% mutate(
   ethnicity_4cat = ifelse(!ethnicity_4cat %in% c("White", "South Asian", "Black"), "Other", as.character(ethnicity_4cat)),
@@ -80,7 +76,61 @@ cohort <- cohort %>% filter(!.imp > n.imp)
 
 save(cohort, file=paste0(today, "_t2d_ckdpc_recalibrated_with_riskgroup.Rda"))
 
-# centre predictors and save dataset for later (performing analysis in entire dataset exceeds memory limit)
+
+## check whether there is evidence of treatment heterogeneity by baseline risk
+
+# fit model using interaction term of treatment with risk score, 
+# modelled with restricted cubic splines [rcs()] with 5 knots
+ddist <- datadist(cohort)
+options(datadist='ddist')
+spline_model <- cph(as.formula(paste0("Surv(ckd_egfr50_censtime_yrs, ckd_egfr50_censvar) ~ studydrug2*rcs(ckdpc_50egfr_score_cal,5) + ", 
+                                      paste(covariates, collapse=" + "))), data=cohort[cohort$.imp == n.imp,], x=T, y=T)
+
+anova(spline_model)
+anova(spline_model)[2,3] # p value for non-linear interaction term
+
+# create data frame with range of scores by study drug
+contrast_spline <- contrast(spline_model, 
+                            list(studydrug2 = "SGLT2i", ckdpc_50egfr_score_cal = seq(quantile(cohort$ckdpc_50egfr_score_cal, .01, na.rm=TRUE), quantile(cohort$ckdpc_50egfr_score_cal, .99, na.rm=TRUE), by=0.05)), 
+                            list(studydrug2 = "DPP4i/SU", ckdpc_50egfr_score_cal = seq(quantile(cohort$ckdpc_50egfr_score_cal, .01, na.rm=TRUE), quantile(cohort$ckdpc_50egfr_score_cal, .99, na.rm=TRUE), by=0.05))
+)
+
+contrast_spline_df <- as.data.frame(contrast_spline[c('ckdpc_50egfr_score_cal','Contrast','Lower','Upper')])
+# plot
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Output/")
+tiff(paste0(today, "_HR_by_ckd_egfr50_risk.tiff"), width=9, height=5.5, units = "in", res=800) 
+ggplot(data=contrast_spline_df, aes(x=ckdpc_50egfr_score_cal, y=exp(Contrast))) +
+  geom_line(data=contrast_spline_df,aes(x=ckdpc_50egfr_score_cal, y=exp(Contrast)), size=1) +
+  xlab(expression(paste("Predicted 3-year risk of kidney disease progression"))) +
+  ylab("Hazard ratio") +
+  coord_trans(y = "log10") +
+  scale_x_continuous(breaks = seq(0,20,2.5)) +
+  scale_y_continuous(breaks = c(seq(0, 0.8, 0.1), seq(0.8, 1.6, 0.2))) +
+  geom_ribbon(data=contrast_spline_df, aes(x=ckdpc_50egfr_score_cal, ymin=exp(Lower), ymax=exp(Upper)), alpha=0.5) +
+  geom_hline(yintercept = 1, linetype = "dashed")  +
+  geom_hline(aes(yintercept = 0.62, linetype = "hr", size="hr"), color="red")  +
+  geom_hline(aes(yintercept = 0.68, linetype = "hr_95", size="hr_95"), color="red")  +
+  geom_hline(aes(yintercept = 0.56, linetype = "hr_95", size="hr_95"), color="red")  +
+  theme_bw() +
+  theme(text = element_text(size = 18),
+        axis.line = element_line(colour =  "grey50" ),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank(),
+        legend.position="bottom",
+        legend.title = element_text(size=14, face = "italic"),
+        legend.text = element_text(face="italic")) +
+  scale_linetype_manual(values = c(hr = "twodash", hr_95 = "twodash"), labels = c(hr = "Hazard ratio", hr_95 = "95% CI"), name="Trial meta-analysis hazard ratio:") +
+  scale_size_manual(values = c(hr = 1, hr_95 = 0.5), labels = c(hr = "Hazard ratio", hr_95 = "95% CI"), name="Trial meta-analysis hazard ratio:")
+dev.off()
+
+options(datadist = NULL)
+## there is no significant treatment heterogeneity by baseline risk score
+## I will still add an interaction term for benefit_decile but this is more for completeness
+
+## prep data for estimating absolute benefit:
+# centre predictors and save dataset (performing analysis in entire dataset exceeds memory limit)
 
 centre_and_reference <- function(df, covariates) {
   df %>%
@@ -90,7 +140,7 @@ centre_and_reference <- function(df, covariates) {
 }
 
 # define outcomes to be analysed
-outcomes <- c("ckd_egfr40", "macroalb", "dka", "side_effect"#, "death", "amputation")
+outcomes <- c("ckd_egfr40", "ckd_egfr50", "macroalb", "dka", "side_effect"#, "death", "amputation")
 )
 
 # create regex pattern of censoring variables to select
@@ -114,7 +164,7 @@ save(cohort, file=paste0(today, "_recalibrated_data_centred_predictors.Rda"))
 
 rm(list = setdiff(ls(), c("n.imp", "covariates", "today", "outcomes")))
 
-
+## estimate absolute benefit
 for (k in outcomes) {
   
   for (i in 1:n.imp) {
@@ -122,6 +172,7 @@ for (k in outcomes) {
     load("2024-07-13_recalibrated_data_centred_predictors.Rda")
     
     if (k == "macroalb") {
+      # remove subjects with established macroalbuminuria from these analyses
       cohort <- cohort %>% filter(.imp == i & !risk_group %in% c("eGFR ≥60mL/min/1.73m2, uACR ≥30mg/mmol", "eGFR <60mL/min/1.73m2, uACR ≥30mg/mmol") & macroalb_censtime_yrs >= 0)
     } else {
       cohort <- cohort %>% filter(.imp == i)
@@ -130,17 +181,20 @@ for (k in outcomes) {
     gc()
     
     censvar_var=paste0(k, "_censvar")
-    censtime_var=paste0(k, "_censtime_yrs")  
-    f_adjusted <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2*benefit_decile + ", paste(covariates, collapse=" + "))) ## add interaction ##
+    censtime_var=paste0(k, "_censtime_yrs")
     
+    # fit multivariable-adjusted model
+    f_adjusted <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2*benefit_decile + ", paste(covariates, collapse=" + "))) 
     model <- cph(f_adjusted, data=cohort, x=TRUE, y=TRUE, surv=TRUE)
     
+    # create dataframe with similar covariate distribution as our cohort but with everyone treated with SGLT2i
     obs_SGLT2 <- cohort %>%
       mutate(studydrug_original=studydrug2,
              studydrug2="SGLT2i",
              rowno=row_number())
     print(paste0("Survival estimates for SGLT2i in imputation ", i, "  (outcome ", k, ")"))
     
+    # get multivariable-adjusted survival estimates
     observed_sglt2 <- survfit(model, newdata=as.data.frame(obs_SGLT2)) %>%
       tidy() %>%
       filter(time==3) %>%
@@ -150,12 +204,13 @@ for (k in outcomes) {
       inner_join(obs_SGLT2, by=c("group"="rowno"))
     
     setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/output/")
-    
+    # save estimates
     save(observed_sglt2, file=paste0(today, "_adjusted_surv_",k,"_SGLT2i_imp.", i, ".Rda"))
     
     rm(list = setdiff(ls(), c("n.imp", "covariates", "k", "today", "outcomes")))
   }
   
+  # similar for DPP4i/SU:
   
   for (i in 1:n.imp) {
     setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
@@ -198,6 +253,7 @@ for (k in outcomes) {
   
   temp_sglt2 <- temp_dpp4su <- data.frame()
   
+  #for every outcome, join survival estimates from each imputation in one dataframe
   for (i in 1:n.imp) {
     setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/output/")
     load(paste0("2024-07-13_adjusted_surv_",k,"_SGLT2i_imp.", i, ".Rda"))
@@ -230,7 +286,7 @@ for (k in outcomes) {
 
 rm(list = setdiff(ls(), c("n.imp", "covariates", "k", "today", "outcomes")))
 
-### add adjusted observed survival probabilities to main dataset
+### add adjusted (observed) survival estimates to main dataset
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
 load("2024-07-13_t2d_ckdpc_recalibrated_with_riskgroup.Rda")
 
@@ -258,14 +314,15 @@ setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
 load("2024-07-13_t2d_ckdpc_recalibrated_with_adjsurv.Rda")
 
 obs_v_pred_for_plot <- cohort %>%
+  filter(preegfr >= 60) %>%
   group_by(benefit_decile) %>%
-  summarise(median_predicted_benefit=median(ckdpc_40egfr_sglt2i_benefit, na.rm=T),
-            mean_predicted_benefit=mean(ckdpc_40egfr_sglt2i_benefit, na.rm=T),
-            mean_benefit=mean(survdiff_ckd_egfr40),
-            se_benefit=mean(se_survdiff_ckd_egfr40),
-            median_benefit=median(survdiff_ckd_egfr40),
-            lq_benefit=quantile(survdiff_ckd_egfr40, prob=c(.25)),
-            uq_benefit=quantile(survdiff_ckd_egfr40, prob=c(.75)),
+  summarise(median_predicted_benefit=median(ckdpc_50egfr_sglt2i_benefit, na.rm=T),
+            mean_predicted_benefit=mean(ckdpc_50egfr_sglt2i_benefit, na.rm=T),
+            mean_benefit=mean(survdiff_ckd_egfr50),
+            se_benefit=mean(se_survdiff_ckd_egfr50),
+            median_benefit=median(survdiff_ckd_egfr50),
+            lq_benefit=quantile(survdiff_ckd_egfr50, prob=c(.25)),
+            uq_benefit=quantile(survdiff_ckd_egfr50, prob=c(.75)),
             upper_ci=mean_benefit + 1.96*se_benefit,
             lower_ci=mean_benefit - 1.96*se_benefit)
 
@@ -323,7 +380,7 @@ p_benefit_bydeciles_median
 ## make risk groups based on risk cutoff
 risk_threshold <- .80
 
-risk_threshold_1 <- cohort[cohort$risk_group == "eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol",]$ckdpc_40egfr_score_cal %>% quantile(risk_threshold) %>% as.numeric()
+risk_threshold_1 <- cohort[cohort$risk_group == "eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol",]$ckdpc_50egfr_score_cal %>% quantile(risk_threshold) %>% as.numeric()
 
 high_risk_cat <- paste(c("CKD-PC risk score ≥", risk_threshold*100, "th percentile"), collapse = "")
 low_risk_cat <- paste(c("CKD-PC risk score 0-", risk_threshold*100, "th percentile"), collapse = "")
@@ -333,7 +390,7 @@ low_risk_cat <- paste(c("CKD-PC risk score 0-", risk_threshold*100, "th percenti
 
 pred <- cohort %>% mutate(
     risk_group = ifelse(risk_group == "eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol", 
-                        ifelse(ckdpc_40egfr_score_cal < risk_threshold_1,
+                        ifelse(ckdpc_50egfr_score_cal < risk_threshold_1,
                                paste0("eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol, ", low_risk_cat),
                                paste0("eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol, ", high_risk_cat)),
                         as.character(risk_group)),
@@ -346,10 +403,10 @@ pred <- cohort %>% mutate(
                                              "eGFR <60mL/min/1.73m2, uACR ≥30mg/mmol"))
   ) %>%
   group_by(risk_group, .imp) %>%
-  summarise(median_predicted_benefit=median(ckdpc_40egfr_sglt2i_benefit, na.rm=T),
-            lq_predicted_benefit=quantile(ckdpc_40egfr_sglt2i_benefit, prob=c(.25)),
-            uq_predicted_benefit=quantile(ckdpc_40egfr_sglt2i_benefit, prob=c(.75)),
-            mean_predicted_benefit=mean(ckdpc_40egfr_sglt2i_benefit, na.rm=T)) %>%
+  summarise(median_predicted_benefit=median(ckdpc_50egfr_sglt2i_benefit, na.rm=T),
+            lq_predicted_benefit=quantile(ckdpc_50egfr_sglt2i_benefit, prob=c(.25)),
+            uq_predicted_benefit=quantile(ckdpc_50egfr_sglt2i_benefit, prob=c(.75)),
+            mean_predicted_benefit=mean(ckdpc_50egfr_sglt2i_benefit, na.rm=T)) %>%
   group_by(risk_group) %>%
   summarise(median_predicted_benefit=mean(median_predicted_benefit),
             lq_predicted_benefit=mean(lq_predicted_benefit),
@@ -357,12 +414,12 @@ pred <- cohort %>% mutate(
             mean_predicted_benefit=mean(mean_predicted_benefit))
 
 pred_nnt <- pred %>%
-  mutate(across(contains("_benefit"), ~ 1 / ., .names = "{str_replace(.col, '_benefit', '_nnt')}")) %>%
-  select(risk_group, contains("_nnt"))
+  mutate(across(contains("_benefit"), ~ 1 / ., .names = "{str_replace(.col, '_benefit', '_nnt')}")) #%>%
+#  select(risk_group, contains("_nnt"))
 
 observed <- cohort %>% mutate(
   risk_group = ifelse(risk_group == "eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol", 
-                      ifelse(ckdpc_40egfr_score_cal < risk_threshold_1,
+                      ifelse(ckdpc_50egfr_score_cal < risk_threshold_1,
                              paste0("eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol, ", low_risk_cat),
                              paste0("eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol, ", high_risk_cat)),
                       as.character(risk_group)),
@@ -422,14 +479,14 @@ nnt <- nnt %>%
   select(risk_group, unlist(lapply(outcomes, function(outcome) {
     grep(paste0("^", outcome), names(nnt), value = TRUE)
   }))) %>%
-  select(risk_group, contains("_nnt")) %>%
+#  select(risk_group, contains("_nnt")) %>%
   inner_join(pred_nnt, by="risk_group")
 
 ## by risk group but with categories merged
 
 pred2 <- cohort %>% mutate(
   risk_group = ifelse(risk_group == "eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol", 
-                      ifelse(ckdpc_40egfr_score_cal < risk_threshold_1,
+                      ifelse(ckdpc_50egfr_score_cal < risk_threshold_1,
                              paste0("eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol, ", low_risk_cat),
                              paste0("eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol, ", high_risk_cat)),
                       as.character(risk_group)),
@@ -442,11 +499,11 @@ pred2 <- cohort %>% mutate(
                                            "eGFR <60mL/min/1.73m2, uACR ≥30mg/mmol"))
 ) %>%
   mutate(risk_group=
-           ifelse(risk_group %in% c("eGFR ≥60mL/min/1.73m2, uACR ≥30mg/mmol", 
-                                    "eGFR <60mL/min/1.73m2, uACR ≥30mg/mmol"),
+           ifelse(risk_group %in% c("eGFR ≥60mL/min/1.73m2, uACR ≥30mg/mmol"),
                   "uACR ≥30mg/mmol", ifelse(
                     risk_group %in% c("eGFR <60mL/min/1.73m2, uACR <3mg/mmol",
-                                      "eGFR <60mL/min/1.73m2, uACR 3-30mg/mmol"),
+                                      "eGFR <60mL/min/1.73m2, uACR 3-30mg/mmol", 
+                                      "eGFR <60mL/min/1.73m2, uACR ≥30mg/mmol"),
                     "eGFR <60mL/min/1.73m2", as.character(risk_group)
                   )),
          risk_group=factor(risk_group, levels=c(
@@ -457,10 +514,10 @@ pred2 <- cohort %>% mutate(
            "uACR ≥30mg/mmol"
          ))) %>%
   group_by(risk_group, .imp) %>%
-  summarise(median_predicted_benefit=median(ckdpc_40egfr_sglt2i_benefit, na.rm=T),
-            lq_predicted_benefit=quantile(ckdpc_40egfr_sglt2i_benefit, prob=c(.25)),
-            uq_predicted_benefit=quantile(ckdpc_40egfr_sglt2i_benefit, prob=c(.75)),
-            mean_predicted_benefit=mean(ckdpc_40egfr_sglt2i_benefit, na.rm=T)) %>%
+  summarise(median_predicted_benefit=median(ckdpc_50egfr_sglt2i_benefit, na.rm=T),
+            lq_predicted_benefit=quantile(ckdpc_50egfr_sglt2i_benefit, prob=c(.25)),
+            uq_predicted_benefit=quantile(ckdpc_50egfr_sglt2i_benefit, prob=c(.75)),
+            mean_predicted_benefit=mean(ckdpc_50egfr_sglt2i_benefit, na.rm=T)) %>%
   group_by(risk_group) %>%
   summarise(median_predicted_benefit=mean(median_predicted_benefit),
             lq_predicted_benefit=mean(lq_predicted_benefit),
@@ -468,12 +525,12 @@ pred2 <- cohort %>% mutate(
             mean_predicted_benefit=mean(mean_predicted_benefit))
 
 pred_nnt2 <- pred2 %>%
-  mutate(across(contains("_benefit"), ~ 1 / ., .names = "{str_replace(.col, '_benefit', '_nnt')}")) %>%
-  select(risk_group, contains("_nnt"))
+  mutate(across(contains("_benefit"), ~ 1 / ., .names = "{str_replace(.col, '_benefit', '_nnt')}")) #%>%
+#  select(risk_group, contains("_nnt"))
 
 observed2 <- cohort %>% mutate(
   risk_group = ifelse(risk_group == "eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol", 
-                      ifelse(ckdpc_40egfr_score_cal < risk_threshold_1,
+                      ifelse(ckdpc_50egfr_score_cal < risk_threshold_1,
                              paste0("eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol, ", low_risk_cat),
                              paste0("eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol, ", high_risk_cat)),
                       as.character(risk_group)),
@@ -486,11 +543,11 @@ observed2 <- cohort %>% mutate(
                                            "eGFR <60mL/min/1.73m2, uACR ≥30mg/mmol"))
 ) %>%
   mutate(risk_group=
-           ifelse(risk_group %in% c("eGFR ≥60mL/min/1.73m2, uACR ≥30mg/mmol", 
-                                    "eGFR <60mL/min/1.73m2, uACR ≥30mg/mmol"),
+           ifelse(risk_group %in% c("eGFR ≥60mL/min/1.73m2, uACR ≥30mg/mmol"),
                   "uACR ≥30mg/mmol", ifelse(
                     risk_group %in% c("eGFR <60mL/min/1.73m2, uACR <3mg/mmol",
-                                      "eGFR <60mL/min/1.73m2, uACR 3-30mg/mmol"),
+                                      "eGFR <60mL/min/1.73m2, uACR 3-30mg/mmol", 
+                                      "eGFR <60mL/min/1.73m2, uACR ≥30mg/mmol"),
                     "eGFR <60mL/min/1.73m2", as.character(risk_group)
                   )),
          risk_group=factor(risk_group, levels=c(
@@ -547,11 +604,11 @@ nnt2 <- nnt2 %>%
   select(risk_group, unlist(lapply(outcomes, function(outcome) {
     grep(paste0("^", outcome), names(nnt), value = TRUE)
   }))) %>%
-  select(risk_group, contains("_nnt")) %>%
+#  select(risk_group, contains("_nnt")) %>%
   inner_join(pred_nnt2, by="risk_group")
 
-nnt_overall <- cohort %>% summarise(median_benefit = median(survdiff_ckd_egfr40)) %>% mutate(nnt = 1/median_benefit) %>% select(nnt) %>% as.numeric()
-nnt_guideline_recommended <- cohort %>% filter(risk_group != "eGFR ≥60mL/min/1.73m2, uACR <3mg/mmol") %>% summarise(median_benefit = median(survdiff_ckd_egfr40)) %>% mutate(nnt = 1/median_benefit) %>% select(nnt) %>% as.numeric()
+nnt_overall <- cohort %>% summarise(median_benefit = median(survdiff_ckd_egfr50)) %>% mutate(nnt = 1/median_benefit) %>% select(nnt) %>% as.numeric()
+nnt_guideline_recommended <- cohort %>% filter(risk_group != "eGFR ≥60mL/min/1.73m2, uACR <3mg/mmol") %>% summarise(median_benefit = median(survdiff_ckd_egfr50)) %>% mutate(nnt = 1/median_benefit) %>% select(nnt) %>% as.numeric()
 
 ############################3 CUMULATIVE INCIDENCE CURVES################################################################
 #set default colours (colour-blind accessible from the Okabe-Ito palette) for different drug classes
@@ -570,7 +627,7 @@ font_risktable_title <- 12
 risktable_height <- 0.15
 font_risktable_text <- 3.5
 limit_y <- c(0,0.38)
-zoom_y <- c(0,0.20)
+zoom_y <- c(0,0.10)
 zoom_x <- c(0,3)
 break_y <- 0.025
 legend_in <- c(0.35, 0.55)
@@ -578,7 +635,7 @@ legend_out <- c(100,-100)
 
 cohort <- cohort %>% mutate(
   risk_group = ifelse(risk_group == "eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol", 
-                      ifelse(ckdpc_40egfr_score_cal < risk_threshold_1,
+                      ifelse(ckdpc_50egfr_score_cal < risk_threshold_1,
                              paste0("eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol, ", low_risk_cat),
                              paste0("eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol, ", high_risk_cat)),
                       as.character(risk_group)),
@@ -591,11 +648,11 @@ cohort <- cohort %>% mutate(
                                            "eGFR <60mL/min/1.73m2, uACR ≥30mg/mmol"))
 ) %>%
   mutate(risk_group=
-           ifelse(risk_group %in% c("eGFR ≥60mL/min/1.73m2, uACR ≥30mg/mmol", 
-                                    "eGFR <60mL/min/1.73m2, uACR ≥30mg/mmol"),
+           ifelse(risk_group %in% c("eGFR ≥60mL/min/1.73m2, uACR ≥30mg/mmol"),
                   "uACR ≥30mg/mmol", ifelse(
                     risk_group %in% c("eGFR <60mL/min/1.73m2, uACR <3mg/mmol",
-                                      "eGFR <60mL/min/1.73m2, uACR 3-30mg/mmol"),
+                                      "eGFR <60mL/min/1.73m2, uACR 3-30mg/mmol", 
+                                      "eGFR <60mL/min/1.73m2, uACR ≥30mg/mmol"),
                     "eGFR <60mL/min/1.73m2", as.character(risk_group)
                   )),
          risk_group=factor(risk_group, levels=c(
@@ -606,7 +663,7 @@ cohort <- cohort %>% mutate(
            "uACR ≥30mg/mmol"
          )))
 
-fit_presegfr_noalb <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ studydrug2,
+fit_presegfr_noalb <- survfit(Surv(ckd_egfr50_censtime_yrs, ckd_egfr50_censvar) ~ studydrug2,
                               data = cohort[cohort$risk_group == "eGFR ≥60mL/min/1.73m2, uACR <3mg/mmol" &
                                               cohort$.imp == n.imp,],
                               conf.type = "log", conf.int = 0.95)
@@ -642,7 +699,7 @@ plots_bottom[[1]] <- ggsurvplot(
   tables.y.text.col = T,
   tables.theme = theme_cleantable(),
   xlab = "Years",
-  ylab = "40% decline in eGFR / ESKD",
+  ylab = "50% decline in eGFR / ESKD",
   title = "",
   subtitle = "eGFR ≥60mL/min/1.73m2, uACR <3mg/mmol"
 )
@@ -653,7 +710,7 @@ plots_bottom[[1]]$cumevents <- plots_bottom[[1]]$cumevents + theme(plot.title = 
 
 plots_top <- list()
 
-fit_presegfr_microalb_lowrisk <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ studydrug2,
+fit_presegfr_microalb_lowrisk <- survfit(Surv(ckd_egfr50_censtime_yrs, ckd_egfr50_censvar) ~ studydrug2,
                                          data = cohort[cohort$risk_group == paste0("eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol, ", low_risk_cat) &
                                                          cohort$.imp == n.imp,],
                                          conf.type = "log", conf.int = 0.95)
@@ -688,7 +745,7 @@ plots_top[[1]] <- ggsurvplot(
   tables.y.text.col = T,
   tables.theme = theme_cleantable(),
   xlab = "",
-  ylab = "40% decline in eGFR / ESKD",
+  ylab = "50% decline in eGFR / ESKD",
   title = low_risk_cat,
   subtitle = "eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol"
 )
@@ -699,7 +756,7 @@ plots_top[[1]]$cumevents <- plots_top[[1]]$cumevents + theme(plot.title = elemen
 
 
 
-fit_presegfr_microalb_highrisk <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ studydrug2,
+fit_presegfr_microalb_highrisk <- survfit(Surv(ckd_egfr50_censtime_yrs, ckd_egfr50_censvar) ~ studydrug2,
                                           data = cohort[cohort$risk_group == paste0("eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol, ", high_risk_cat) &
                                                           cohort$.imp == n.imp,],
                                           conf.type = "log", conf.int = 0.95)
@@ -742,7 +799,7 @@ plots_top[[2]]$table <- plots_top[[2]]$table + theme(plot.title = element_text(s
 plots_top[[2]]$cumevents <- plots_top[[2]]$cumevents + theme(plot.title = element_text(size = font_risktable_title))
 
 
-fit_macroalb <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ studydrug2,
+fit_macroalb <- survfit(Surv(ckd_egfr50_censtime_yrs, ckd_egfr50_censvar) ~ studydrug2,
                         data = cohort[cohort$risk_group %in% c("uACR ≥30mg/mmol") &
                                         cohort$.imp == n.imp,],
                         conf.type = "log", conf.int = 0.95)
@@ -750,7 +807,7 @@ fit_macroalb <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ stud
 plots_bottom[[3]] <- ggsurvplot(
   fit = fit_macroalb,
   fun = "cumhaz",
-  data = cohort[cohort$risk_group %in% c(", uACR ≥30mg/mmol") &
+  data = cohort[cohort$risk_group %in% c("uACR ≥30mg/mmol") &
                   cohort$.imp == n.imp,],
   palette = unname(cols_fig),
   color = "studydrug2",
@@ -786,7 +843,7 @@ plots_bottom[[3]]$cumevents <- plots_bottom[[3]]$cumevents + theme(plot.title = 
 
 
 
-fit_redegfr <- survfit(Surv(ckd_egfr40_censtime_yrs, ckd_egfr40_censvar) ~ studydrug2,
+fit_redegfr <- survfit(Surv(ckd_egfr50_censtime_yrs, ckd_egfr50_censvar) ~ studydrug2,
                        data = cohort[cohort$risk_group %in% c("eGFR <60mL/min/1.73m2") &
                                        cohort$.imp == n.imp,],
                        conf.type = "log", conf.int = 0.95)
