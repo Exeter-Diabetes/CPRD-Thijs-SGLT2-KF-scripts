@@ -239,7 +239,7 @@ p_presegfr_uncal_bydeciles_dpp4isu <- ggplot(data=bind_rows(empty_tick,obs_v_pre
   geom_abline(intercept = 0, slope = 1, lty = 2) +
   theme_bw() +
   xlab("Raw CKD-PC risk score (%)") + ylab("Observed risk (%)")+
-  scale_x_continuous(limits=c(0,100), breaks = c(0,2.5,5,7.5,10,12.5))+
+  scale_x_continuous(limits=c(0,100), breaks = seq(0, 5, 1))+
   scale_y_continuous(limits=c(-1,100)) +
   scale_colour_manual(values = cols) +
   theme(panel.border=element_blank(), panel.grid.major=element_blank(),panel.grid.minor=element_blank(),
@@ -251,7 +251,7 @@ p_presegfr_uncal_bydeciles_dpp4isu <- ggplot(data=bind_rows(empty_tick,obs_v_pre
         plot.subtitle=element_text(hjust = 0.5,size=rel(1.2)),
         legend.position = "none") +
   ggtitle("Raw risk score, by risk decile") +
-  coord_cartesian(xlim = c(0,13), ylim = c(0,12))
+  coord_cartesian(xlim = c(0,5), ylim = c(0,5))
 
 
 p_presegfr_uncal_bydeciles_dpp4isu
@@ -479,7 +479,7 @@ p_presegfr_interim_bydeciles_dpp4isu <- ggplot(data=bind_rows(empty_tick,obs_v_p
   geom_abline(intercept = 0, slope = 1, lty = 2) +
   theme_bw() +
   xlab("Recalibrated CKD-PC risk score (%)") + ylab("Observed risk (%)")+
-  scale_x_continuous(limits=c(0,100), breaks = c(0,2.5,5,7.5,10,12.5))+
+  scale_x_continuous(limits=c(0,100), breaks = seq(0, 5, 1))+
   scale_y_continuous(limits=c(-1,100)) +
   scale_colour_manual(values = cols) +
   theme(panel.border=element_blank(), panel.grid.major=element_blank(),panel.grid.minor=element_blank(),
@@ -491,7 +491,7 @@ p_presegfr_interim_bydeciles_dpp4isu <- ggplot(data=bind_rows(empty_tick,obs_v_p
         plot.subtitle=element_text(hjust = 0.5,size=rel(1.2)),
         legend.position = "none") +
   ggtitle("Recalibrated risk score (baseline hazard updated), by risk decile") +
-  coord_cartesian(xlim = c(0,13), ylim = c(0,12))
+  coord_cartesian(xlim = c(0,5), ylim = c(0,5))
 
 
 p_presegfr_interim_bydeciles_dpp4isu
@@ -738,7 +738,7 @@ p_presegfr_cal_bydeciles_dpp4isu <- ggplot(data=bind_rows(empty_tick,obs_v_pred)
   geom_abline(intercept = 0, slope = 1, lty = 2) +
   theme_bw() +
   xlab("Recalibrated CKD-PC risk score (%)") + ylab("Observed risk (%)")+
-  scale_x_continuous(limits=c(0,100), breaks = c(0,2.5,5,7.5,10,12.5))+
+  scale_x_continuous(limits=c(0,100))+
   scale_y_continuous(limits=c(-1,100)) +
   scale_colour_manual(values = cols) +
   theme(panel.border=element_blank(), panel.grid.major=element_blank(),panel.grid.minor=element_blank(),
@@ -750,7 +750,7 @@ p_presegfr_cal_bydeciles_dpp4isu <- ggplot(data=bind_rows(empty_tick,obs_v_pred)
         plot.subtitle=element_text(hjust = 0.5,size=rel(1.2)),
         legend.position = "none") +
   ggtitle("Recalibrated risk score (calibration slope applied), by risk decile") +
-  coord_cartesian(xlim = c(0,13), ylim = c(0,12))
+  coord_cartesian(xlim = c(0,5), ylim = c(0,5))
 
 
 p_presegfr_cal_bydeciles_dpp4isu
@@ -955,7 +955,7 @@ p_redegfr_uncal_bydeciles_dpp4isu <- ggplot(data=bind_rows(empty_tick,obs_v_pred
   geom_abline(intercept = 0, slope = 1, lty = 2) +
   theme_bw() +
   xlab("Raw CKD-PC risk score (%)") + ylab("Observed risk (%)")+
-  scale_x_continuous(limits=c(0,100), breaks = c(0,2.5,5,7.5,10,12.5))+
+  scale_x_continuous(limits=c(0,100), breaks = seq(0, 5, 1))+
   scale_y_continuous(limits=c(-1,100)) +
   scale_colour_manual(values = cols) +
   theme(panel.border=element_blank(), panel.grid.major=element_blank(),panel.grid.minor=element_blank(),
@@ -967,7 +967,7 @@ p_redegfr_uncal_bydeciles_dpp4isu <- ggplot(data=bind_rows(empty_tick,obs_v_pred
         plot.subtitle=element_text(hjust = 0.5,size=rel(1.2)),
         legend.position = "none") +
   ggtitle("Raw risk score, by risk decile") +
-  coord_cartesian(xlim = c(0,13), ylim = c(0,12))
+  coord_cartesian(xlim = c(0,3), ylim = c(0,12))
 
 
 p_redegfr_uncal_bydeciles_dpp4isu
@@ -1195,7 +1195,7 @@ p_redegfr_interim_bydeciles_dpp4isu <- ggplot(data=bind_rows(empty_tick,obs_v_pr
   geom_abline(intercept = 0, slope = 1, lty = 2) +
   theme_bw() +
   xlab("Recalibrated CKD-PC risk score (%)") + ylab("Observed risk (%)")+
-  scale_x_continuous(limits=c(0,100), breaks = c(0,2.5,5,7.5,10,12.5))+
+  scale_x_continuous(limits=c(0,100), breaks = seq(0, 5, 1))+
   scale_y_continuous(limits=c(-1,100)) +
   scale_colour_manual(values = cols) +
   theme(panel.border=element_blank(), panel.grid.major=element_blank(),panel.grid.minor=element_blank(),
@@ -1454,7 +1454,7 @@ p_redegfr_cal_bydeciles_dpp4isu <- ggplot(data=bind_rows(empty_tick,obs_v_pred),
   geom_abline(intercept = 0, slope = 1, lty = 2) +
   theme_bw() +
   xlab("Recalibrated CKD-PC risk score (%)") + ylab("Observed risk (%)")+
-  scale_x_continuous(limits=c(0,100), breaks = c(0,2.5,5,7.5,10,12.5))+
+  scale_x_continuous(limits=c(0,100), breaks = seq(0, 5, 1))+
   scale_y_continuous(limits=c(-1,100)) +
   scale_colour_manual(values = cols) +
   theme(panel.border=element_blank(), panel.grid.major=element_blank(),panel.grid.minor=element_blank(),

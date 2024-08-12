@@ -20,13 +20,16 @@ n.imp <- 10
 n.quantiles <- 10
 
 #today <- as.character(Sys.Date(), format="%Y%m%d")
-today <- "2024-07-13"
+today <- "2024-07-30"
 
 # covariates for multivariable adjustment
 covariates <- c("dstartdate_age", "malesex", "imd2015_10", "ethnicity_4cat", "initiation_year", "prebmi", "prehba1c",
-                "pretotalcholesterol", "preegfr", "uacr", "presbp", "ckdpc_50egfr_score", "ncurrtx", "statin", "INS", 
+                "pretotalcholesterol", "preegfr", "uacr", "presbp", "ckdpc_50egfr_score_cal", "ncurrtx", "statin", "INS", 
                 "ACEi_or_ARB", "smoking_status", "dstartdate_dm_dur_all", "predrug_hypertension", "predrug_af", "hosp_admission_prev_year")
 
+# define outcomes to be analysed
+outcomes <- c("ckd_egfr40", "ckd_egfr50", "macroalb", "dka", "side_effect"#, "death", "amputation")
+)
 # function to pool estimates from multiple imputations further down
 pool.rubin.KM <- function(EST,SE,n.imp){
   mean.est <- mean(EST)
@@ -74,6 +77,7 @@ cohort <- cohort %>% mutate(
 
 cohort <- cohort %>% filter(!.imp > n.imp)
 
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
 save(cohort, file=paste0(today, "_t2d_ckdpc_recalibrated_with_riskgroup.Rda"))
 
 
@@ -81,18 +85,18 @@ save(cohort, file=paste0(today, "_t2d_ckdpc_recalibrated_with_riskgroup.Rda"))
 
 # fit model using interaction term of treatment with risk score, 
 # modelled with restricted cubic splines [rcs()] with 5 knots
-ddist <- datadist(cohort)
+ddist <- cohort %>% filter(preegfr>=60) %>% datadist()
 options(datadist='ddist')
 spline_model <- cph(as.formula(paste0("Surv(ckd_egfr50_censtime_yrs, ckd_egfr50_censvar) ~ studydrug2*rcs(ckdpc_50egfr_score_cal,5) + ", 
-                                      paste(covariates, collapse=" + "))), data=cohort[cohort$.imp == n.imp,], x=T, y=T)
+                                      paste(covariates, collapse=" + "))), data=cohort[cohort$.imp == n.imp & cohort$preegfr >= 60,], x=T, y=T)
 
 anova(spline_model)
 anova(spline_model)[2,3] # p value for non-linear interaction term
 
 # create data frame with range of scores by study drug
 contrast_spline <- contrast(spline_model, 
-                            list(studydrug2 = "SGLT2i", ckdpc_50egfr_score_cal = seq(quantile(cohort$ckdpc_50egfr_score_cal, .01, na.rm=TRUE), quantile(cohort$ckdpc_50egfr_score_cal, .99, na.rm=TRUE), by=0.05)), 
-                            list(studydrug2 = "DPP4i/SU", ckdpc_50egfr_score_cal = seq(quantile(cohort$ckdpc_50egfr_score_cal, .01, na.rm=TRUE), quantile(cohort$ckdpc_50egfr_score_cal, .99, na.rm=TRUE), by=0.05))
+                            list(studydrug2 = "SGLT2i", ckdpc_50egfr_score_cal = seq(quantile(cohort[cohort$preegfr >= 60,]$ckdpc_50egfr_score_cal, .01, na.rm=TRUE), quantile(cohort[cohort$preegfr >= 60,]$ckdpc_50egfr_score_cal, .99, na.rm=TRUE), by=0.05)), 
+                            list(studydrug2 = "DPP4i/SU", ckdpc_50egfr_score_cal = seq(quantile(cohort[cohort$preegfr >= 60,]$ckdpc_50egfr_score_cal, .01, na.rm=TRUE), quantile(cohort[cohort$preegfr >= 60,]$ckdpc_50egfr_score_cal, .99, na.rm=TRUE), by=0.05))
 )
 
 contrast_spline_df <- as.data.frame(contrast_spline[c('ckdpc_50egfr_score_cal','Contrast','Lower','Upper')])
@@ -104,7 +108,7 @@ ggplot(data=contrast_spline_df, aes(x=ckdpc_50egfr_score_cal, y=exp(Contrast))) 
   xlab(expression(paste("Predicted 3-year risk of kidney disease progression"))) +
   ylab("Hazard ratio") +
   coord_trans(y = "log10") +
-  scale_x_continuous(breaks = seq(0,20,2.5)) +
+  scale_x_continuous(breaks = seq(0,20,.5)) +
   scale_y_continuous(breaks = c(seq(0, 0.8, 0.1), seq(0.8, 1.6, 0.2))) +
   geom_ribbon(data=contrast_spline_df, aes(x=ckdpc_50egfr_score_cal, ymin=exp(Lower), ymax=exp(Upper)), alpha=0.5) +
   geom_hline(yintercept = 1, linetype = "dashed")  +
@@ -139,10 +143,6 @@ centre_and_reference <- function(df, covariates) {
            across(all_of(covariates), ~ if(is.factor(.)) relevel(., ref = names(sort(table(.), decreasing = TRUE))[1]) else . ))  # Set most frequent level as reference for factor
 }
 
-# define outcomes to be analysed
-outcomes <- c("ckd_egfr40", "ckd_egfr50", "macroalb", "dka", "side_effect"#, "death", "amputation")
-)
-
 # create regex pattern of censoring variables to select
 outcome_variables <- paste0("(", paste(outcomes, collapse = "|"), ")(?!.*(5y|pp)).*(_censtime_yrs|_censvar)$")
 
@@ -169,7 +169,7 @@ for (k in outcomes) {
   
   for (i in 1:n.imp) {
     setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-    load("2024-07-13_recalibrated_data_centred_predictors.Rda")
+    load("2024-07-30_recalibrated_data_centred_predictors.Rda")
     
     if (k == "macroalb") {
       # remove subjects with established macroalbuminuria from these analyses
@@ -184,7 +184,7 @@ for (k in outcomes) {
     censtime_var=paste0(k, "_censtime_yrs")
     
     # fit multivariable-adjusted model
-    f_adjusted <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2*benefit_decile + ", paste(covariates, collapse=" + "))) 
+    f_adjusted <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2 + ", paste(covariates, collapse=" + "))) 
     model <- cph(f_adjusted, data=cohort, x=TRUE, y=TRUE, surv=TRUE)
     
     # create dataframe with similar covariate distribution as our cohort but with everyone treated with SGLT2i
@@ -214,7 +214,7 @@ for (k in outcomes) {
   
   for (i in 1:n.imp) {
     setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-    load("2024-07-13_recalibrated_data_centred_predictors.Rda")
+    load("2024-07-30_recalibrated_data_centred_predictors.Rda")
     
     if (k == "macroalb") {
       cohort <- cohort %>% filter(.imp == i & !risk_group %in% c("eGFR ≥60mL/min/1.73m2, uACR ≥30mg/mmol", "eGFR <60mL/min/1.73m2, uACR ≥30mg/mmol") & macroalb_censtime_yrs >= 0)
@@ -226,7 +226,7 @@ for (k in outcomes) {
     
     censvar_var=paste0(k, "_censvar")
     censtime_var=paste0(k, "_censtime_yrs")  
-    f_adjusted <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2*benefit_decile + ", paste(covariates, collapse=" + ")))
+    f_adjusted <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2 + ", paste(covariates, collapse=" + ")))
     
     model <- cph(f_adjusted, data=cohort, x=TRUE, y=TRUE, surv=TRUE)
     
@@ -256,8 +256,8 @@ for (k in outcomes) {
   #for every outcome, join survival estimates from each imputation in one dataframe
   for (i in 1:n.imp) {
     setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/output/")
-    load(paste0("2024-07-13_adjusted_surv_",k,"_SGLT2i_imp.", i, ".Rda"))
-    load(paste0("2024-07-13_adjusted_surv_",k,"_DPP4iSU_imp.", i, ".Rda"))
+    load(paste0("2024-07-30_adjusted_surv_",k,"_SGLT2i_imp.", i, ".Rda"))
+    load(paste0("2024-07-30_adjusted_surv_",k,"_DPP4iSU_imp.", i, ".Rda"))
     temp_sglt2 <- temp_sglt2 %>% rbind(observed_sglt2)
     temp_dpp4su <- temp_dpp4su %>% rbind(observed_dpp4su)
     rm(observed_sglt2)
@@ -288,12 +288,12 @@ rm(list = setdiff(ls(), c("n.imp", "covariates", "k", "today", "outcomes")))
 
 ### add adjusted (observed) survival estimates to main dataset
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-load("2024-07-13_t2d_ckdpc_recalibrated_with_riskgroup.Rda")
+load("2024-07-30_t2d_ckdpc_recalibrated_with_riskgroup.Rda")
 
 for (k in outcomes) {
   
   setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/output/")
-  load(paste0("2024-07-13_adjusted_surv_", k, ".Rda"))
+  load(paste0("2024-07-30_adjusted_surv_", k, ".Rda"))
   cohort <- cohort %>% left_join(benefits %>%
                                    select(.imp, patid, studydrug2, contains("survdiff")), 
                                  by=c(".imp", "patid", "studydrug2"))
@@ -311,7 +311,7 @@ save(cohort, file=paste0(today, "_t2d_ckdpc_recalibrated_with_adjsurv.Rda"))
 ############################2 CALIBRATION PLOTS OF PREDICTED VS OBSERVED BENEFITS################################################################
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-load("2024-07-13_t2d_ckdpc_recalibrated_with_adjsurv.Rda")
+load("2024-07-30_t2d_ckdpc_recalibrated_with_adjsurv.Rda")
 
 obs_v_pred_for_plot <- cohort %>%
   filter(preegfr >= 60) %>%
@@ -349,7 +349,7 @@ p_benefit_bydeciles_mean <- ggplot(data=bind_rows(empty_tick,obs_v_pred_for_plot
         plot.subtitle=element_text(hjust = 0.5,size=rel(1.2)),
         legend.position = "none") +
   ggtitle("Mean predicted versus observed SGLT2-inhibitor benefit", subtitle = "By predicted benefit decile") +
-  coord_cartesian(xlim = c(0,4), ylim = c(0,4))
+  coord_cartesian(xlim = c(0,2.5), ylim = c(0,2.5))
 
 p_benefit_bydeciles_mean
 
@@ -370,7 +370,7 @@ p_benefit_bydeciles_median <- ggplot(data=bind_rows(empty_tick,obs_v_pred_for_pl
         plot.subtitle=element_text(hjust = 0.5,size=rel(1.2)),
         legend.position = "none") +
   ggtitle("Median predicted versus observed SGLT2-inhibitor benefit", subtitle = "By predicted benefit decile") +
-  coord_cartesian(xlim = c(0,4), ylim = c(0,4))
+  coord_cartesian(xlim = c(0,2), ylim = c(-.1,2))
 
 p_benefit_bydeciles_median
 
