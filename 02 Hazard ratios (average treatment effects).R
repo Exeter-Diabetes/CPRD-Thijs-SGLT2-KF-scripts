@@ -62,7 +62,7 @@ covariates <- c("dstartdate_age", "malesex", "imd2015_10", "ethnicity_4cat", "in
                 "ACEi_or_ARB", "smoking_status", "dstartdate_dm_dur_all", "predrug_hypertension", "predrug_af", "hosp_admission_prev_year")
 
 # we exclude initiation_year from the propensity score model
-covariates_ps <- covariates[-5]
+covariates_ps <- setdiff(covariates, "initiation_year")
 
 #outcomes to be studied:
 outcomes_per_drugclass <- c("ckd_egfr50", "ckd_egfr50_pp")

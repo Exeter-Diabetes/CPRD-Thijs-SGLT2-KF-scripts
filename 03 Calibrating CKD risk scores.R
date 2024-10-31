@@ -869,7 +869,7 @@ contrast_spline <- contrast(final_model,
 contrast_spline_df <- as.data.frame(contrast_spline[c('ckdpc_50egfr_score_cal','Contrast','Lower','Upper')])
 # plot
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Output/")
-tiff(paste0(today, "_HR_by_ckd_egfr50_risk.tiff"), width=9, height=5.5, units = "in", res=800) 
+tiff(paste0(today, "_HR_by_ckd_egfr50_risk.tiff"), width=10, height=4, units = "in", res=800) 
 ggplot(data=contrast_spline_df, aes(x=ckdpc_50egfr_score_cal, y=exp(Contrast))) +
   geom_line(data=contrast_spline_df,aes(x=ckdpc_50egfr_score_cal, y=exp(Contrast)), size=1) +
   xlab(expression(paste("Predicted 3-year risk of kidney disease progression"))) +
@@ -879,9 +879,9 @@ ggplot(data=contrast_spline_df, aes(x=ckdpc_50egfr_score_cal, y=exp(Contrast))) 
   scale_y_continuous(breaks = c(seq(0, 0.8, 0.1), seq(0.8, 1.6, 0.2))) +
   geom_ribbon(data=contrast_spline_df, aes(x=ckdpc_50egfr_score_cal, ymin=exp(Lower), ymax=exp(Upper)), alpha=0.5) +
   geom_hline(yintercept = 1, linetype = "dashed")  +
-  geom_hline(aes(yintercept = 0.62, linetype = "hr", size="hr"), color="#D55E00")  +
-  geom_hline(aes(yintercept = 0.68, linetype = "hr_95", size="hr_95"), color="#D55E00")  +
-  geom_hline(aes(yintercept = 0.56, linetype = "hr_95", size="hr_95"), color="#D55E00")  +
+  geom_hline(aes(yintercept = 0.57, linetype = "hr", size="hr"), color="#D55E00")  +
+  geom_hline(aes(yintercept = 0.67, linetype = "hr_95", size="hr_95"), color="#D55E00")  +
+  geom_hline(aes(yintercept = 0.49, linetype = "hr_95", size="hr_95"), color="#D55E00")  +
   theme_bw() +
   theme(text = element_text(size = 18),
         axis.line = element_line(colour =  "grey50" ),
@@ -892,8 +892,8 @@ ggplot(data=contrast_spline_df, aes(x=ckdpc_50egfr_score_cal, y=exp(Contrast))) 
         legend.position="bottom",
         legend.title = element_text(size=14, face = "italic"),
         legend.text = element_text(face="italic")) +
-  scale_linetype_manual(values = c(hr = "twodash", hr_95 = "twodash"), labels = c(hr = "Hazard ratio", hr_95 = "95% CI"), name="Trial meta-analysis hazard ratio:") +
-  scale_size_manual(values = c(hr = 1, hr_95 = 0.5), labels = c(hr = "Hazard ratio", hr_95 = "95% CI"), name="Trial meta-analysis hazard ratio:")
+  scale_linetype_manual(values = c(hr = "twodash", hr_95 = "twodash"), labels = c(hr = "Overall hazard ratio", hr_95 = "95% CI"), name="") +
+  scale_size_manual(values = c(hr = 1, hr_95 = 0.5), labels = c(hr = "Overall hazard ratio", hr_95 = "95% CI"), name="")
 dev.off()
 
 options(datadist = NULL)
