@@ -14,8 +14,10 @@ library(tidyverse)
 library(gt)
 library(gtsummary)
 library(mice)
-library(EHRBiomarkr)
 library(tableone)
+# library(devtools)
+# devtools::install_github("Exeter-Diabetes/EHRBiomarkr")
+library(EHRBiomarkr)
 
 options(dplyr.summarise.inform = FALSE)
 
@@ -24,7 +26,7 @@ rm(list=ls())
 set.seed(123)
 
 #today <- as.character(Sys.Date(), format="%Y%m%d")
-today <- "2024-07-13"
+today <- "2024-10-29"
 ########################1 COHORT SELECTION####################################################################
 
 # 1 Cohort selection and variable setup
@@ -469,6 +471,19 @@ print(paste0("Number of subjects excluded with missing ckdpc risk scores due to 
 q <- ckdpc_outofrange %>% nrow()
 print(paste0("Number of drug episodes excluded with missing ckdpc risk scores due to age/BMI/HbA1c/uACR/SBP out of range: ", q/n.imp))
 
+
+# remove those with eGFR <60
+below_60 <- temp %>% filter(preegfr < 60)
+
+q <- below_60 %>% .$patid %>% unique() %>% length()
+print(paste0("Number of subjects excluded with eGFR <60: ", q))
+
+q <- below_60 %>% nrow()
+print(paste0("Number of drug episodes excluded with eGFR <60: ", q))
+
+temp <- temp %>% anti_join(below_60, by = c("patid", ".imp"))
+
+# study cohort:
 q <- temp %>% .$patid %>% unique() %>% length()
 print(paste0("Number of subjects in study population ", q))
 q <- temp[temp$.imp > 0,] %>% nrow()
@@ -500,11 +515,9 @@ temp <- temp %>% mutate(
   studydrug = ifelse(studydrug == "SGLT2", "SGLT2i", ifelse(studydrug == "DPP4", "DPP4i", "SU")),
   studydrug2 = ifelse(!studydrug == "SGLT2i", "DPP4i/SU", "SGLT2i"),
   ncurrtx = ifelse(ncurrtx==1, "1.", ifelse(ncurrtx==2, "2.", ifelse(ncurrtx==3, "3.", "4+"))),
-  risk_group = ifelse(macroalbuminuria == T, 
-                      ifelse(egfr_below_60 == F, "eGFR ≥60mL/min/1.73m2, uACR ≥30mg/mmol", "eGFR <60mL/min/1.73m2, uACR ≥30mg/mmol"), 
-                      ifelse(egfr_below_60 == T, 
-                             ifelse(albuminuria == T, "eGFR <60mL/min/1.73m2, uACR 3-30mg/mmol", "eGFR <60mL/min/1.73m2, uACR <3mg/mmol"),
-                             ifelse(albuminuria == F, "eGFR ≥60mL/min/1.73m2, uACR <3mg/mmol", "eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol")))
+  risk_group = ifelse(macroalbuminuria == T, "uACR ≥30mg/mmol", 
+                       ifelse(albuminuria == F, "uACR <3mg/mmol", 
+                              "uACR 3-30mg/mmol"))
 )
 
 temp <- temp %>% mutate(
@@ -512,7 +525,6 @@ temp <- temp %>% mutate(
   initiation_year = ifelse(initiation_year %in% c("2019", "2020"), "2019-2020", as.character(initiation_year)),
   ncurrtx = ifelse(ncurrtx %in% c("3.", "4+"), "3+", as.character(ncurrtx))
 )
-
 
 # save imputed dataset so this can be used in the subsequent scripts
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
@@ -524,7 +536,7 @@ save(temp, file=paste0(today, "_t2d_ckdpc_imputed_data.Rda"))
 # create table one: this will be an average of the imputed datasets (n to be divided by n.imp)
 
 #variables to be shown
-vars <- c("dstartdate_age", "malesex", "ethnicity_4cat", "imd2015_10",             # sociodemographic variables
+vars <- c("dstartdate_age", "malesex", "ethnicity_5cat", "imd2015_10",             # sociodemographic variables
           "prebmi", "presbp", "predbp", "pretotalcholesterol", "prehdl", "preldl", # vital signs and laboratory measurements
           "pretriglyceride", "prehba1c",  "preegfr",
           "preckdstage", "uacr",
@@ -540,7 +552,7 @@ vars <- c("dstartdate_age", "malesex", "ethnicity_4cat", "imd2015_10",          
 )
 
 #categorical variables
-factors <- c("malesex", "ethnicity_4cat", "imd2015_10", "smoking_status", "predrug_hypertension",
+factors <- c("malesex", "ethnicity_5cat", "imd2015_10", "smoking_status", "predrug_hypertension",
              "predrug_af", "predrug_dka", "genital_infection", "osteoporosis", "predrug_acutepancreatitis",
              "predrug_falls", "predrug_urinary_frequency", "predrug_volume_depletion",
              "predrug_micturition_control", "predrug_dementia", "hosp_admission_prev_year",
@@ -575,7 +587,7 @@ write.csv2(tabforprint2, file = paste0(today, "_baseline_table_by_subgroup.csv")
 
 
 # events rates (sum of events divided by sum of person-years) by studydrug
-outcomes <- c("ckd_egfr40", "ckd_egfr50", "macroalb", "dka", "side_effect", "death", "amputation")
+outcomes <- c("ckd_egfr40", "ckd_egfr50", "macroalb", "dka", "side_effect", "death", "amputation", "ckd_egfr50_5y")
 
 for (k in outcomes) {
   censvar_var=paste0(k, "_censvar")

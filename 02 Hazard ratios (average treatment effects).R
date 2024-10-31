@@ -36,7 +36,7 @@ rm(list=ls())
 n.imp <- 10
 set.seed(123)
 #today <- as.character(Sys.Date(), format="%Y%m%d")
-today <- "2024-07-13"
+today <- "2024-10-29"
 #write function to pool HRs from multiple imputations later on
 pool.rubin.HR <- function(COEFS,SE,n.imp){
   mean.coef <- mean(COEFS)
@@ -57,15 +57,21 @@ pool.rubin.HR <- function(COEFS,SE,n.imp){
   names(output) <- c('HR', 'lower bound', 'upper bound', 'df', 'F', 'P')
   return(output)}
 
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-load("2024-07-13_t2d_ckdpc_imputed_data.Rda")
-
 covariates <- c("dstartdate_age", "malesex", "imd2015_10", "ethnicity_4cat", "initiation_year", "prebmi", "prehba1c",
                 "pretotalcholesterol", "preegfr", "uacr", "presbp", "ckdpc_50egfr_score", "ncurrtx", "statin", "INS", 
                 "ACEi_or_ARB", "smoking_status", "dstartdate_dm_dur_all", "predrug_hypertension", "predrug_af", "hosp_admission_prev_year")
 
 # we exclude initiation_year from the propensity score model
 covariates_ps <- covariates[-5]
+
+#outcomes to be studied:
+outcomes_per_drugclass <- c("ckd_egfr50", "ckd_egfr50_pp")
+
+kf_key_outcomes <- c("ckd_egfr40", "ckd_egfr50", "ckd_egfr50_5y", "death", "macroalb", "dka", "amputation", "side_effect")
+
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
+load("2024-10-29_t2d_ckdpc_imputed_data.Rda")
+
 
 ############################1 CALCULATE WEIGHTS################################################################
 
@@ -182,15 +188,10 @@ cohort <- cohort %>% filter(!.imp == 0)
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
 save(cohort, file=paste0(today, "_t2d_ckdpc_imputed_data_withweights.Rda"))
-#load("2024-07-13_t2d_ckdpc_imputed_data_withweights.Rda")
+#load("2024-10-29_t2d_ckdpc_imputed_data_withweights.Rda")
 ############################2 CALCULATE HAZARD RATIOS################################################################
 
 ## 2 calculate hazard ratios (unadjusted, adjusted, weighted) and n events per study drug
-
-#outcomes to be studied:
-outcomes_per_drugclass <- c("ckd_egfr50", "ckd_egfr50_pp")
-
-kf_key_outcomes <- c("ckd_egfr40", "ckd_egfr50", "death", "macroalb", "dka", "amputation", "side_effect")
 
 #create empty data frame to which we can append the hazard ratios once calculated
 all_sglt2i_hrs <- 
@@ -594,7 +595,289 @@ for (k in kf_key_outcomes) {
   
     rm(temp)
 }
-############################3 STORE AND DISPLAY HAZARD RATIOS################################################################
+############################3 SUBGROUP ANALYSES################################################################
+
+cohort <- cohort %>% mutate(risk_group=factor(risk_group, levels=c(
+  "uACR <3mg/mmol", 
+  "uACR 3-30mg/mmol",
+  "uACR ≥30mg/mmol"
+)))
+
+
+#create empty data frame to which we can append the hazard ratios once calculated
+subgroup_SGLT2ivsDPP4iSU_hrs <- subgroup_hrs <- data.frame()
+
+
+## analyses stratified by risk group
+for (k in kf_key_outcomes) {
+  
+  print(paste0("Calculating hazard ratios for outcome ", k))
+  
+  censvar_var=paste0(k, "_censvar")
+  censtime_var=paste0(k, "_censtime_yrs")
+  
+  if (!k == "macroalb") {
+    
+    # calculate number of subjects in each group
+    count <- cohort %>%
+      group_by(studydrug2,risk_group) %>%
+      summarise(count=round(n()/n.imp, 0)) %>% # the total number of subjects in the stacked imputed datasets has to be divided by the number of imputed datasets
+      pivot_wider(names_from=studydrug2,
+                  names_glue="{studydrug2}_count",
+                  values_from=count)
+    
+    # calculate median follow up time (years) per group
+    followup <- cohort %>%
+      group_by(studydrug2,risk_group) %>%
+      summarise(time=round(median(!!sym(censtime_var)), 2)) %>%
+      pivot_wider(names_from=studydrug2,
+                  names_glue="{studydrug2}_followup",
+                  values_from=time)
+    
+    # summarise number of events per group
+    events <- cohort %>%
+      group_by(studydrug2,risk_group) %>%
+      summarise(event_count=round(sum(!!sym(censvar_var))/n.imp, 0),
+                drug_count=round(n()/n.imp, 0)) %>%
+      mutate(events_perc=round(event_count*100/drug_count, 1),
+             events=paste0(event_count, " (", events_perc, "%)")) %>%
+      select(studydrug2, risk_group, events) %>%
+      pivot_wider(names_from=studydrug2,
+                  names_glue="{studydrug2}_events",
+                  values_from=events)
+    
+    
+    # write formulas for adjusted and unadjusted analyses
+    f2 <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2*risk_group"))
+    
+    f_adjusted2 <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2*risk_group + ", paste(covariates, collapse=" + ")))
+    
+    # create empty vectors to store the hazard ratios from every imputed dataset
+    # for the unadjusted survival models
+    COEFS.noalb.unadj <- SE.noalb.unadj <-
+      COEFS.microalb.unadj <- SE.microalb.unadj <-
+      COEFS.macroalb.unadj <- SE.macroalb.unadj <- 
+      # for the adjusted survival models
+      COEFS.noalb.adj <- SE.noalb.adj <-
+      COEFS.microalb.adj <- SE.microalb.adj <-
+      COEFS.macroalb.adj <- SE.macroalb.adj <- 
+      rep(NA,n.imp)
+    
+    for (i in 1:n.imp) {
+      print(paste0("Analyses in imputed dataset number ", i))
+      
+      #unadjusted analyses first
+      fit.unadj <- coxph(f2, cohort[cohort$.imp == i,])
+      
+      #store coefficients and standard errors from this model
+      COEFS.noalb.unadj[i] <- fit.unadj$coefficients["studydrug2SGLT2i"]
+      SE.noalb.unadj[i] <- sqrt(fit.unadj$var[1,1])
+      
+      COEFS.microalb.unadj[i] <- fit.unadj$coefficients["studydrug2SGLT2i"] + fit.unadj$coefficients["studydrug2SGLT2i:risk_groupuACR 3-30mg/mmol"]
+      SE.microalb.unadj[i] <- sqrt(abs(fit.unadj$var[1]) + abs(fit.unadj$var[nrow(fit.unadj$var)-1,nrow(fit.unadj$var)-1]) + 2 * vcov(fit.unadj)[1,nrow(fit.unadj$var)-1])
+      
+      COEFS.macroalb.unadj[i] <- fit.unadj$coefficients["studydrug2SGLT2i"] + fit.unadj$coefficients["studydrug2SGLT2i:risk_groupuACR ≥30mg/mmol"]
+      SE.macroalb.unadj[i] <- sqrt(abs(fit.unadj$var[1]) + abs(fit.unadj$var[nrow(fit.unadj$var),nrow(fit.unadj$var)]) + 2 * vcov(fit.unadj)[1,nrow(fit.unadj$var)])
+      
+      #adjusted analyses
+      fit.adj <- coxph(f_adjusted2, cohort[cohort$.imp == i,])
+      
+      COEFS.noalb.adj[i] <- fit.adj$coefficients["studydrug2SGLT2i"]
+      SE.noalb.adj[i] <- sqrt(fit.adj$var[1,1])
+      
+      COEFS.microalb.adj[i] <- fit.adj$coefficients["studydrug2SGLT2i"] + fit.adj$coefficients["studydrug2SGLT2i:risk_groupuACR 3-30mg/mmol"]
+      SE.microalb.adj[i] <- sqrt(abs(fit.adj$var[1]) + abs(fit.adj$var[nrow(fit.adj$var)-1,nrow(fit.adj$var)-1]) + 2 * vcov(fit.adj)[1,nrow(fit.adj$var)-1])
+      
+      COEFS.macroalb.adj[i] <- fit.adj$coefficients["studydrug2SGLT2i"] + fit.adj$coefficients["studydrug2SGLT2i:risk_groupuACR ≥30mg/mmol"]
+      SE.macroalb.adj[i] <- sqrt(abs(fit.adj$var[1]) + abs(fit.adj$var[nrow(fit.adj$var),nrow(fit.adj$var)]) + 2 * vcov(fit.adj)[1,nrow(fit.adj$var)])
+      
+      if (k == "ckd_egfr50") {
+        if (i == n.imp) {
+          f_adjusted3 <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2 + risk_group + ", paste(covariates, collapse=" + ")))
+          fit.no_interaction <- coxph(f_adjusted3, cohort[cohort$.imp == i,])
+          
+          loglikelihood_test <- anova(fit.no_interaction, fit.adj, test = "Chisq")
+          p_value_interaction <- loglikelihood_test$`Pr(>|Chi|)`[2]      
+        }}
+      
+    }
+    
+    # pool hazard ratios
+    unadjusted_noalb <- pool.rubin.HR(COEFS.noalb.unadj, SE.noalb.unadj, n.imp)
+    adjusted_noalb <- pool.rubin.HR(COEFS.noalb.adj, SE.noalb.adj, n.imp)
+    
+    unadjusted_microalb <- pool.rubin.HR(COEFS.microalb.unadj, SE.microalb.unadj, n.imp)
+    adjusted_microalb <- pool.rubin.HR(COEFS.microalb.adj, SE.microalb.adj, n.imp)
+    
+    unadjusted_macroalb <- pool.rubin.HR(COEFS.macroalb.unadj, SE.macroalb.unadj, n.imp)
+    adjusted_macroalb <- pool.rubin.HR(COEFS.macroalb.adj, SE.macroalb.adj, n.imp)
+    
+    # save pooled HR and 95% confidence interval
+    unadjusted_noalb_string <- paste0(round(unadjusted_noalb[1], 2), " (", round(unadjusted_noalb[2], 2), ", ", round(unadjusted_noalb[3], 2), ")")
+    adjusted_noalb_string <- paste0(round(adjusted_noalb[1], 2), " (", round(adjusted_noalb[2], 2), ", ", round(adjusted_noalb[3], 2), ")")
+    
+    unadjusted_microalb_string <- paste0(round(unadjusted_microalb[1], 2), " (", round(unadjusted_microalb[2], 2), ", ", round(unadjusted_microalb[3], 2), ")")
+    adjusted_microalb_string <- paste0(round(adjusted_microalb[1], 2), " (", round(adjusted_microalb[2], 2), ", ", round(adjusted_microalb[3], 2), ")")
+    
+    unadjusted_macroalb_string <- paste0(round(unadjusted_macroalb[1], 2), " (", round(unadjusted_macroalb[2], 2), ", ", round(unadjusted_macroalb[3], 2), ")")
+    adjusted_macroalb_string <- paste0(round(adjusted_macroalb[1], 2), " (", round(adjusted_macroalb[2], 2), ", ", round(adjusted_macroalb[3], 2), ")")
+    
+    # combine in dataframe that we can tabulate
+    presegfr_noalb_hr <- cbind(outcome=k, count[1,c(2:3)], followup[1,c(2:3)], events[1,c(2:3)],
+                               unadjusted=unadjusted_noalb_string, adjusted=adjusted_noalb_string
+    )
+    presegfr_microalb_hr <- cbind(outcome=k, count[2,c(2:3)], followup[2,c(2:3)], events[2,c(2:3)],
+                                  unadjusted=unadjusted_microalb_string, adjusted=adjusted_microalb_string
+    )
+    
+    presegfr_macroalb_hr <- cbind(outcome=k, count[3,c(2:3)], followup[3,c(2:3)], events[3,c(2:3)],
+                                  unadjusted=unadjusted_macroalb_string, adjusted=adjusted_macroalb_string
+    )
+    outcome_subgroup_SGLT2ivsDPP4iSU_hrs <- rbind(presegfr_noalb_hr, presegfr_microalb_hr, presegfr_macroalb_hr)
+    
+    temp <- rbind(
+      cbind(outcome = k, contrast = "uACR <3mg/mmol", analysis = "Adjusted",
+            HR = adjusted_noalb[1], LB = adjusted_noalb[2], UB = adjusted_noalb[3], string = adjusted_noalb_string),
+      cbind(outcome = k, contrast = "uACR 3-30mg/mmol", analysis = "Adjusted",
+            HR = adjusted_microalb[1], LB = adjusted_microalb[2], UB = adjusted_microalb[3], string = adjusted_microalb_string),
+      cbind(outcome = k, contrast = "uACR ≥30mg/mmol", analysis = "Adjusted",
+            HR = adjusted_macroalb[1], LB = adjusted_macroalb[2], UB = adjusted_macroalb[3], string = adjusted_macroalb_string)
+    )
+    
+    subgroup_hrs <- rbind(subgroup_hrs, temp)
+    subgroup_SGLT2ivsDPP4iSU_hrs <- rbind(subgroup_SGLT2ivsDPP4iSU_hrs, outcome_subgroup_SGLT2ivsDPP4iSU_hrs)
+    
+  } 
+  else 
+  {
+    
+    temp2 <- cohort %>% filter(!risk_group %in% c("uACR ≥30mg/mmol")) %>% 
+      droplevels() # remove empty factor levels for risk_group
+    
+    # calculate number of subjects in each group
+    count <- temp2 %>%
+      mutate(risk_group==factor(risk_group, levels=c(
+        "uACR <3mg/mmol", 
+        "uACR 3-30mg/mmol"
+      ))) %>%
+      group_by(studydrug2, risk_group) %>%
+      summarise(count=round(n()/n.imp, 0)) %>% # the total number of subjects in the stacked imputed datasets has to be divided by the number of imputed datasets
+      pivot_wider(names_from=studydrug2,
+                  names_glue="{studydrug2}_count",
+                  values_from=count)
+    
+    # calculate median follow up time (years) per group
+    followup <- temp2 %>% 
+      mutate(risk_group==factor(risk_group, levels=c(
+        "uACR <3mg/mmol", 
+        "uACR 3-30mg/mmol"
+      ))) %>%
+      group_by(studydrug2,risk_group) %>%
+      summarise(time=round(median(!!sym(censtime_var)), 2)) %>%
+      pivot_wider(names_from=studydrug2,
+                  names_glue="{studydrug2}_followup",
+                  values_from=time)
+    
+    # summarise number of events per group
+    events <- temp2 %>%
+      mutate(risk_group==factor(risk_group, levels=c(
+        "uACR <3mg/mmol", 
+        "uACR 3-30mg/mmol"
+      )))  %>%
+      group_by(studydrug2,risk_group) %>%
+      summarise(event_count=round(sum(!!sym(censvar_var))/n.imp, 0),
+                drug_count=round(n()/n.imp, 0)) %>%
+      mutate(events_perc=round(event_count*100/drug_count, 1),
+             events=paste0(event_count, " (", events_perc, "%)")) %>%
+      select(studydrug2, risk_group, events) %>%
+      pivot_wider(names_from=studydrug2,
+                  names_glue="{studydrug2}_events",
+                  values_from=events)
+    
+    
+    # write formulas for adjusted and unadjusted analyses
+    f2 <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2*risk_group"))
+    
+    f_adjusted2 <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2*risk_group + ", paste(covariates, collapse=" + ")))
+    
+    # create empty vectors to store the hazard ratios from every imputed dataset
+    # for the unadjusted survival models
+    COEFS.noalb.unadj <- SE.noalb.unadj <-
+      COEFS.microalb.unadj <- SE.microalb.unadj <-
+      # for the adjusted survival models
+      COEFS.noalb.adj <- SE.noalb.adj <-
+      COEFS.microalb.adj <- SE.microalb.adj <-
+      rep(NA,n.imp)
+    
+    for (i in 1:n.imp) {
+      print(paste0("Analyses in imputed dataset number ", i))
+      
+      #unadjusted analyses first
+      fit.unadj <- coxph(f2, temp2[temp2$.imp == i,])
+      
+      #store coefficients and standard errors from this model
+      COEFS.noalb.unadj[i] <- fit.unadj$coefficients["studydrug2SGLT2i"]
+      SE.noalb.unadj[i] <- sqrt(fit.unadj$var[1,1])
+      
+      COEFS.microalb.unadj[i] <- fit.unadj$coefficients["studydrug2SGLT2i"] + fit.unadj$coefficients["studydrug2SGLT2i:risk_groupuACR 3-30mg/mmol"]
+      SE.microalb.unadj[i]  <- sqrt(abs(fit.unadj$var[1]) + abs(fit.unadj$var[nrow(fit.unadj$var),nrow(fit.unadj$var)]) + 2 * vcov(fit.unadj)[1,nrow(fit.unadj$var)])
+      
+      #adjusted analyses
+      fit.adj <- coxph(f_adjusted2, temp2[temp2$.imp == i,])
+      
+      COEFS.noalb.adj[i] <- fit.adj$coefficients["studydrug2SGLT2i"]
+      SE.noalb.adj[i] <- sqrt(fit.adj$var[1,1])
+      
+      COEFS.microalb.adj[i] <- fit.adj$coefficients["studydrug2SGLT2i"] + fit.adj$coefficients["studydrug2SGLT2i:risk_groupuACR 3-30mg/mmol"]
+      SE.microalb.adj[i] <- sqrt(abs(fit.adj$var[1]) + abs(fit.adj$var[nrow(fit.adj$var),nrow(fit.adj$var)]) + 2 * vcov(fit.adj)[1,nrow(fit.adj$var)])
+      
+    }
+    
+    # pool hazard ratios
+    unadjusted_noalb <- pool.rubin.HR(COEFS.noalb.unadj, SE.noalb.unadj, n.imp)
+    adjusted_noalb <- pool.rubin.HR(COEFS.noalb.adj, SE.noalb.adj, n.imp)
+    
+    unadjusted_microalb <- pool.rubin.HR(COEFS.microalb.unadj, SE.microalb.unadj, n.imp)
+    adjusted_microalb <- pool.rubin.HR(COEFS.microalb.adj, SE.microalb.adj, n.imp)
+    
+    # save pooled HR and 95% confidence interval
+    unadjusted_noalb_string <- paste0(round(unadjusted_noalb[1], 2), " (", round(unadjusted_noalb[2], 2), ", ", round(unadjusted_noalb[3], 2), ")")
+    adjusted_noalb_string <- paste0(round(adjusted_noalb[1], 2), " (", round(adjusted_noalb[2], 2), ", ", round(adjusted_noalb[3], 2), ")")
+    
+    unadjusted_microalb_string <- paste0(round(unadjusted_microalb[1], 2), " (", round(unadjusted_microalb[2], 2), ", ", round(unadjusted_microalb[3], 2), ")")
+    adjusted_microalb_string <- paste0(round(adjusted_microalb[1], 2), " (", round(adjusted_microalb[2], 2), ", ", round(adjusted_microalb[3], 2), ")")
+    
+    # combine in dataframe that we can tabulate
+    presegfr_noalb_hr <- cbind(outcome=k, count[1,c(2:3)], followup[1,c(2:3)], events[1,c(2:3)],
+                               unadjusted=unadjusted_noalb_string, adjusted=adjusted_noalb_string
+    )
+    presegfr_microalb_hr <- cbind(outcome=k, count[2,c(2:3)], followup[2,c(2:3)], events[2,c(2:3)],
+                                  unadjusted=unadjusted_microalb_string, adjusted=adjusted_microalb_string
+    )
+    presegfr_macroalb_hr <- cbind(outcome=k, "DPP4i/SU_count"=NA, SGLT2i_count=NA, "DPP4i/SU_followup"=NA,
+                                  SGLT2i_followup=NA, "DPP4i/SU_events"=NA, SGLT2i_events=NA,
+                                  unadjusted=NA, adjusted=NA
+    ) %>% data.frame(check.names=F)
+    
+    
+    outcome_subgroup_SGLT2ivsDPP4iSU_hrs <- rbind(presegfr_noalb_hr, presegfr_microalb_hr, presegfr_macroalb_hr)
+    
+    temp <- rbind(
+      cbind(outcome = k, contrast = "uACR <3mg/mmol", analysis = "Adjusted",
+            HR = adjusted_noalb[1], LB = adjusted_noalb[2], UB = adjusted_noalb[3], string = adjusted_noalb_string),
+      cbind(outcome = k, contrast = "uACR 3-30mg/mmol", analysis = "Adjusted",
+            HR = adjusted_microalb[1], LB = adjusted_microalb[2], UB = adjusted_microalb[3], string = adjusted_microalb_string),
+      cbind(outcome = k, contrast = "uACR ≥30mg/mmol", analysis = "Adjusted",
+            HR = NA, LB = NA, UB = NA, string = NA)
+    )
+    
+    subgroup_hrs <- rbind(subgroup_hrs, temp)
+    subgroup_SGLT2ivsDPP4iSU_hrs <- rbind(subgroup_SGLT2ivsDPP4iSU_hrs, outcome_subgroup_SGLT2ivsDPP4iSU_hrs)
+  }
+}
+
+
+############################4 STORE HAZARD RATIOS################################################################
 
 # save all_hrs table and SGLT2i vs DPP4i/su table
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/output/")
@@ -602,9 +885,13 @@ setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/output/")
 save(all_hrs, file=paste0(today, "_all_hrs.Rda"))
 save(all_SGLT2ivsDPP4iSU_hrs, file=paste0(today, "_all_SGLT2ivsDPP4iSU_hrs.Rda"))
 save(SGLT2ivsDPP4iSU_hrs, file=paste0(today, "_SGLT2ivsDPP4iSU_hrs.Rda"))
-# load("2024-07-13_all_hrs.Rda")
-# load("2024-07-13_all_SGLT2ivsDPP4iSU_hrs.Rda")
-# load("2024-07-13_SGLT2ivsDPP4iSU_hrs.Rda")
+save(subgroup_hrs, file=paste0(today, "_subgroup_hrs.Rda"))
+save(subgroup_SGLT2ivsDPP4iSU_hrs, file=paste0(today, "_subgroup_SGLT2ivsDPP4iSU_hrs.Rda"))
+# load("2024-10-29_all_hrs.Rda")
+# load("2024-10-29_all_SGLT2ivsDPP4iSU_hrs.Rda")
+# load("2024-10-29_SGLT2ivsDPP4iSU_hrs.Rda")
+# load("2024-10-29_subgroup_hrs.Rda")
+# load("2024-10-29_subgroup_SGLT2ivsDPP4iSU_hrs.Rda")
 
 # show table with events, follow up time, and hazard ratios
 flextable(all_sglt2i_hrs)
@@ -612,6 +899,7 @@ flextable(all_dpp4i_hrs)
 flextable(all_SGLT2ivsDPP4i_hrs)
 flextable(all_SGLT2ivsDPP4iSU_hrs)
 flextable(SGLT2ivsDPP4iSU_hrs)
+flextable(subgroup_SGLT2ivsDPP4iSU_hrs)
 
 all_hrs$model <- paste0(all_hrs$string, " [", all_hrs$analysis, "]")
 all_hrs$model <- factor(all_hrs$model, levels = unique(all_hrs$model))
@@ -621,14 +909,16 @@ all_SGLT2ivsDPP4iSU_hrs$model <- factor(all_SGLT2ivsDPP4iSU_hrs$model, levels = 
 
 # have to coerce HR and CI to class numeric as they sometimes default to character
 class(all_hrs$HR) <- class(all_hrs$LB) <- class(all_hrs$UB) <-
-  class(all_SGLT2ivsDPP4iSU_hrs$HR) <- class(all_SGLT2ivsDPP4iSU_hrs$LB) <- class(all_SGLT2ivsDPP4iSU_hrs$UB) <- "numeric"
-
+  class(all_SGLT2ivsDPP4iSU_hrs$HR) <- class(all_SGLT2ivsDPP4iSU_hrs$LB) <- class(all_SGLT2ivsDPP4iSU_hrs$UB) <- 
+  class(subgroup_hrs$HR) <- class(subgroup_hrs$LB) <- class(subgroup_hrs$UB) <- "numeric"
+  
 # remove unadjusted HR as we do not want to plot these
 all_hrs <- all_hrs[!all_hrs$analysis == "Unadjusted",]
 all_SGLT2ivsDPP4iSU_hrs <- all_SGLT2ivsDPP4iSU_hrs[!all_SGLT2ivsDPP4iSU_hrs$analysis == "Unadjusted",]
 
 #add event count and total count to hr dataframe
 all_SGLT2ivsDPP4iSU_hrs <- all_SGLT2ivsDPP4iSU_hrs %>% left_join(SGLT2ivsDPP4iSU_hrs %>% select(1:7))
+subgroup_hrs <- subgroup_hrs %>% cbind(subgroup_SGLT2ivsDPP4iSU_hrs %>% select(-c(outcome, adjusted, unadjusted)))
 
 
 all_hrs <- all_hrs %>%
@@ -655,425 +945,15 @@ all_SGLT2ivsDPP4iSU_hrs <- all_SGLT2ivsDPP4iSU_hrs %>%
     SGLT2i_nN = paste0(SGLT2i_events_number, "/", SGLT2i_count)
   )
 
-############################4 SUBGROUP ANALYSES################################################################
-
-cohort <- cohort %>% mutate(
-  risk_group = factor(risk_group, levels=c("eGFR ≥60mL/min/1.73m2, uACR <3mg/mmol", 
-                                           "eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol",
-                                           "eGFR ≥60mL/min/1.73m2, uACR ≥30mg/mmol",
-                                           "eGFR <60mL/min/1.73m2, uACR <3mg/mmol",
-                                           "eGFR <60mL/min/1.73m2, uACR 3-30mg/mmol",
-                                           "eGFR <60mL/min/1.73m2, uACR ≥30mg/mmol")))
-
-
-#create empty data frame to which we can append the hazard ratios once calculated
-subgroup_SGLT2ivsDPP4iSU_hrs <- subgroup_hrs <- data.frame()
-
-
-## analyses stratified by risk group
-for (k in kf_key_outcomes) {
-  
-  print(paste0("Calculating hazard ratios for outcome ", k))
-  
-  censvar_var=paste0(k, "_censvar")
-  censtime_var=paste0(k, "_censtime_yrs")
-  
-  if (!k == "macroalb") {
-    
-    # calculate number of subjects in each group
-    count <- cohort %>%
-      mutate(risk_group = factor(risk_group, levels=c("eGFR ≥60mL/min/1.73m2, uACR <3mg/mmol", 
-                                                      "eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol",
-                                                      "eGFR ≥60mL/min/1.73m2, uACR ≥30mg/mmol",
-                                                      "eGFR <60mL/min/1.73m2, uACR <3mg/mmol",
-                                                      "eGFR <60mL/min/1.73m2, uACR 3-30mg/mmol",
-                                                      "eGFR <60mL/min/1.73m2, uACR ≥30mg/mmol"))) %>%
-      group_by(studydrug2,risk_group) %>%
-      summarise(count=round(n()/n.imp, 0)) %>% # the total number of subjects in the stacked imputed datasets has to be divided by the number of imputed datasets
-      pivot_wider(names_from=studydrug2,
-                  names_glue="{studydrug2}_count",
-                  values_from=count)
-    
-    # calculate median follow up time (years) per group
-    followup <- cohort %>%
-      mutate(risk_group = factor(risk_group, levels=c("eGFR ≥60mL/min/1.73m2, uACR <3mg/mmol", 
-                                                      "eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol",
-                                                      "eGFR ≥60mL/min/1.73m2, uACR ≥30mg/mmol",
-                                                      "eGFR <60mL/min/1.73m2, uACR <3mg/mmol",
-                                                      "eGFR <60mL/min/1.73m2, uACR 3-30mg/mmol",
-                                                      "eGFR <60mL/min/1.73m2, uACR ≥30mg/mmol"))) %>%
-      group_by(studydrug2,risk_group) %>%
-      summarise(time=round(median(!!sym(censtime_var)), 2)) %>%
-      pivot_wider(names_from=studydrug2,
-                  names_glue="{studydrug2}_followup",
-                  values_from=time)
-    
-    # summarise number of events per group
-    events <- cohort %>%
-      mutate(risk_group = factor(risk_group, levels=c("eGFR ≥60mL/min/1.73m2, uACR <3mg/mmol", 
-                                                      "eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol",
-                                                      "eGFR ≥60mL/min/1.73m2, uACR ≥30mg/mmol",
-                                                      "eGFR <60mL/min/1.73m2, uACR <3mg/mmol",
-                                                      "eGFR <60mL/min/1.73m2, uACR 3-30mg/mmol",
-                                                      "eGFR <60mL/min/1.73m2, uACR ≥30mg/mmol"))) %>%
-      group_by(studydrug2,risk_group) %>%
-      summarise(event_count=round(sum(!!sym(censvar_var))/n.imp, 0),
-                drug_count=round(n()/n.imp, 0)) %>%
-      mutate(events_perc=round(event_count*100/drug_count, 1),
-             events=paste0(event_count, " (", events_perc, "%)")) %>%
-      select(studydrug2, risk_group, events) %>%
-      pivot_wider(names_from=studydrug2,
-                  names_glue="{studydrug2}_events",
-                  values_from=events)
-    
-    
-    # write formulas for adjusted and unadjusted analyses
-    f2 <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2*risk_group"))
-    
-    f_adjusted2 <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2*risk_group + ", paste(covariates, collapse=" + ")))
-    
-    # create empty vectors to store the hazard ratios from every imputed dataset
-    # for the unadjusted survival models
-    COEFS.presegfr.noalb.unadj <- SE.presegfr.noalb.unadj <-
-      COEFS.presegfr.microalb.unadj <- SE.presegfr.microalb.unadj <-
-      COEFS.presegfr.macroalb.unadj <- SE.presegfr.macroalb.unadj <-      
-      COEFS.redegfr.noalb.unadj <- SE.redegfr.noalb.unadj <-
-      COEFS.redegfr.microalb.unadj <- SE.redegfr.microalb.unadj <-
-      COEFS.redegfr.macroalb.unadj <- SE.redegfr.macroalb.unadj <-
-      # for the adjusted survival models
-      COEFS.presegfr.noalb.adj <- SE.presegfr.noalb.adj <-
-      COEFS.presegfr.microalb.adj <- SE.presegfr.microalb.adj <-
-      COEFS.presegfr.macroalb.adj <- SE.presegfr.macroalb.adj <-      
-      COEFS.redegfr.noalb.adj <- SE.redegfr.noalb.adj <-
-      COEFS.redegfr.microalb.adj <- SE.redegfr.microalb.adj <-
-      COEFS.redegfr.macroalb.adj <- SE.redegfr.macroalb.adj <-
-      rep(NA,n.imp)
-    
-    for (i in 1:n.imp) {
-      print(paste0("Analyses in imputed dataset number ", i))
-      
-      #unadjusted analyses first
-      fit.unadj <- coxph(f2, cohort[cohort$.imp == i,])
-      
-      #store coefficients and standard errors from this model
-      COEFS.presegfr.noalb.unadj[i] <- fit.unadj$coefficients["studydrug2SGLT2i"]
-      SE.presegfr.noalb.unadj[i] <- sqrt(fit.unadj$var[1,1])
-      
-      COEFS.presegfr.microalb.unadj[i] <- fit.unadj$coefficients["studydrug2SGLT2i"] + fit.unadj$coefficients["studydrug2SGLT2i:risk_groupeGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol"]
-      SE.presegfr.microalb.unadj[i] <- sqrt(abs(fit.unadj$var[1]) + abs(fit.unadj$var[nrow(fit.unadj$var)-4,nrow(fit.unadj$var)-4]) + 2 * vcov(fit.unadj)[1,nrow(fit.unadj$var)-4])
-      
-      COEFS.presegfr.macroalb.unadj[i] <- fit.unadj$coefficients["studydrug2SGLT2i"] + fit.unadj$coefficients["studydrug2SGLT2i:risk_groupeGFR ≥60mL/min/1.73m2, uACR ≥30mg/mmol"]
-      SE.presegfr.macroalb.unadj[i] <- sqrt(abs(fit.unadj$var[1]) + abs(fit.unadj$var[nrow(fit.unadj$var)-3,nrow(fit.unadj$var)-3]) + 2 * vcov(fit.unadj)[1,nrow(fit.unadj$var)-3])
-      
-      COEFS.redegfr.noalb.unadj[i] <- fit.unadj$coefficients["studydrug2SGLT2i"] + fit.unadj$coefficients["studydrug2SGLT2i:risk_groupeGFR <60mL/min/1.73m2, uACR <3mg/mmol"]
-      SE.redegfr.noalb.unadj[i] <- sqrt(abs(fit.unadj$var[1]) + abs(fit.unadj$var[nrow(fit.unadj$var)-2,nrow(fit.unadj$var)-2]) + 2 * vcov(fit.unadj)[1,nrow(fit.unadj$var)-2])
-      
-      COEFS.redegfr.microalb.unadj[i] <- fit.unadj$coefficients["studydrug2SGLT2i"] + fit.unadj$coefficients["studydrug2SGLT2i:risk_groupeGFR <60mL/min/1.73m2, uACR 3-30mg/mmol"]
-      SE.redegfr.microalb.unadj[i] <- sqrt(abs(fit.unadj$var[1]) + abs(fit.unadj$var[nrow(fit.unadj$var)-1,nrow(fit.unadj$var)-1]) + 2 * vcov(fit.unadj)[1,nrow(fit.unadj$var)-1])
-      
-      COEFS.redegfr.macroalb.unadj[i] <- fit.unadj$coefficients["studydrug2SGLT2i"] + fit.unadj$coefficients["studydrug2SGLT2i:risk_groupeGFR <60mL/min/1.73m2, uACR ≥30mg/mmol"]
-      SE.redegfr.macroalb.unadj[i] <- sqrt(abs(fit.unadj$var[1]) + abs(fit.unadj$var[nrow(fit.unadj$var),nrow(fit.unadj$var)]) + 2 * vcov(fit.unadj)[1,nrow(fit.unadj$var)])
-      
-      #adjusted analyses
-      fit.adj <- coxph(f_adjusted2, cohort[cohort$.imp == i,])
-      
-      COEFS.presegfr.noalb.adj[i] <- fit.adj$coefficients["studydrug2SGLT2i"]
-      SE.presegfr.noalb.adj[i] <- sqrt(fit.adj$var[1,1])
-      
-      COEFS.presegfr.microalb.adj[i] <- fit.adj$coefficients["studydrug2SGLT2i"] + fit.adj$coefficients["studydrug2SGLT2i:risk_groupeGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol"]
-      SE.presegfr.microalb.adj[i] <- sqrt(abs(fit.adj$var[1]) + abs(fit.adj$var[nrow(fit.adj$var)-4,nrow(fit.adj$var)-4]) + 2 * vcov(fit.adj)[1,nrow(fit.adj$var)-4])
-      
-      COEFS.presegfr.macroalb.adj[i] <- fit.adj$coefficients["studydrug2SGLT2i"] + fit.adj$coefficients["studydrug2SGLT2i:risk_groupeGFR ≥60mL/min/1.73m2, uACR ≥30mg/mmol"]
-      SE.presegfr.macroalb.adj[i] <- sqrt(abs(fit.adj$var[1]) + abs(fit.adj$var[nrow(fit.adj$var)-3,nrow(fit.adj$var)-3]) + 2 * vcov(fit.adj)[1,nrow(fit.adj$var)-3])
-      
-      COEFS.redegfr.noalb.adj[i] <- fit.adj$coefficients["studydrug2SGLT2i"] + fit.adj$coefficients["studydrug2SGLT2i:risk_groupeGFR <60mL/min/1.73m2, uACR <3mg/mmol"]
-      SE.redegfr.noalb.adj[i] <- sqrt(abs(fit.adj$var[1]) + abs(fit.adj$var[nrow(fit.adj$var)-2,nrow(fit.adj$var)-2]) + 2 * vcov(fit.adj)[1,nrow(fit.adj$var)-2])
-      
-      COEFS.redegfr.microalb.adj[i] <- fit.adj$coefficients["studydrug2SGLT2i"] + fit.adj$coefficients["studydrug2SGLT2i:risk_groupeGFR <60mL/min/1.73m2, uACR 3-30mg/mmol"]
-      SE.redegfr.microalb.adj[i] <- sqrt(abs(fit.adj$var[1]) + abs(fit.adj$var[nrow(fit.adj$var)-1,nrow(fit.adj$var)-1]) + 2 * vcov(fit.adj)[1,nrow(fit.adj$var)-1])
-      
-      COEFS.redegfr.macroalb.adj[i] <- fit.adj$coefficients["studydrug2SGLT2i"] + fit.adj$coefficients["studydrug2SGLT2i:risk_groupeGFR <60mL/min/1.73m2, uACR ≥30mg/mmol"]
-      SE.redegfr.macroalb.adj[i] <- sqrt(abs(fit.adj$var[1]) + abs(fit.adj$var[nrow(fit.adj$var),nrow(fit.adj$var)]) + 2 * vcov(fit.adj)[1,nrow(fit.adj$var)])
-      
-      if (k == "ckd_egfr50") {
-        if (i == n.imp) {
-          f_adjusted3 <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2 + risk_group + ", paste(covariates, collapse=" + ")))
-          fit.no_interaction <- coxph(f_adjusted3, cohort[cohort$.imp == i,])
-          
-          loglikelihood_test <- anova(fit.no_interaction, fit.adj, test = "Chisq")
-          p_value_interaction <- loglikelihood_test$`Pr(>|Chi|)`[2]      
-        }}
-      
-    }
-    
-    # pool hazard ratios
-    unadjusted_presegfr_noalb <- pool.rubin.HR(COEFS.presegfr.noalb.unadj, SE.presegfr.noalb.unadj, n.imp)
-    adjusted_presegfr_noalb <- pool.rubin.HR(COEFS.presegfr.noalb.adj, SE.presegfr.noalb.adj, n.imp)
-    
-    unadjusted_presegfr_microalb <- pool.rubin.HR(COEFS.presegfr.microalb.unadj, SE.presegfr.microalb.unadj, n.imp)
-    adjusted_presegfr_microalb <- pool.rubin.HR(COEFS.presegfr.microalb.adj, SE.presegfr.microalb.adj, n.imp)
-    
-    unadjusted_presegfr_macroalb <- pool.rubin.HR(COEFS.presegfr.macroalb.unadj, SE.presegfr.macroalb.unadj, n.imp)
-    adjusted_presegfr_macroalb <- pool.rubin.HR(COEFS.presegfr.macroalb.adj, SE.presegfr.macroalb.adj, n.imp)
-    
-    unadjusted_redegfr_noalb <- pool.rubin.HR(COEFS.redegfr.noalb.unadj, SE.redegfr.noalb.unadj, n.imp)
-    adjusted_redegfr_noalb <- pool.rubin.HR(COEFS.redegfr.noalb.adj, SE.redegfr.noalb.adj, n.imp)
-    
-    unadjusted_redegfr_microalb <- pool.rubin.HR(COEFS.redegfr.microalb.unadj, SE.redegfr.microalb.unadj, n.imp)
-    adjusted_redegfr_microalb <- pool.rubin.HR(COEFS.redegfr.microalb.adj, SE.redegfr.microalb.adj, n.imp)
-    
-    unadjusted_redegfr_macroalb <- pool.rubin.HR(COEFS.redegfr.macroalb.unadj, SE.redegfr.macroalb.unadj, n.imp)
-    adjusted_redegfr_macroalb <- pool.rubin.HR(COEFS.redegfr.macroalb.adj, SE.redegfr.macroalb.adj, n.imp)
-    
-    # save pooled HR and 95% confidence interval
-    unadjusted_presegfr_noalb_string <- paste0(round(unadjusted_presegfr_noalb[1], 2), " (", round(unadjusted_presegfr_noalb[2], 2), ", ", round(unadjusted_presegfr_noalb[3], 2), ")")
-    adjusted_presegfr_noalb_string <- paste0(round(adjusted_presegfr_noalb[1], 2), " (", round(adjusted_presegfr_noalb[2], 2), ", ", round(adjusted_presegfr_noalb[3], 2), ")")
-    
-    unadjusted_presegfr_microalb_string <- paste0(round(unadjusted_presegfr_microalb[1], 2), " (", round(unadjusted_presegfr_microalb[2], 2), ", ", round(unadjusted_presegfr_microalb[3], 2), ")")
-    adjusted_presegfr_microalb_string <- paste0(round(adjusted_presegfr_microalb[1], 2), " (", round(adjusted_presegfr_microalb[2], 2), ", ", round(adjusted_presegfr_microalb[3], 2), ")")
-    
-    unadjusted_presegfr_macroalb_string <- paste0(round(unadjusted_presegfr_macroalb[1], 2), " (", round(unadjusted_presegfr_macroalb[2], 2), ", ", round(unadjusted_presegfr_macroalb[3], 2), ")")
-    adjusted_presegfr_macroalb_string <- paste0(round(adjusted_presegfr_macroalb[1], 2), " (", round(adjusted_presegfr_macroalb[2], 2), ", ", round(adjusted_presegfr_macroalb[3], 2), ")")
-    
-    unadjusted_redegfr_noalb_string <- paste0(round(unadjusted_redegfr_noalb[1], 2), " (", round(unadjusted_redegfr_noalb[2], 2), ", ", round(unadjusted_redegfr_noalb[3], 2), ")")
-    adjusted_redegfr_noalb_string <- paste0(round(adjusted_redegfr_noalb[1], 2), " (", round(adjusted_redegfr_noalb[2], 2), ", ", round(adjusted_redegfr_noalb[3], 2), ")")
-    
-    unadjusted_redegfr_microalb_string <- paste0(round(unadjusted_redegfr_microalb[1], 2), " (", round(unadjusted_redegfr_microalb[2], 2), ", ", round(unadjusted_redegfr_microalb[3], 2), ")")
-    adjusted_redegfr_microalb_string <- paste0(round(adjusted_redegfr_microalb[1], 2), " (", round(adjusted_redegfr_microalb[2], 2), ", ", round(adjusted_redegfr_microalb[3], 2), ")")
-    
-    unadjusted_redegfr_macroalb_string <- paste0(round(unadjusted_redegfr_macroalb[1], 2), " (", round(unadjusted_redegfr_macroalb[2], 2), ", ", round(unadjusted_redegfr_macroalb[3], 2), ")")
-    adjusted_redegfr_macroalb_string <- paste0(round(adjusted_redegfr_macroalb[1], 2), " (", round(adjusted_redegfr_macroalb[2], 2), ", ", round(adjusted_redegfr_macroalb[3], 2), ")")
-    
-    # combine in dataframe that we can tabulate
-    presegfr_noalb_hr <- cbind(outcome=k, count[1,c(2:3)], followup[1,c(2:3)], events[1,c(2:3)],
-                               unadjusted=unadjusted_presegfr_noalb_string, adjusted=adjusted_presegfr_noalb_string
-    )
-    presegfr_microalb_hr <- cbind(outcome=k, count[2,c(2:3)], followup[2,c(2:3)], events[2,c(2:3)],
-                                  unadjusted=unadjusted_presegfr_microalb_string, adjusted=adjusted_presegfr_microalb_string
-    )
-    presegfr_macroalb_hr <- cbind(outcome=k, count[3,c(2:3)], followup[3,c(2:3)], events[3,c(2:3)],
-                                  unadjusted=unadjusted_presegfr_macroalb_string, adjusted=adjusted_presegfr_macroalb_string
-    )
-    redegfr_noalb_hr <- cbind(outcome=k, count[4,c(2:3)], followup[4,c(2:3)], events[4,c(2:3)],
-                              unadjusted=unadjusted_redegfr_noalb_string, adjusted=adjusted_redegfr_noalb_string
-    )
-    redegfr_microalb_hr <- cbind(outcome=k, count[5,c(2:3)], followup[5,c(2:3)], events[5,c(2:3)],
-                                 unadjusted=unadjusted_redegfr_microalb_string, adjusted=adjusted_redegfr_microalb_string
-    )
-    redegfr_macroalb_hr <- cbind(outcome=k, count[6,c(2:3)], followup[6,c(2:3)], events[6,c(2:3)],
-                                 unadjusted=unadjusted_redegfr_macroalb_string, adjusted=adjusted_redegfr_macroalb_string
-    )
-    
-    outcome_subgroup_SGLT2ivsDPP4iSU_hrs <- rbind(presegfr_noalb_hr, presegfr_microalb_hr, presegfr_macroalb_hr,
-                                                  redegfr_noalb_hr, redegfr_microalb_hr, redegfr_macroalb_hr)
-    
-    temp <- rbind(
-      cbind(outcome = k, contrast = "eGFR ≥60mL/min/1.73m2, uACR <3mg/mmol", analysis = "Adjusted",
-            HR = adjusted_presegfr_noalb[1], LB = adjusted_presegfr_noalb[2], UB = adjusted_presegfr_noalb[3], string = adjusted_presegfr_noalb_string),
-      cbind(outcome = k, contrast = "eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol", analysis = "Adjusted",
-            HR = adjusted_presegfr_microalb[1], LB = adjusted_presegfr_microalb[2], UB = adjusted_presegfr_microalb[3], string = adjusted_presegfr_microalb_string),
-      cbind(outcome = k, contrast = "eGFR ≥60mL/min/1.73m2, uACR ≥30mg/mmol", analysis = "Adjusted",
-            HR = adjusted_presegfr_macroalb[1], LB = adjusted_presegfr_macroalb[2], UB = adjusted_presegfr_macroalb[3], string = adjusted_presegfr_macroalb_string),
-      cbind(outcome = k, contrast = "eGFR <60mL/min/1.73m2, uACR <3mg/mmol", analysis = "Adjusted",
-            HR = adjusted_redegfr_noalb[1], LB = adjusted_redegfr_noalb[2], UB = adjusted_redegfr_noalb[3], string = adjusted_redegfr_noalb_string),
-      cbind(outcome = k, contrast = "eGFR <60mL/min/1.73m2, uACR 3-30mg/mmol", analysis = "Adjusted",
-            HR = adjusted_redegfr_microalb[1], LB = adjusted_redegfr_microalb[2], UB = adjusted_redegfr_microalb[3], string = adjusted_redegfr_microalb_string),
-      cbind(outcome = k, contrast = "eGFR <60mL/min/1.73m2, uACR ≥30mg/mmol", analysis = "Adjusted",
-            HR = adjusted_redegfr_macroalb[1], LB = adjusted_redegfr_macroalb[2], UB = adjusted_redegfr_macroalb[3], string = adjusted_redegfr_macroalb_string)
-    )
-    
-    subgroup_hrs <- rbind(subgroup_hrs, temp)
-    subgroup_SGLT2ivsDPP4iSU_hrs <- rbind(subgroup_SGLT2ivsDPP4iSU_hrs, outcome_subgroup_SGLT2ivsDPP4iSU_hrs)
-    
-  } 
-  else 
-  {
-    
-    temp2 <- cohort[cohort$uacr < 30,]
-    
-    # calculate number of subjects in each group
-    count <- temp2 %>%
-      mutate(risk_group = factor(risk_group, levels=c("eGFR ≥60mL/min/1.73m2, uACR <3mg/mmol", 
-                                                      "eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol",
-                                                      "eGFR ≥60mL/min/1.73m2, uACR ≥30mg/mmol",
-                                                      "eGFR <60mL/min/1.73m2, uACR <3mg/mmol",
-                                                      "eGFR <60mL/min/1.73m2, uACR 3-30mg/mmol",
-                                                      "eGFR <60mL/min/1.73m2, uACR ≥30mg/mmol"))) %>%
-      group_by(studydrug2, risk_group) %>%
-      summarise(count=round(n()/n.imp, 0)) %>% # the total number of subjects in the stacked imputed datasets has to be divided by the number of imputed datasets
-      pivot_wider(names_from=studydrug2,
-                  names_glue="{studydrug2}_count",
-                  values_from=count)
-    
-    # calculate median follow up time (years) per group
-    followup <- temp2 %>%
-      mutate(risk_group = factor(risk_group, levels=c("eGFR ≥60mL/min/1.73m2, uACR <3mg/mmol", 
-                                                      "eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol",
-                                                      "eGFR ≥60mL/min/1.73m2, uACR ≥30mg/mmol",
-                                                      "eGFR <60mL/min/1.73m2, uACR <3mg/mmol",
-                                                      "eGFR <60mL/min/1.73m2, uACR 3-30mg/mmol",
-                                                      "eGFR <60mL/min/1.73m2, uACR ≥30mg/mmol"))) %>%
-      group_by(studydrug2,risk_group) %>%
-      summarise(time=round(median(!!sym(censtime_var)), 2)) %>%
-      pivot_wider(names_from=studydrug2,
-                  names_glue="{studydrug2}_followup",
-                  values_from=time)
-    
-    # summarise number of events per group
-    events <- temp2 %>%
-      mutate(risk_group = factor(risk_group, levels=c("eGFR ≥60mL/min/1.73m2, uACR <3mg/mmol", 
-                                                      "eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol",
-                                                      "eGFR ≥60mL/min/1.73m2, uACR ≥30mg/mmol",
-                                                      "eGFR <60mL/min/1.73m2, uACR <3mg/mmol",
-                                                      "eGFR <60mL/min/1.73m2, uACR 3-30mg/mmol",
-                                                      "eGFR <60mL/min/1.73m2, uACR ≥30mg/mmol"))) %>%
-      group_by(studydrug2,risk_group) %>%
-      summarise(event_count=round(sum(!!sym(censvar_var))/n.imp, 0),
-                drug_count=round(n()/n.imp, 0)) %>%
-      mutate(events_perc=round(event_count*100/drug_count, 1),
-             events=paste0(event_count, " (", events_perc, "%)")) %>%
-      select(studydrug2, risk_group, events) %>%
-      pivot_wider(names_from=studydrug2,
-                  names_glue="{studydrug2}_events",
-                  values_from=events)
-    
-    
-    # write formulas for adjusted and unadjusted analyses
-    f2 <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2*risk_group"))
-    
-    f_adjusted2 <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2*risk_group + ", paste(covariates, collapse=" + ")))
-    
-    # create empty vectors to store the hazard ratios from every imputed dataset
-    # for the unadjusted survival models
-    COEFS.presegfr.noalb.unadj <- SE.presegfr.noalb.unadj <-
-      COEFS.presegfr.microalb.unadj <- SE.presegfr.microalb.unadj <-
-      # COEFS.presegfr.macroalb.unadj <- SE.presegfr.macroalb.unadj <-      
-      COEFS.redegfr.noalb.unadj <- SE.redegfr.noalb.unadj <-
-      COEFS.redegfr.microalb.unadj <- SE.redegfr.microalb.unadj <-
-      # COEFS.redegfr.macroalb.unadj <- SE.redegfr.macroalb.unadj <-
-      # for the adjusted survival models
-      COEFS.presegfr.noalb.adj <- SE.presegfr.noalb.adj <-
-      COEFS.presegfr.microalb.adj <- SE.presegfr.microalb.adj <-
-      # COEFS.presegfr.macroalb.adj <- SE.presegfr.macroalb.adj <-      
-      COEFS.redegfr.noalb.adj <- SE.redegfr.noalb.adj <-
-      COEFS.redegfr.microalb.adj <- SE.redegfr.microalb.adj <-
-      # COEFS.redegfr.macroalb.adj <- SE.redegfr.macroalb.adj <-
-      rep(NA,n.imp)
-    
-    for (i in 1:n.imp) {
-      print(paste0("Analyses in imputed dataset number ", i))
-      
-      #unadjusted analyses first
-      fit.unadj <- coxph(f2, temp2[temp2$.imp == i,])
-      
-      #store coefficients and standard errors from this model
-      COEFS.presegfr.noalb.unadj[i] <- fit.unadj$coefficients["studydrug2SGLT2i"]
-      SE.presegfr.noalb.unadj[i] <- sqrt(fit.unadj$var[1,1])
-      
-      COEFS.presegfr.microalb.unadj[i] <- fit.unadj$coefficients["studydrug2SGLT2i"] + fit.unadj$coefficients["studydrug2SGLT2i:risk_groupeGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol"]
-      SE.presegfr.microalb.unadj[i] <- sqrt(abs(fit.unadj$var[1]) + abs(fit.unadj$var[nrow(fit.unadj$var)-2,nrow(fit.unadj$var)-2]) + 2 * vcov(fit.unadj)[1,nrow(fit.unadj$var)-2])
-      
-      COEFS.redegfr.noalb.unadj[i] <- fit.unadj$coefficients["studydrug2SGLT2i"] + fit.unadj$coefficients["studydrug2SGLT2i:risk_groupeGFR <60mL/min/1.73m2, uACR <3mg/mmol"]
-      SE.redegfr.noalb.unadj[i] <- sqrt(abs(fit.unadj$var[1]) + abs(fit.unadj$var[nrow(fit.unadj$var)-1,nrow(fit.unadj$var)-1]) + 2 * vcov(fit.unadj)[1,nrow(fit.unadj$var)-1])
-      
-      COEFS.redegfr.microalb.unadj[i] <- fit.unadj$coefficients["studydrug2SGLT2i"] + fit.unadj$coefficients["studydrug2SGLT2i:risk_groupeGFR <60mL/min/1.73m2, uACR 3-30mg/mmol"]
-      SE.redegfr.microalb.unadj[i] <- sqrt(abs(fit.unadj$var[1]) + abs(fit.unadj$var[nrow(fit.unadj$var),nrow(fit.unadj$var)]) + 2 * vcov(fit.unadj)[1,nrow(fit.unadj$var)])
-      
-      #adjusted analyses
-      fit.adj <- coxph(f_adjusted2, temp2[temp2$.imp == i,])
-      
-      COEFS.presegfr.noalb.adj[i] <- fit.adj$coefficients["studydrug2SGLT2i"]
-      SE.presegfr.noalb.adj[i] <- sqrt(fit.adj$var[1,1])
-      
-      COEFS.presegfr.microalb.adj[i] <- fit.adj$coefficients["studydrug2SGLT2i"] + fit.adj$coefficients["studydrug2SGLT2i:risk_groupeGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol"]
-      SE.presegfr.microalb.adj[i] <- sqrt(abs(fit.adj$var[1]) + abs(fit.adj$var[nrow(fit.adj$var)-2,nrow(fit.adj$var)-2]) + 2 * vcov(fit.adj)[1,nrow(fit.adj$var)-2])
-      
-      COEFS.redegfr.noalb.adj[i] <- fit.adj$coefficients["studydrug2SGLT2i"] + fit.adj$coefficients["studydrug2SGLT2i:risk_groupeGFR <60mL/min/1.73m2, uACR <3mg/mmol"]
-      SE.redegfr.noalb.adj[i] <- sqrt(abs(fit.adj$var[1]) + abs(fit.adj$var[nrow(fit.adj$var)-1,nrow(fit.adj$var)-1]) + 2 * vcov(fit.adj)[1,nrow(fit.adj$var)-1])
-      
-      COEFS.redegfr.microalb.adj[i] <- fit.adj$coefficients["studydrug2SGLT2i"] + fit.adj$coefficients["studydrug2SGLT2i:risk_groupeGFR <60mL/min/1.73m2, uACR 3-30mg/mmol"]
-      SE.redegfr.microalb.adj[i] <- sqrt(abs(fit.adj$var[1]) + abs(fit.adj$var[nrow(fit.adj$var),nrow(fit.adj$var)]) + 2 * vcov(fit.adj)[1,nrow(fit.adj$var)])
-      
-    }
-    
-    # pool hazard ratios
-    unadjusted_presegfr_noalb <- pool.rubin.HR(COEFS.presegfr.noalb.unadj, SE.presegfr.noalb.unadj, n.imp)
-    adjusted_presegfr_noalb <- pool.rubin.HR(COEFS.presegfr.noalb.adj, SE.presegfr.noalb.adj, n.imp)
-    
-    unadjusted_presegfr_microalb <- pool.rubin.HR(COEFS.presegfr.microalb.unadj, SE.presegfr.microalb.unadj, n.imp)
-    adjusted_presegfr_microalb <- pool.rubin.HR(COEFS.presegfr.microalb.adj, SE.presegfr.microalb.adj, n.imp)
-    
-    unadjusted_redegfr_noalb <- pool.rubin.HR(COEFS.redegfr.noalb.unadj, SE.redegfr.noalb.unadj, n.imp)
-    adjusted_redegfr_noalb <- pool.rubin.HR(COEFS.redegfr.noalb.adj, SE.redegfr.noalb.adj, n.imp)
-    
-    unadjusted_redegfr_microalb <- pool.rubin.HR(COEFS.redegfr.microalb.unadj, SE.redegfr.microalb.unadj, n.imp)
-    adjusted_redegfr_microalb <- pool.rubin.HR(COEFS.redegfr.microalb.adj, SE.redegfr.microalb.adj, n.imp)
-    
-    # save pooled HR and 95% confidence interval
-    unadjusted_presegfr_noalb_string <- paste0(round(unadjusted_presegfr_noalb[1], 2), " (", round(unadjusted_presegfr_noalb[2], 2), ", ", round(unadjusted_presegfr_noalb[3], 2), ")")
-    adjusted_presegfr_noalb_string <- paste0(round(adjusted_presegfr_noalb[1], 2), " (", round(adjusted_presegfr_noalb[2], 2), ", ", round(adjusted_presegfr_noalb[3], 2), ")")
-    
-    unadjusted_presegfr_microalb_string <- paste0(round(unadjusted_presegfr_microalb[1], 2), " (", round(unadjusted_presegfr_microalb[2], 2), ", ", round(unadjusted_presegfr_microalb[3], 2), ")")
-    adjusted_presegfr_microalb_string <- paste0(round(adjusted_presegfr_microalb[1], 2), " (", round(adjusted_presegfr_microalb[2], 2), ", ", round(adjusted_presegfr_microalb[3], 2), ")")
-    
-    unadjusted_redegfr_noalb_string <- paste0(round(unadjusted_redegfr_noalb[1], 2), " (", round(unadjusted_redegfr_noalb[2], 2), ", ", round(unadjusted_redegfr_noalb[3], 2), ")")
-    adjusted_redegfr_noalb_string <- paste0(round(adjusted_redegfr_noalb[1], 2), " (", round(adjusted_redegfr_noalb[2], 2), ", ", round(adjusted_redegfr_noalb[3], 2), ")")
-    
-    unadjusted_redegfr_microalb_string <- paste0(round(unadjusted_redegfr_microalb[1], 2), " (", round(unadjusted_redegfr_microalb[2], 2), ", ", round(unadjusted_redegfr_microalb[3], 2), ")")
-    adjusted_redegfr_microalb_string <- paste0(round(adjusted_redegfr_microalb[1], 2), " (", round(adjusted_redegfr_microalb[2], 2), ", ", round(adjusted_redegfr_microalb[3], 2), ")")
-    
-    # combine in dataframe that we can tabulate
-    presegfr_noalb_hr <- cbind(outcome=k, count[1,c(2:3)], followup[1,c(2:3)], events[1,c(2:3)],
-                               unadjusted=unadjusted_presegfr_noalb_string, adjusted=adjusted_presegfr_noalb_string
-    )
-    presegfr_microalb_hr <- cbind(outcome=k, count[2,c(2:3)], followup[2,c(2:3)], events[2,c(2:3)],
-                                  unadjusted=unadjusted_presegfr_microalb_string, adjusted=adjusted_presegfr_microalb_string
-    )
-    presegfr_macroalb_hr <- cbind(outcome=k, "DPP4i/SU_count"=NA, SGLT2i_count=NA, "DPP4i/SU_followup"=NA,
-                                  SGLT2i_followup=NA, "DPP4i/SU_events"=NA, SGLT2i_events=NA,
-                                  unadjusted=NA, adjusted=NA
-    ) %>% data.frame(check.names=F)
-    redegfr_noalb_hr <- cbind(outcome=k, count[3,c(2:3)], followup[3,c(2:3)], events[3,c(2:3)],
-                              unadjusted=unadjusted_redegfr_noalb_string, adjusted=adjusted_redegfr_noalb_string
-    )
-    redegfr_microalb_hr <- cbind(outcome=k, count[4,c(2:3)], followup[4,c(2:3)], events[4,c(2:3)],
-                                 unadjusted=unadjusted_redegfr_microalb_string, adjusted=adjusted_redegfr_microalb_string
-    )
-    redegfr_macroalb_hr <- cbind(outcome=k, "DPP4i/SU_count"=NA, SGLT2i_count=NA, "DPP4i/SU_followup"=NA,
-                                 SGLT2i_followup=NA, "DPP4i/SU_events"=NA, SGLT2i_events=NA,
-                                 unadjusted=NA, adjusted=NA
-    ) %>% data.frame(check.names=F)
-    
-    outcome_subgroup_SGLT2ivsDPP4iSU_hrs <- rbind(presegfr_noalb_hr, presegfr_microalb_hr, presegfr_macroalb_hr,
-                                                  redegfr_noalb_hr, redegfr_microalb_hr, redegfr_macroalb_hr)
-    
-    temp <- rbind(
-      cbind(outcome = k, contrast = "eGFR ≥60mL/min/1.73m2, uACR <3mg/mmol", analysis = "Adjusted",
-            HR = adjusted_presegfr_noalb[1], LB = adjusted_presegfr_noalb[2], UB = adjusted_presegfr_noalb[3], string = adjusted_presegfr_noalb_string),
-      cbind(outcome = k, contrast = "eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol", analysis = "Adjusted",
-            HR = adjusted_presegfr_microalb[1], LB = adjusted_presegfr_microalb[2], UB = adjusted_presegfr_microalb[3], string = adjusted_presegfr_microalb_string),
-      cbind(outcome = k, contrast = "eGFR ≥60mL/min/1.73m2, uACR ≥30mg/mmol", analysis = "Adjusted",
-            HR = NA, LB = NA, UB = NA, string = NA),
-      cbind(outcome = k, contrast = "eGFR <60mL/min/1.73m2, uACR <3mg/mmol", analysis = "Adjusted",
-            HR = adjusted_redegfr_noalb[1], LB = adjusted_redegfr_noalb[2], UB = adjusted_redegfr_noalb[3], string = adjusted_redegfr_noalb_string),
-      cbind(outcome = k, contrast = "eGFR <60mL/min/1.73m2, uACR 3-30mg/mmol", analysis = "Adjusted",
-            HR = adjusted_redegfr_microalb[1], LB = adjusted_redegfr_microalb[2], UB = adjusted_redegfr_microalb[3], string = adjusted_redegfr_microalb_string),
-      cbind(outcome = k, contrast = "eGFR <60mL/min/1.73m2, uACR ≥30mg/mmol", analysis = "Adjusted",
-            HR = NA, LB = NA, UB = NA, string = NA)
-    )
-    
-    subgroup_hrs <- rbind(subgroup_hrs, temp)
-    subgroup_SGLT2ivsDPP4iSU_hrs <- rbind(subgroup_SGLT2ivsDPP4iSU_hrs, outcome_subgroup_SGLT2ivsDPP4iSU_hrs)
-  }
-}
-
-
-## save HRs and display
-flextable(subgroup_SGLT2ivsDPP4iSU_hrs)
-
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/output/")
-save(subgroup_hrs, file=paste0(today, "_subgroup_hrs.Rda"))
-save(subgroup_SGLT2ivsDPP4iSU_hrs, file=paste0(today, "_subgroup_SGLT2ivsDPP4iSU_hrs.Rda"))
+subgroup_hrs <- subgroup_hrs %>%
+  separate(`DPP4i/SU_events`, into = c("DPP4i/SU_events_number", "DPP4i/SU_events_percentage"), sep = " \\(", remove = FALSE) %>%
+  separate(SGLT2i_events, into = c("SGLT2i_events_number", "SGLT2i_events_percentage"), sep = " \\(", remove = FALSE) %>%
+  mutate(
+    `DPP4i/SU_events_percentage` = str_replace(`DPP4i/SU_events_percentage`, "\\)", ""),
+    SGLT2i_events_percentage = str_replace(SGLT2i_events_percentage, "\\)", ""),
+    `DPP4i/SU_nN` = paste0(`DPP4i/SU_events_number`, "/", `DPP4i/SU_count`),
+    SGLT2i_nN = paste0(SGLT2i_events_number, "/", SGLT2i_count)
+  )
 
 ############################5A FOREST PLOT FOR HRs PER DRUG CLASS (SUPPLEMENTAL FIGURE)################################################################
 
@@ -1337,11 +1217,13 @@ layout <- c(
   area(t = 12, l = 15, b = 17, r = 19)
 )
 
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Output/")
+tiff(paste0(today, "_HR_by_drugclass.tiff"), width=18, height=5.5, units = "in", res=800) 
 p_left_1 + p_counts_1 + p_hr_1 + p_right_1 + 
   p_left_2 + p_counts_2 + p_hr_2 + p_right_2 + 
   p_left_3 + p_counts_3 + p_hr_3 + p_right_3 + plot_layout(design = layout)
-
-############################5B FOREST PLOT FOR HRs OVERALL (FIGURE 1)################################################################
+dev.off()
+############################5B FOREST PLOT OF OVERALL HR BY ANALYSIS STRATEGY (SUPPLEMENTAL FIGURE)################################################################
 
 
 # prep all_hrs dataframe for forest plot to show hazard ratios and add literature-reported HR
@@ -1373,8 +1255,8 @@ labels_plot2 <- all_SGLT2ivsDPP4iSU_hrs
 
 labels2 <- data.frame(matrix("", nrow = 1, ncol = length(all_SGLT2ivsDPP4iSU_hrs)))
 names(labels2) <- names(all_SGLT2ivsDPP4iSU_hrs)
-labels2 <- labels2 %>% mutate(contrast = "CPRD (by analytic approach)", 
-                              analysis = "CPRD (by analytic approach)",
+labels2 <- labels2 %>% mutate(contrast = "Study cohort (by analysis approach)", 
+                              analysis = "Study cohort (by analysis approach)",
                               string = "Hazard Ratio (95% CI)",
                               )
 
@@ -1510,31 +1392,24 @@ layout <- c(
   
 )
 
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Output/")
+tiff(paste0(today, "_HR_by_analysis_strategy.tiff"), width=15, height=4, units = "in", res=800) 
 # Final plot arrangement
 p_left_all + p_hr_all + p_right_all + 
   p_left_trial + p_hr_trial + p_right_trial + plot_layout(design = layout)
+dev.off()
 
+############################5C FOREST PLOT OF HR BY SUBGROUP (FIGURE 1A)################################################################
 
-############################5C FOREST PLOT FOR HRs BY SUBGROUP (SUPPLEMENTAL FIGURE)################################################################
-
-# load("2024-07-13_subgroup_hrs.Rda")
-# load("2024-07-13_subgroup_SGLT2ivsDPP4iSU_hrs.Rda")
-
-subgroup_hrs <- subgroup_hrs %>% cbind(subgroup_SGLT2ivsDPP4iSU_hrs %>% select(-c(outcome, adjusted, unadjusted)))
-
-subgroup_hrs <- subgroup_hrs %>%
-  separate(`DPP4i/SU_events`, into = c("DPP4i/SU_events_number", "DPP4i/SU_events_percentage"), sep = " \\(", remove = FALSE) %>%
-  separate(SGLT2i_events, into = c("SGLT2i_events_number", "SGLT2i_events_percentage"), sep = " \\(", remove = FALSE) %>%
-  mutate(
-    `DPP4i/SU_events_percentage` = str_replace(`DPP4i/SU_events_percentage`, "\\)", ""),
-    SGLT2i_events_percentage = str_replace(SGLT2i_events_percentage, "\\)", ""),
-    `DPP4i/SU_nN` = paste0(`DPP4i/SU_events_number`, "/", `DPP4i/SU_count`),
-    SGLT2i_nN = paste0(SGLT2i_events_number, "/", SGLT2i_count)
-  )
+# if analyses above not run, then object p_value_interaction will not be defined
+# if that is the case, define p-value at 0.26 (as per analyses dd 29/10/2024)
+if (!exists("p_value_interaction")) {
+  p_value_interaction <- 0.26
+}
 
 # prep data frames with row for overall
 overall <- all_SGLT2ivsDPP4iSU_hrs[all_SGLT2ivsDPP4iSU_hrs$analysis == "Adjusted",]
-overall$contrast <- "Entire cohort"
+overall$contrast <- "All participants"
 
 labels_plot5 <- overall
 
@@ -1572,12 +1447,9 @@ for (k in unique(subgroup_hrs$outcome)) {
 }
 
 labels_plot3$contrast <- factor(labels_plot3$contrast, levels = c(labels3$contrast,
-                                                                  "eGFR ≥60mL/min/1.73m2, uACR <3mg/mmol", 
-                                                                  "eGFR ≥60mL/min/1.73m2, uACR 3-30mg/mmol",
-                                                                  "eGFR ≥60mL/min/1.73m2, uACR ≥30mg/mmol",
-                                                                  "eGFR <60mL/min/1.73m2, uACR <3mg/mmol",
-                                                                  "eGFR <60mL/min/1.73m2, uACR 3-30mg/mmol",
-                                                                  "eGFR <60mL/min/1.73m2, uACR ≥30mg/mmol"))
+                                                                  "uACR <3mg/mmol", 
+                                                                  "uACR 3-30mg/mmol",
+                                                                  "uACR ≥30mg/mmol"))
 
 # plot by risk group
 p_counts_subgroup <- labels_plot3 %>% filter(outcome=="ckd_egfr50") %>%
@@ -1710,10 +1582,10 @@ p_right_overall <-
 
 # layout for plots below
 layout <- c(
-  area(t = 11, l = 7, b = 55, r = 13),
-  area(t = 11, l = 0, b = 55, r = 7), 
-  area(t = 11, l = 12, b = 55, r = 18),
-  area(t = 11, l = 19, b = 55, r = 24),
+  area(t = 13, l = 7, b = 45, r = 13),
+  area(t = 13, l = 0, b = 45, r = 7), 
+  area(t = 13, l = 12, b = 45, r = 18),
+  area(t = 13, l = 19, b = 45, r = 24),
   area(t = 0, l = 7, b = 13, r = 13), 
   area(t = 0, l = 0, b = 13, r = 7),
   area(t = 0, l = 12, b = 13, r = 18),
@@ -1722,14 +1594,16 @@ layout <- c(
 )
 
 # Final plot arrangement
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Output/")
+tiff(paste0(today, "_HR_by_subgroup.tiff"), width=15, height=4, units = "in", res=800) 
 p_counts_subgroup + p_left_subgroup + p_hr_subgroup + p_right_subgroup + 
   p_counts_overall + p_left_overall + p_hr_overall + p_right_overall + plot_layout(design = layout)
-
+dev.off()
 
 ############################5D FOREST PLOT FOR HRs OF SECONDARY OUTCOMES (SUPPLEMENTAL FIGURE)################################################################
 
 secondary <- all_SGLT2ivsDPP4iSU_hrs[all_SGLT2ivsDPP4iSU_hrs$analysis == "Adjusted",]
-secondary <- secondary %>% filter(!outcome %in% c("death")) # will not display this in current figure
+secondary <- secondary %>% filter(!outcome %in% c("ckd_egfr50", "death")) # will not display this in current figure
 
 labels_plot6 <- secondary
 
@@ -1749,7 +1623,7 @@ for (m in unique(secondary$outcome)) {
 labels_plot6 <- labels_plot6 %>% mutate(
   contrast = ifelse(
     outcome == "ckd_egfr40", " 40% eGFR decline / ESKD", 
-    ifelse(outcome == "ckd_egfr50", " 50% eGFR decline / ESKD",
+    ifelse(outcome == "ckd_egfr50_5y", " 50% eGFR decline / ESKD (5 years)",
            ifelse(outcome == "death", " All-cause mortality", ifelse(
              outcome == "macroalb", " Progression to significant albuminuria (≥30mg/mmol)", ifelse(
                outcome == "dka", " Diabetic keto-acidosis", ifelse(
@@ -1874,5 +1748,8 @@ layout <- eval(str2lang(layout))
 
 plot_expression <- paste0(plot_expression, "plot_layout(design = layout)")
 
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Output/")
+tiff(paste0(today, "_HR_secondary_outcomes.tiff"), width=18, height=5.5, units = "in", res=800) 
 eval(str2lang(plot_expression))
+dev.off()
 
