@@ -13,8 +13,8 @@
 # 0 setup
 # 1 calculate weights (IPTW, overlap weights)
 # 2 calculate hazard ratios
-# 3 store hazard ratios
-# 4 subgroup analyses (by albuminuria and eGFR status)
+# 3 subgroup analyses (by albuminuria status)
+# 4 store hazard ratios
 # 5 forest plots
 
 ############################0 SETUP################################################################
