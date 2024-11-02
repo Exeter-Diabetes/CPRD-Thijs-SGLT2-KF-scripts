@@ -13,56 +13,15 @@
 ############################0 SETUP################################################################
 
 # 0 Setup
-library(tidyverse)
-library(survival)
-library(survminer)
-library(broom)
-library(patchwork)
-library(rms)
-library(pROC)
-library(riskRegression)
-
-options(dplyr.dpp4isummarise.inform = FALSE)
-
-# set seed
-set.seed(123)
-
-# number of imputations 
-n.imp <- 10
-
-# number of bootstraps for bootstrap validation
-n.bootstrap <- 500
-
-# number of quantiles (for risk scores later on)
-n.quantiles <- 10
-
-# today's date
-#today <- as.character(Sys.Date(), format="%Y%m%d")
-today <- "2024-10-29"
-# function to pool estimates from multiple imputations further down
-pool.rubin.KM <- function(EST,SE,n.imp){
-  mean.est <- mean(EST)
-  W <- mean(SE^2)
-  B <- var(EST)
-  T.var <- W + (1+1/n.imp)*B
-  se.est <- sqrt(T.var)
-  rm <- (1+1/n.imp)*B/W
-  df <- (n.imp - 1)*(1+1/rm)^2
-  LB.CI <- mean.est - (se.est*1.96)
-  UB.CI <- mean.est + (se.est*1.96)
-  F <- (-mean.est)^2/T.var
-  P <- pf(q=F, df1=1, df2=df, lower.tail = FALSE)
-  observed_survival <- 1-mean.est
-  lower_ci <- 1-UB.CI
-  higher_ci <- 1-LB.CI
-  output <- c(observed_survival, lower_ci, higher_ci, df, F, P)
-  names(output) <- c('observed survival', 'lower bound', 'upper bound', 'df', 'F', 'P')
-  return(output)}
-
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/scripts/CPRD-Thijs-SGLT2-KF-scripts/")
+source("00 Setup.R")
 
 # load data
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-load("2024-10-29_t2d_ckdpc_imputed_data_withweights.Rda")
+load("2024-11-01_t2d_ckdpc_imputed_data_withweights.Rda")
+
+cols <- cols[names(cols) %in% cohort$studydrug2]
+cols <- cols[order(names(cols))]
 
 # select imputed data only (ie. remove non-imputed data)
 cohort <- cohort[cohort$.imp > 0,]
@@ -75,22 +34,9 @@ cohort <- cohort %>% group_by(.imp, patid) %>% filter(
 # check number of subjects
 table(cohort$studydrug)
 # SU  DPP4i SGLT2i 
-# 363910 563110 550020   # 10 imputations therefore number of subjects per group appears 10 times larger
-
-# set default colour-blind accessible colours for figures later on
-cols <- c("SGLT2i" = "#E69F00", "GLP1" = "#56B4E9", "SU" = "#CC79A7", "DPP4i" = "#0072B2", "TZD" = "#D55E00")
-#in further analyses, the dpp4/su group will be combined, and we will use the dpp4 colour for this (strongest contrast)
-cols <- c(cols, "DPP4i/SU" = "#0072B2")
-cols <- cols[names(cols) %in% cohort$studydrug2]
-cols <- cols[order(names(cols))]
-
-# covariates for multivariable adjustment
-covariates <- c("dstartdate_age", "malesex", "imd2015_10", "ethnicity_4cat", "initiation_year", "prebmi", "prehba1c",
-                "pretotalcholesterol", "preegfr", "uacr", "presbp", "ckdpc_50egfr_score_cal", "ncurrtx", "statin", "INS", 
-                "ACEi_or_ARB", "smoking_status", "dstartdate_dm_dur_all", "predrug_hypertension", "predrug_af", "hosp_admission_prev_year")
-
 
 ############################1 UNCALIBRATED RISK SCORE################################################################
+
 
 
 # make variable for risk deciles
@@ -323,7 +269,7 @@ print(paste0("Brier score for raw risk score ", mean(brier_raw), ", 95% CI ", me
 # this is done by fitting a cox proportional model with the linear predictor as the only variable as an offset.
 # as this would only involve adjusting the overall event probability for this cohort, no resampling (internal validation) is needed
 recal_mod <- cph(Surv(ckd_egfr50_censtime_yrs, ckd_egfr50_censvar) ~ stats::offset(ckdpc_50egfr_lin_predictor), 
-                 data = cohort, x = TRUE, y = TRUE, surv = TRUE)
+                 data = cohort %>% filter(studydrug2 == "DPP4i/SU"), x = TRUE, y = TRUE, surv = TRUE)
 
 x <- summary(survfit(recal_mod),time=3)
 bh_update_presegfr <- x$surv
@@ -503,7 +449,9 @@ brier_recal_bh_se <- rep(NA, n.imp)
 for (i in 1:n.imp) {
   print(paste("Imputation ", i))
   
-  temp <- cohort %>% filter(.imp == i) %>% select(ckd_egfr50_censtime_yrs, ckd_egfr50_censvar, ckdpc_50egfr_survival_cal_bh)
+  temp <- cohort %>% filter(.imp == i) %>% 
+    filter(studydrug2 == "DPP4i/SU") %>%
+    select(ckd_egfr50_censtime_yrs, ckd_egfr50_censvar, ckdpc_50egfr_survival_cal_bh)
   temp <- temp %>%
     rbind(    # adds rows below your dataset
       temp %>%
@@ -548,7 +496,8 @@ var_slope <- rep(NA, n.imp)
 
 for (i in 1:n.imp) {
   print(paste0("Calculations in imputation ", i))
-  recal_mod2 <- cph(Surv(ckd_egfr50_censtime_yrs, ckd_egfr50_censvar) ~ (ckdpc_50egfr_lin_predictor), data = cohort[cohort$.imp == i,], x = TRUE, y = TRUE, surv = TRUE)
+  recal_mod2 <- cph(Surv(ckd_egfr50_censtime_yrs, ckd_egfr50_censvar) ~ (ckdpc_50egfr_lin_predictor), 
+                    data = cohort %>% filter(.imp == i & studydrug2 == "DPP4i/SU"), x = TRUE, y = TRUE, surv = TRUE)
   
   # Obtain baseline survival estimates for model
   x <- summary(survfit(recal_mod2),time=3)
@@ -752,7 +701,9 @@ brier_recal_se <- rep(NA, n.imp)
 for (i in 1:n.imp) {
   print(paste("Imputation ", i))
   
-  temp <- cohort %>% filter(.imp == i) %>% select(ckd_egfr50_censtime_yrs, ckd_egfr50_censvar, ckdpc_50egfr_survival_cal)
+  temp <- cohort %>% filter(.imp == i) %>%
+    filter(studydrug2 == "DPP4i/SU") %>%
+    select(ckd_egfr50_censtime_yrs, ckd_egfr50_censvar, ckdpc_50egfr_survival_cal)
   temp <- temp %>%
     rbind(    # adds rows below your dataset
       temp %>%
@@ -879,9 +830,9 @@ ggplot(data=contrast_spline_df, aes(x=ckdpc_50egfr_score_cal, y=exp(Contrast))) 
   scale_y_continuous(breaks = c(seq(0, 0.8, 0.1), seq(0.8, 1.6, 0.2))) +
   geom_ribbon(data=contrast_spline_df, aes(x=ckdpc_50egfr_score_cal, ymin=exp(Lower), ymax=exp(Upper)), alpha=0.5) +
   geom_hline(yintercept = 1, linetype = "dashed")  +
-  geom_hline(aes(yintercept = 0.57, linetype = "hr", size="hr"), color="#D55E00")  +
-  geom_hline(aes(yintercept = 0.67, linetype = "hr_95", size="hr_95"), color="#D55E00")  +
-  geom_hline(aes(yintercept = 0.49, linetype = "hr_95", size="hr_95"), color="#D55E00")  +
+  geom_hline(aes(yintercept = 0.62, linetype = "hr", size="hr"), color="#D55E00")  +
+  geom_hline(aes(yintercept = 0.68, linetype = "hr_95", size="hr_95"), color="#D55E00")  +
+  geom_hline(aes(yintercept = 0.57, linetype = "hr_95", size="hr_95"), color="#D55E00")  +
   theme_bw() +
   theme(text = element_text(size = 18),
         axis.line = element_line(colour =  "grey50" ),
@@ -892,8 +843,8 @@ ggplot(data=contrast_spline_df, aes(x=ckdpc_50egfr_score_cal, y=exp(Contrast))) 
         legend.position="bottom",
         legend.title = element_text(size=14, face = "italic"),
         legend.text = element_text(face="italic")) +
-  scale_linetype_manual(values = c(hr = "twodash", hr_95 = "twodash"), labels = c(hr = "Overall hazard ratio", hr_95 = "95% CI"), name="") +
-  scale_size_manual(values = c(hr = 1, hr_95 = 0.5), labels = c(hr = "Overall hazard ratio", hr_95 = "95% CI"), name="")
+  scale_linetype_manual(values = c(hr = "twodash", hr_95 = "twodash"), labels = c(hr = "0.62", hr_95 = "95% CI 0.56-0.68"), name="Trial meta-analysis hazard ratio") +
+  scale_size_manual(values = c(hr = 1, hr_95 = 0.5), labels = c(hr = "0.62", hr_95 = "95% CI 0.56-0.68"), name="Trial meta-analysis hazard ratio")
 dev.off()
 
 options(datadist = NULL)

@@ -11,7 +11,7 @@
 ## h) No CVD (broad definition: angina, IHD, MI, PAD, revasc, stroke, TIA (as per NICE but with TIA))
 ## i) No HF before index date
 ## j) No missing eGFR/uACR
-## k) No advanced CKD (egfr < 20 mL/min or stage 5 CKD) before index date 
+## k) No advanced CKD (egfr < 20 mL/min/1.73m2 or CKD stage 5) before index date, or eGFR <60 or albuminuria ≥30mg/mmol
 ## l) Exclude if also on GLP1 agonist
 ## m) Remove further episodes of starting DPP4/SU if already taking SGLT2i in previous episode (these episodes would overlap)
 
@@ -97,11 +97,25 @@ define_cohort <- function(cohort_dataset, all_drug_periods_dataset) {
   
   q <- cohort %>% filter(preckdstage=="stage_5" | predrug_ckd5_code == 1 | preegfr < 20) %>% nrow()
   
-  print(paste0("Number of drug episodes excluded with established eGFR <20 mL/min: ", q))
+  print(paste0("Number of drug episodes excluded with established eGFR <20 mL/min/1.73m2 or ESKD: ", q))
   
   cohort <- cohort %>%
     filter(!(preegfr < 20 | preckdstage=="stage_5" | predrug_ckd5_code == 1) )
 
+  q <- cohort %>% filter(preckdstage=="stage_3a" | preckdstage=="stage_3b" | preckdstage=="stage_4" | preegfr < 60) %>% nrow()
+  
+  print(paste0("Number of drug episodes excluded with established eGFR <60 mL/min/1.73m2: ", q))
+  
+  cohort <- cohort %>%
+    filter(!(preckdstage=="stage_3a" | preckdstage=="stage_3b" | preckdstage=="stage_4" | preegfr < 60) )
+  
+  q <- cohort %>% filter(uacr >= 30) %>% nrow()
+  
+  print(paste0("Number of drug episodes excluded with uACR ≥30mg/mmol: ", q))
+  
+  cohort <- cohort %>%
+    filter(uacr < 30)
+  
   
   # # l) Remove if on insulin at start 
   # q <- cohort %>% filter(INS==1) %>% nrow()  

@@ -2,54 +2,11 @@
 ############################0 SETUP################################################################
 
 # Setup
-library(tidyverse)
-library(survival)
-library(survminer)
-library(rms)
-library(broom)
-
-options(dplyr.summarise.inform = FALSE)
-
-rm(list=ls())
-
-# set seed
-set.seed(123)
-n.imp <- 10
-n.quantiles <- 10
-
-#today <- as.character(Sys.Date(), format="%Y%m%d")
-today <- "2024-10-29"
-
-# covariates for multivariable adjustment
-covariates <- c("dstartdate_age", "malesex", "imd2015_10", "ethnicity_4cat", "initiation_year", "prebmi", "prehba1c",
-                "pretotalcholesterol", "preegfr", "uacr", "presbp", "ckdpc_50egfr_score_cal", "ncurrtx", "statin", "INS", 
-                "ACEi_or_ARB", "smoking_status", "dstartdate_dm_dur_all", "predrug_hypertension", "predrug_af", "hosp_admission_prev_year")
-
-# define outcomes to be analysed
-outcomes <- c("ckd_egfr40", "ckd_egfr50", "macroalb", "dka", "side_effect", "ckd_egfr50_5y"#, "death", "amputation"
-)
-# function to pool estimates from multiple imputations further down
-pool.rubin.KM <- function(EST,SE,n.imp){
-  mean.est <- mean(EST)
-  W <- mean(SE^2)
-  B <- var(EST)
-  T.var <- W + (1+1/n.imp)*B
-  se.est <- sqrt(T.var)
-  rm <- (1+1/n.imp)*B/W
-  df <- (n.imp - 1)*(1+1/rm)^2
-  LB.CI <- mean.est - (se.est*1.96)
-  UB.CI <- mean.est + (se.est*1.96)
-  F <- (-mean.est)^2/T.var
-  P <- pf(q=F, df1=1, df2=df, lower.tail = FALSE)
-  observed_survival <- 1-mean.est
-  lower_ci <- 1-UB.CI
-  higher_ci <- 1-LB.CI
-  output <- c(observed_survival, lower_ci, higher_ci, df, F, P)
-  names(output) <- c('observed survival', 'lower bound', 'upper bound', 'df', 'F', 'P')
-  return(output)}
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/scripts/CPRD-Thijs-SGLT2-KF-scripts/")
+source("00 Setup.R")
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-load("2024-10-29_t2d_ckdpc_recalibrated.Rda")
+load("2024-11-01_t2d_ckdpc_recalibrated.Rda")
 
 ############################1 PREPARE DATASET################################################################
 
@@ -64,14 +21,6 @@ cohort <- cohort %>%
   mutate(ckdpc_50egfr_survival_cal=(100-ckdpc_50egfr_score_cal)/100,
          ckdpc_50egfr_survival_cal_sglt2i=ckdpc_50egfr_survival_cal^trial_hr_kf_sglt2i,
          ckdpc_50egfr_sglt2i_benefit=ckdpc_50egfr_survival_cal_sglt2i - ckdpc_50egfr_survival_cal)
-
-cohort$benefit_decile <- ntile(cohort$ckdpc_50egfr_sglt2i_benefit, n.quantiles)
-
-cohort <- cohort %>% mutate(
-  ethnicity_4cat = ifelse(!ethnicity_4cat %in% c("White", "South Asian", "Black"), "Other", as.character(ethnicity_4cat)),
-  initiation_year = ifelse(initiation_year %in% c("2019", "2020"), "2019-2020", as.character(initiation_year)),
-  ncurrtx = ifelse(ncurrtx %in% c("3.", "4+"), "3+", as.character(ncurrtx))
-)
 
 cohort <- cohort %>% filter(!.imp > n.imp)
 
@@ -98,9 +47,8 @@ cohort_5y <- cohort %>%
          INS=as.logical(INS),
          MFN=as.logical(MFN),
          malesex=as.factor(malesex),
-         initiation_year=as.factor(initiation_year),
-         benefit_decile=as.factor(benefit_decile)) %>%
-  select(patid, .imp, risk_group, studydrug2, benefit_decile,
+         initiation_year=as.factor(initiation_year)) %>%
+  select(patid, .imp, albuminuria, studydrug2,
          matches(outcome_variables_5y, perl = TRUE), 
          all_of(covariates)) %>% 
   centre_and_reference(covariates)
@@ -111,9 +59,8 @@ cohort <- cohort %>%
          INS=as.logical(INS),
          MFN=as.logical(MFN),
          malesex=as.factor(malesex),
-         initiation_year=as.factor(initiation_year),
-         benefit_decile=as.factor(benefit_decile)) %>%
-  select(patid, .imp, risk_group, studydrug2, benefit_decile,
+         initiation_year=as.factor(initiation_year)) %>%
+  select(patid, .imp, albuminuria, studydrug2,
          matches(outcome_variables, perl = TRUE), 
          all_of(covariates)) %>% 
   centre_and_reference(covariates)
@@ -131,13 +78,13 @@ for (k in outcomes) {
   
   for (i in 1:n.imp) {
     setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-    load("2024-10-29_recalibrated_data_centred_predictors.Rda")
+    load("2024-11-01_recalibrated_data_centred_predictors.Rda")
     
     if (k == "macroalb") {
       # remove subjects with established macroalbuminuria from these analyses
-      cohort <- cohort %>% filter(.imp == i & !risk_group %in% c("uACR ≥30mg/mmol") & macroalb_censtime_yrs >= 0)
+      cohort <- cohort %>% filter(.imp == i & macroalb_censtime_yrs >= 0)
     } else if (k == "ckd_egfr50_5y") {
-      load("2024-10-29_recalibrated_data_centred_predictors_5y.Rda")
+      load("2024-11-01_recalibrated_data_centred_predictors_5y.Rda")
       cohort <- cohort_5y %>% filter(.imp == i)
       rm(cohort_5y)
     } else {
@@ -180,12 +127,12 @@ for (k in outcomes) {
   
   for (i in 1:n.imp) {
     setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-    load("2024-10-29_recalibrated_data_centred_predictors.Rda")
+    load("2024-11-01_recalibrated_data_centred_predictors.Rda")
     
     if (k == "macroalb") {
-      cohort <- cohort %>% filter(.imp == i & !risk_group %in% c("uACR ≥30mg/mmol") & macroalb_censtime_yrs >= 0)
+      cohort <- cohort %>% filter(.imp == i & macroalb_censtime_yrs >= 0)
     } else if (k == "ckd_egfr50_5y") {
-      load("2024-10-29_recalibrated_data_centred_predictors_5y.Rda")
+      load("2024-11-01_recalibrated_data_centred_predictors_5y.Rda")
       cohort <- cohort_5y %>% filter(.imp == i)
       rm(cohort_5y)
     } else {
@@ -226,8 +173,8 @@ for (k in outcomes) {
   #for every outcome, join survival estimates from each imputation in one dataframe
   for (i in 1:n.imp) {
     setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/output/")
-    load(paste0("2024-10-29_adjusted_surv_",k,"_SGLT2i_imp.", i, ".Rda"))
-    load(paste0("2024-10-29_adjusted_surv_",k,"_DPP4iSU_imp.", i, ".Rda"))
+    load(paste0("2024-11-01_adjusted_surv_",k,"_SGLT2i_imp.", i, ".Rda"))
+    load(paste0("2024-11-01_adjusted_surv_",k,"_DPP4iSU_imp.", i, ".Rda"))
     temp_sglt2 <- temp_sglt2 %>% rbind(observed_sglt2)
     temp_dpp4su <- temp_dpp4su %>% rbind(observed_dpp4su)
     rm(observed_sglt2)
@@ -258,12 +205,12 @@ rm(list = setdiff(ls(), c("n.imp", "covariates", "k", "today", "outcomes")))
 
 ### add adjusted (observed) survival estimates to main dataset
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-load("2024-10-29_t2d_ckdpc_recalibrated_with_riskgroup.Rda")
+load("2024-11-01_t2d_ckdpc_recalibrated_with_riskgroup.Rda")
 
 for (k in outcomes) {
   
   setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/output/")
-  load(paste0("2024-10-29_adjusted_surv_", k, ".Rda"))
+  load(paste0("2024-11-01_adjusted_surv_", k, ".Rda"))
   cohort <- cohort %>% left_join(benefits %>%
                                    select(.imp, patid, studydrug2, contains("survdiff")), 
                                  by=c(".imp", "patid", "studydrug2"))
