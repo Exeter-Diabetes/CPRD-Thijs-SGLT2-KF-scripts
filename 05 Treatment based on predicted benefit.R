@@ -15,20 +15,21 @@ load("2024-10-29_t2d_ckdpc_recalibrated_with_adjsurv.Rda")
 # 1 take as cut-off the upper top decile value of predicted benefit in the group of people that guidelines recommend treating
 # 2 take as cut-off the percentile corresponding to the percentage of people that would be treated based on current guidelines (ie same number treated but targeted based on our approach rather than purely uACR cut-off)
 
-cutoff2 <- cohort %>% filter(albuminuria == T) %>% .$ckdpc_50egfr_sglt2i_benefit %>% quantile(0.90) %>% as.numeric()
-
-cutoff2_equivalent_40egfr_score <- cohort %>% filter(albuminuria == T) %>% .$ckdpc_40egfr_score %>% quantile(0.90) %>% as.numeric()
-
 cutoff1 <- cohort %>% .$ckdpc_50egfr_sglt2i_benefit %>% quantile( 
   1 - (cohort %>% filter(albuminuria == T) %>% nrow() / cohort  %>% nrow())) %>% as.numeric()
 
 cutoff1_equivalent_40egfr_score <- cohort  %>% .$ckdpc_40egfr_score %>% quantile( 
   1 - (cohort %>% filter(albuminuria == T) %>% nrow() / cohort  %>% nrow())) %>% as.numeric()
 
+cutoff2 <- cohort %>% filter(albuminuria == T) %>% .$ckdpc_50egfr_sglt2i_benefit %>% quantile(0.90) %>% as.numeric()
+
+cutoff2_equivalent_40egfr_score <- cohort %>% filter(albuminuria == T) %>% .$ckdpc_40egfr_score %>% quantile(0.90) %>% as.numeric()
+
+
 cohort <- cohort %>% mutate(
-  treat_guideline = ifelse(albuminuria == F, F, T),            # everyone current guidelines recommend treating (uACR cutoff)
-  treat_model2 = ifelse(ckdpc_50egfr_sglt2i_benefit > cutoff2, T, F),        # anyone with benefit above upper quartile of those currently recommended treatment in 3-30mg/mmol
-  treat_model1 = ifelse(ckdpc_50egfr_sglt2i_benefit > cutoff1, T, F)         # treating same proportion of people as guidelines would recommend but based on risk-score rather than uACR cutoff
+  treat_guideline = ifelse(albuminuria == F, F, T),                          # everyone current guidelines recommend treating (uACR cutoff)
+  treat_model1 = ifelse(ckdpc_50egfr_sglt2i_benefit > cutoff1, T, F),        # treating same proportion of people as guidelines would recommend but based on risk-score rather than uACR cutoff     
+  treat_model2 = ifelse(ckdpc_50egfr_sglt2i_benefit > cutoff2, T, F)         # cutoff of benefit in top decile
   )
 
 ############################2 EVALUATE OBSERVED BENEFIT DISTRIBUTION/CALIBRATION################################################################
@@ -152,7 +153,160 @@ cohort_model2_Y <- cohort %>% filter(treat_model2 == T) %>% mutate(subgp="cohort
 overlap <- SumStat(ps.formula=ps.formula2, data=as.data.frame(cohort_model2_Y), weight="overlap")
 cohort_model2_Y$overlap_bygroup <- overlap$ps.weights$overlap
 
+## observed data at 5 years:
+
+ddist <- datadist(cohort_guideline_Y);options(datadist='ddist')
+model <- cph(Surv(ckd_egfr50_5y_censtime_yrs, ckd_egfr50_5y_censvar) ~ studydrug2, weights=overlap_bygroup, data=cohort_guideline_Y, x=TRUE, y=TRUE, surv=TRUE)
+obs_guideline_Y_SGLT2 <- survest(model, newdata=expand.grid(studydrug2="SGLT2i"), times=5)$surv
+obs_guideline_Y_DPP4 <- survest(model, newdata=expand.grid(studydrug2="DPP4i/SU"), times=5)$surv         
+arr_guideline_Y <- (obs_guideline_Y_SGLT2-obs_guideline_Y_DPP4)*100
+print(paste0(c("5-year ARR - guidelines recommend treating: ", sprintf("%.2f", arr_guideline_Y))))
+cohort_guideline_Y$arr_5y <- arr_guideline_Y
+
+ddist <- datadist(cohort_guideline_N);options(datadist='ddist')
+model <- cph(Surv(ckd_egfr50_5y_censtime_yrs, ckd_egfr50_5y_censvar) ~ studydrug2, weights=overlap_bygroup, data=cohort_guideline_N, x=TRUE, y=TRUE, surv=TRUE)
+obs_guideline_N_SGLT2 <- survest(model, newdata=expand.grid(studydrug2="SGLT2i"), times=5)$surv
+obs_guideline_N_DPP4 <- survest(model, newdata=expand.grid(studydrug2="DPP4i/SU"), times=5)$surv           
+arr_guideline_N <- (obs_guideline_N_SGLT2-obs_guideline_N_DPP4)*100
+print(paste0(c("5-year ARR - guidelines do not recommend treating: ", sprintf("%.2f", arr_guideline_N))))
+cohort_guideline_N$arr_5y <- arr_guideline_N
+
+
+ddist <- datadist(cohort_model1_Y);options(datadist='ddist')
+model <- cph(Surv(ckd_egfr50_5y_censtime_yrs, ckd_egfr50_5y_censvar) ~ studydrug2, weights=overlap_bygroup, data=cohort_model1_Y, x=TRUE, y=TRUE, surv=TRUE)
+obs_model1_Y_SGLT2 <- survest(model, newdata=expand.grid(studydrug2="SGLT2i"), times=5)$surv
+obs_model1_Y_DPP4 <- survest(model, newdata=expand.grid(studydrug2="DPP4i/SU"), times=5)$surv
+arr_model1_Y <- (obs_model1_Y_SGLT2-obs_model1_Y_DPP4)*100
+print(paste0(c("5-year ARR - model recommends treating: ", sprintf("%.2f", arr_model1_Y))))
+cohort_model1_Y$arr_5y <- arr_model1_Y
+
+
+ddist <- datadist(cohort_model1_N);options(datadist='ddist')
+model <- cph(Surv(ckd_egfr50_5y_censtime_yrs, ckd_egfr50_5y_censvar) ~ studydrug2, weights=overlap_bygroup, data=cohort_model1_N, x=TRUE, y=TRUE, surv=TRUE)
+obs_model1_N_SGLT2 <- survest(model, newdata=expand.grid(studydrug2="SGLT2i"), times=5)$surv
+obs_model1_N_DPP4 <- survest(model, newdata=expand.grid(studydrug2="DPP4i/SU"), times=5)$surv     
+arr_model1_N <- (obs_model1_N_SGLT2-obs_model1_N_DPP4)*100
+print(paste0(c("5-year ARR - model does not recommend treating: ", sprintf("%.2f", arr_model1_N))))
+cohort_model1_N$arr_5y <- arr_model1_N
+
+
+ddist <- datadist(cohort_model2_Y);options(datadist='ddist')
+model <- cph(Surv(ckd_egfr50_5y_censtime_yrs, ckd_egfr50_5y_censvar) ~ studydrug2, weights=overlap_bygroup, data=cohort_model2_Y, x=TRUE, y=TRUE, surv=TRUE)
+obs_model2_Y_SGLT2 <- survest(model, newdata=expand.grid(studydrug2="SGLT2i"), times=5)$surv
+obs_model2_Y_DPP4 <- survest(model, newdata=expand.grid(studydrug2="DPP4i/SU"), times=5)$surv           
+arr_model2_Y <- (obs_model2_Y_SGLT2-obs_model2_Y_DPP4)*100
+print(paste0(c("5-year ARR - model recommends treating: ", sprintf("%.2f", arr_model2_Y))))
+cohort_model2_Y$arr_5y <- arr_model2_Y
+
+
+ddist <- datadist(cohort_model2_N);options(datadist='ddist')
+model <- cph(Surv(ckd_egfr50_5y_censtime_yrs, ckd_egfr50_5y_censvar) ~ studydrug2, weights=overlap_bygroup, data=cohort_model2_N, x=TRUE, y=TRUE, surv=TRUE)
+obs_model2_N_SGLT2 <- survest(model, newdata=expand.grid(studydrug2="SGLT2i"), times=5)$surv
+obs_model2_N_DPP4 <- survest(model, newdata=expand.grid(studydrug2="DPP4i/SU"), times=5)$surv           
+arr_model2_N <- (obs_model2_N_SGLT2-obs_model2_N_DPP4)*100
+print(paste0(c("5-year ARR - model does not recommend treating: ", sprintf("%.2f", arr_model2_N))))
+cohort_model2_N$arr_5y <- arr_model2_N
+
+
+
+
 ## Km plots
+
+#guidelines vs model 1
+cohort1 <- rbind(cohort_guideline_N, cohort_guideline_Y, cohort_model1_N, cohort_model1_Y)
+
+survfit_list_1 <- lapply(split(cohort1, f=cohort1$subgp), function(x) survfit(Surv(ckd_egfr50_5y_censtime_yrs, ckd_egfr50_5y_censvar) ~ studydrug2, data=x, weights=x$overlap_bygroup))
+
+names(survfit_list_1[[1]][["strata"]]) <- c("DPP4i/SU   ", "SGLT2i")
+
+# Create each plot separately
+p1_1 <- ggsurvplot(
+  survfit_list_1[[1]],
+  data = cohort1,
+  title = paste0("Guidelines: SGLT2i not recommended (", round(100 * (nrow(cohort_guideline_N) / nrow(cohort)), 1), "%)"),
+  subtitle = paste0("uACR <3mg/mmol\n5-year ARR: ", sprintf("%.2f", arr_guideline_N), "%"),
+  size = 1.5,
+  fun = function(x) {100 - x * 100},
+  conf.int = TRUE,
+  risk.table = TRUE,
+  ylim = c(0, 10),
+  xlab = "Years",
+  ylab = "Incidence of\nkidney disease progression (%)",
+  break.time.by = 1,
+  ggtheme = theme_classic(),
+  font.x = c(16), font.y = c(16), font.tickslab = c(14),
+  axes.offset = FALSE,
+  palette = c("#0072B2", "#E69F00")
+)
+
+p1_2 <- ggsurvplot(
+  survfit_list_1[[2]],
+  data = cohort1,
+  title = paste0("Guidelines: SGLT2i recommended (", round(100 * (nrow(cohort_guideline_Y) / nrow(cohort)), 1), "%)"),
+  subtitle = paste0("uACR 3-30mg/mmol\n5-year ARR: ", sprintf("%.2f", arr_guideline_Y), "%"),
+  size = 1.5,
+  fun = function(x) {100 - x * 100},
+  conf.int = TRUE,
+  risk.table = TRUE,
+  ylim = c(0, 10),
+  xlab = "Years",
+  ylab = "Incidence of\nkidney disease progression (%)",
+  break.time.by = 1,
+  ggtheme = theme_classic(),
+  font.x = c(16), font.y = c(16), font.tickslab = c(14),
+  axes.offset = FALSE,
+  palette = c("#0072B2", "#E69F00")
+)
+
+p1_3 <- ggsurvplot(
+  survfit_list_1[[3]],
+  data = cohort1,
+  title = paste0("Model: SGLT2i not recommended (", round(100 * (nrow(cohort_model1_N) / nrow(cohort)), 1), "%)"),
+  subtitle = paste0("Predicted benefit below threshold (matched to guideline-treated %)\n5-year ARR: ", sprintf("%.2f", arr_model1_N), "%"),
+  size = 1.5,
+  fun = function(x) {100 - x * 100},
+  conf.int = TRUE,
+  risk.table = TRUE,
+  ylim = c(0, 10),
+  xlab = "Years",
+  ylab = "Incidence of\nkidney disease progression (%)",
+  break.time.by = 1,
+  ggtheme = theme_classic(),
+  font.x = c(16), font.y = c(16), font.tickslab = c(14),
+  axes.offset = FALSE,
+  palette = c("#0072B2", "#E69F00")
+)
+
+p1_4 <- ggsurvplot(
+  survfit_list_1[[4]],
+  data = cohort1,
+  title = paste0("Model: SGLT2i recommended (", round(100 * (nrow(cohort_model1_Y) / nrow(cohort)), 1), "%)"),
+  subtitle = paste0("Predicted benefit above threshold (matched to guideline-treated %)\n5-year ARR: ", sprintf("%.2f", arr_model1_Y), "%"),
+  size = 1.5,
+  fun = function(x) {100 - x * 100},
+  conf.int = TRUE,
+  risk.table = TRUE,
+  ylim = c(0, 10),
+  xlab = "Years",
+  ylab = "Incidence of\nkidney disease progression (%)",
+  break.time.by = 1,
+  ggtheme = theme_classic(),
+  font.x = c(16), font.y = c(16), font.tickslab = c(14),
+  axes.offset = FALSE,
+  palette = c("#0072B2", "#E69F00")
+)
+
+# Combine the plots
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Output/")
+tiff(paste0(today, "_treat_asper_guidelines_vs_model1.tiff"), width=16, height=10, units = "in", res=800) 
+grid.arrange(arrangeGrob(p1_1[["plot"]] + theme(legend.position=c(0.5, 0.3), legend.title=element_blank(), legend.text=element_text(size=16, face="bold"), plot.title=element_text(face="bold", hjust=0.5, margin=margin(b=5, t=12), size = 22), plot.subtitle=element_text(hjust=0.5, margin=margin(b=-25), size = 16), axis.title.y=element_text(vjust=-0.3), plot.margin=margin(l=5, r=5)) + guides(colour = guide_legend(nrow = 1)),
+                         p1_2[["plot"]] + theme(legend.position="none", plot.title=element_text(face="bold", hjust=0.5, margin=margin(b=5, t=12), size = 22), plot.subtitle=element_text(hjust=0.5, margin=margin(b=-25), size = 16), axis.title.y=element_text(vjust=-0.3), plot.margin=margin(l=5, r=5)),
+                         p1_3[["plot"]] + theme(legend.position="none", plot.title=element_text(face="bold", hjust=0.5, margin=margin(b=5, t=12), size = 22), plot.subtitle=element_text(hjust=0.5, margin=margin(b=-25), size = 16), axis.title.y=element_text(vjust=-0.3), plot.margin=margin(l=5, r=5)),
+                         p1_4[["plot"]] + theme(legend.position="none", plot.title=element_text(face="bold", hjust=0.5, margin=margin(b=5, t=12), size = 22), plot.subtitle=element_text(hjust=0.5, margin=margin(b=-25), size = 16), axis.title.y=element_text(vjust=-0.3), plot.margin=margin(l=5, r=5)), ncol=2, nrow=2, widths=c(1,1)))
+dev.off()
+
+
+table(cohort1$subgp)
 
 #guidelines vs model 2
 cohort2 <- rbind(cohort_guideline_N, cohort_guideline_Y, cohort_model2_N, cohort_model2_Y)
@@ -161,75 +315,94 @@ survfit_list_2 <- lapply(split(cohort2, f=cohort2$subgp), function(x) survfit(Su
 
 names(survfit_list_2[[1]][["strata"]]) <- c("DPP4i/SU   ", "SGLT2i")
 
+# Create each plot separately
+p2_1 <- ggsurvplot(
+  survfit_list_2[[1]],
+  data = cohort2,
+  title = paste0("Guidelines: SGLT2i not recommended (", round(100 * (nrow(cohort_guideline_N) / nrow(cohort)), 1), "%)"),
+  subtitle = paste0("uACR <3mg/mmol\n5-year ARR: ", sprintf("%.2f", arr_guideline_N), "%"),
+  size = 1.5,
+  fun = function(x) {100 - x * 100},
+  conf.int = TRUE,
+  risk.table = TRUE,
+  ylim = c(0, 10),
+  xlab = "Years",
+  ylab = "Incidence of\nkidney disease progression (%)",
+  break.time.by = 1,
+  ggtheme = theme_classic(),
+  font.x = c(16), font.y = c(16), font.tickslab = c(14),
+  axes.offset = FALSE,
+  palette = c("#0072B2", "#E69F00")
+)
 
-p2 <- ggsurvplot_list(survfit_list_2,
-                      data=cohort2 %>% filter(.imp == n.imp),
-                      title=c(
-                        paste0("Guidelines do not recommend SGLT2i (uACR <3mg/mmol; ",round(100*(nrow(cohort_guideline_N)/nrow(cohort)),1),"%)"), 
-                        paste0("Guidelines recommend SGLT2i (uACR ≥3mg/mmol; ",round(100*(nrow(cohort_guideline_Y)/nrow(cohort)),1),"%)"), 
-                        paste0("Model: No SGLT2i (",round(100*(nrow(cohort_model2_N)/nrow(cohort)),1),"%)"),
-                        paste0("Model: SGLT2i (",round(100*(nrow(cohort_model2_Y)/nrow(cohort)),1),"%)")),
-                      size = 1.5,
-                      fun = function(x) {100 - x*100},
-                      conf.int = T,
-                      risk.table=TRUE,
-                      ylim = c(0, 10.2),
-                      xlab = "Years",
-                      ylab = "Incidence of\nkidney disease progression (%)",
-                      break.time.by = 1,
-                      ggtheme = theme_classic(),
-                      font.x = c(16),font.y = c(16),font.tickslab = c(14),
-                      axes.offset = FALSE, # start the axis at the origin
-                      palette = c("#0072B2","#E69F00"))
+p2_2 <- ggsurvplot(
+  survfit_list_2[[2]],
+  data = cohort2,
+  title = paste0("Guidelines: SGLT2i recommended (", round(100 * (nrow(cohort_guideline_Y) / nrow(cohort)), 1), "%)"),
+  subtitle = paste0("uACR 3-30mg/mmol\n5-year ARR: ", sprintf("%.2f", arr_guideline_Y), "%"),
+  size = 1.5,
+  fun = function(x) {100 - x * 100},
+  conf.int = TRUE,
+  risk.table = TRUE,
+  ylim = c(0, 10),
+  xlab = "Years",
+  ylab = "Incidence of\nkidney disease progression (%)",
+  break.time.by = 1,
+  ggtheme = theme_classic(),
+  font.x = c(16), font.y = c(16), font.tickslab = c(14),
+  axes.offset = FALSE,
+  palette = c("#0072B2", "#E69F00")
+)
 
+p2_3 <- ggsurvplot(
+  survfit_list_2[[3]],
+  data = cohort2,
+  title = paste0("Model: SGLT2i not recommended (", round(100 * (nrow(cohort_model2_N) / nrow(cohort)), 1), "%)"),
+  subtitle = paste0("Predicted benefit below top decile of those with uACR 3-30mg/mmol\n5-year ARR: ", sprintf("%.2f", arr_model2_N), "%"),
+  size = 1.5,
+  fun = function(x) {100 - x * 100},
+  conf.int = TRUE,
+  risk.table = TRUE,
+  ylim = c(0, 10),
+  xlab = "Years",
+  ylab = "Incidence of\nkidney disease progression (%)",
+  break.time.by = 1,
+  ggtheme = theme_classic(),
+  font.x = c(16), font.y = c(16), font.tickslab = c(14),
+  axes.offset = FALSE,
+  palette = c("#0072B2", "#E69F00")
+)
+
+p2_4 <- ggsurvplot(
+  survfit_list_2[[4]],
+  data = cohort2,
+  title = paste0("Model: SGLT2i recommended (", round(100 * (nrow(cohort_model2_Y) / nrow(cohort)), 1), "%)"),
+  subtitle = paste0("Predicted benefit in top decile of those with uACR 3-30mg/mmol\n5-year ARR: ", sprintf("%.2f", arr_model2_Y), "%"),
+  size = 1.5,
+  fun = function(x) {100 - x * 100},
+  conf.int = TRUE,
+  risk.table = TRUE,
+  ylim = c(0, 10),
+  xlab = "Years",
+  ylab = "Incidence of\nkidney disease progression (%)",
+  break.time.by = 1,
+  ggtheme = theme_classic(),
+  font.x = c(16), font.y = c(16), font.tickslab = c(14),
+  axes.offset = FALSE,
+  palette = c("#0072B2", "#E69F00")
+)
+
+# Combine the plots
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Output/")
 tiff(paste0(today, "_treat_asper_guidelines_vs_model2.tiff"), width=16, height=10, units = "in", res=800) 
-grid.arrange(arrangeGrob(p2[[1]][["plot"]] + theme(legend.position=c(0.5, 0.7), legend.title=element_blank(), legend.text=element_text(size=16, face="bold"), plot.title=element_text(face="bold", hjust=0.5, margin=margin(b=5, t=12), size = 22), plot.subtitle=element_text(hjust=0.5, margin=margin(b=-25), size = 16), axis.title.y=element_text(vjust=-0.3), plot.margin=margin(l=5, r=5)) + guides(colour = guide_legend(nrow = 1)),
-                         p2[[2]][["plot"]] + theme(legend.position="none", plot.title=element_text(face="bold", hjust=0.5, margin=margin(b=5, t=12), size = 22), plot.subtitle=element_text(hjust=0.5, margin=margin(b=-25), size = 16), axis.title.y=element_text(vjust=-0.3), plot.margin=margin(l=5, r=5)),
-                         p2[[3]][["plot"]] + theme(legend.position="none", plot.title=element_text(face="bold", hjust=0.5, margin=margin(b=5, t=12), size = 22), plot.subtitle=element_text(hjust=0.5, margin=margin(b=-25), size = 16), axis.title.y=element_text(vjust=-0.3), plot.margin=margin(l=5, r=5)),
-                         p2[[4]][["plot"]] + theme(legend.position="none", plot.title=element_text(face="bold", hjust=0.5, margin=margin(b=5, t=12), size = 22), plot.subtitle=element_text(hjust=0.5, margin=margin(b=-25), size = 16), axis.title.y=element_text(vjust=-0.3), plot.margin=margin(l=5, r=5)), 
-                         ncol=2, nrow=2, widths=c(1,1)))
+grid.arrange(arrangeGrob(p2_1[["plot"]] + theme(legend.position=c(0.5, 0.3), legend.title=element_blank(), legend.text=element_text(size=16, face="bold"), plot.title=element_text(face="bold", hjust=0.5, margin=margin(b=5, t=12), size = 22), plot.subtitle=element_text(hjust=0.5, margin=margin(b=-25), size = 16), axis.title.y=element_text(vjust=-0.3), plot.margin=margin(l=5, r=5)) + guides(colour = guide_legend(nrow = 1)),
+                         p2_2[["plot"]] + theme(legend.position="none", plot.title=element_text(face="bold", hjust=0.5, margin=margin(b=5, t=12), size = 22), plot.subtitle=element_text(hjust=0.5, margin=margin(b=-25), size = 16), axis.title.y=element_text(vjust=-0.3), plot.margin=margin(l=5, r=5)),
+                         p2_3[["plot"]] + theme(legend.position="none", plot.title=element_text(face="bold", hjust=0.5, margin=margin(b=5, t=12), size = 22), plot.subtitle=element_text(hjust=0.5, margin=margin(b=-25), size = 16), axis.title.y=element_text(vjust=-0.3), plot.margin=margin(l=5, r=5)),
+                         p2_4[["plot"]] + theme(legend.position="none", plot.title=element_text(face="bold", hjust=0.5, margin=margin(b=5, t=12), size = 22), plot.subtitle=element_text(hjust=0.5, margin=margin(b=-25), size = 16), axis.title.y=element_text(vjust=-0.3), plot.margin=margin(l=5, r=5)), ncol=2, nrow=2, widths=c(1,1)))
 dev.off()
+
 
 table(cohort2$subgp)
-
-#guidelines vs model 2
-cohort1 <- rbind(cohort_guideline_N, cohort_guideline_Y, cohort_model1_N, cohort_model1_Y)
-
-survfit_list_1 <- lapply(split(cohort1, f=cohort1$subgp), function(x) survfit(Surv(ckd_egfr50_5y_censtime_yrs, ckd_egfr50_5y_censvar) ~ studydrug2, data=x, weights=x$overlap_bygroup))
-
-names(survfit_list_1[[1]][["strata"]]) <- c("DPP4i/SU   ", "SGLT2i")
-
-
-p1 <- ggsurvplot_list(survfit_list_1,
-                      data=cohort1,
-                      title=c(
-                        paste0("Guidelines: No SGLT2i (",round(100*(nrow(cohort_guideline_N)/nrow(cohort)),1),"%)"), 
-                        paste0("Guidelines: SGLT2i (",round(100*(nrow(cohort_guideline_Y)/nrow(cohort)),1),"%)"), 
-                        paste0("Model: No SGLT2i (",round(100*(nrow(cohort_model1_N)/nrow(cohort)),1),"%)"),
-                        paste0("Model: SGLT2i (",round(100*(nrow(cohort_model1_Y)/nrow(cohort)),1),"%)")),
-                      size = 1.5,
-                      fun = function(x) {100 - x*100},
-                      conf.int = T,
-                      risk.table=TRUE,
-                      ylim = c(0, 10),
-                      xlab = "Years",
-                      ylab = "Incidence of\nkidney disease progression (%)",
-                      break.time.by = 1,
-                      ggtheme = theme_classic(),
-                      font.x = c(16),font.y = c(16),font.tickslab = c(14),
-                      axes.offset = FALSE, # start the axis at the origin
-                      palette = c("#0072B2","#E69F00"))
-
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Output/")
-tiff(paste0(today, "_treat_asper_guidelines_vs_model1.tiff"), width=16, height=10, units = "in", res=800) 
-grid.arrange(arrangeGrob(p1[[1]][["plot"]] + theme(legend.position=c(0.5, 0.7), legend.title=element_blank(), legend.text=element_text(size=16, face="bold"), plot.title=element_text(face="bold", hjust=0.5, margin=margin(b=5, t=12), size = 22), plot.subtitle=element_text(hjust=0.5, margin=margin(b=-25), size = 16), axis.title.y=element_text(vjust=-0.3), plot.margin=margin(l=5, r=5)) + guides(colour = guide_legend(nrow = 1)),
-                         p1[[2]][["plot"]] + theme(legend.position="none", plot.title=element_text(face="bold", hjust=0.5, margin=margin(b=5, t=12), size = 22), plot.subtitle=element_text(hjust=0.5, margin=margin(b=-25), size = 16), axis.title.y=element_text(vjust=-0.3), plot.margin=margin(l=5, r=5)),
-                         p1[[3]][["plot"]] + theme(legend.position="none", plot.title=element_text(face="bold", hjust=0.5, margin=margin(b=5, t=12), size = 22), plot.subtitle=element_text(hjust=0.5, margin=margin(b=-25), size = 16), axis.title.y=element_text(vjust=-0.3), plot.margin=margin(l=5, r=5)),
-                         p1[[4]][["plot"]] + theme(legend.position="none", plot.title=element_text(face="bold", hjust=0.5, margin=margin(b=5, t=12), size = 22), plot.subtitle=element_text(hjust=0.5, margin=margin(b=-25), size = 16), axis.title.y=element_text(vjust=-0.3), plot.margin=margin(l=5, r=5)), ncol=2, nrow=2, widths=c(1,1)))
-dev.off()
-
-table(cohort1$subgp)
 
 options(datadist=NULL)
 
@@ -268,10 +441,13 @@ ckd.notx - ckd.tx
 
 1/(mean(cohort[cohort$treat_guideline == T,]$ckdpc_50egfr_score_cal/100)-mean(cohort[cohort$treat_guideline == T,]$ckdpc_50egfr_score_cal.applied/100)) #NNT
 
+
+1/(mean(cohort[cohort$treat_model2 == T,]$ckdpc_50egfr_score_cal/100)-mean(cohort[cohort$treat_model2 == T,]$ckdpc_50egfr_score_cal.applied/100)) #NNT
+
 #Treat as per model 1
-describe(cohort$treat_model2)
+describe(cohort$treat_model1)
 cohort <- cohort %>% mutate(ckdpc_50egfr_score_cal.applied = 
-                              ifelse(treat_model2 == F, 
+                              ifelse(treat_model1 == F, 
                                      ckdpc_50egfr_score_cal, 100*(1-cohort$ckdpc_50egfr_survival_cal_sglt2i)))
 #estimated number of events with treatment as per model 1
 ckd.tx <- round(nrow(cohort)*mean(cohort$ckdpc_50egfr_score_cal.applied/100)) 
@@ -281,12 +457,14 @@ ckd.notx - ckd.tx
 (ckd.notx - ckd.tx)/ckd.tx_all
 100*(ckd.tx/nrow(cohort))
 
-1/(mean(cohort[cohort$treat_model2 == T,]$ckdpc_50egfr_score_cal/100)-mean(cohort[cohort$treat_model2 == T,]$ckdpc_50egfr_score_cal.applied/100)) #NNT
+1/(mean(cohort[cohort$treat_model1 == T,]$ckdpc_50egfr_score_cal/100)-mean(cohort[cohort$treat_model1 == T,]$ckdpc_50egfr_score_cal.applied/100)) #NNT
+
+
 
 #Treat as per model 2
-describe(cohort$treat_model1)
+describe(cohort$treat_model2)
 cohort <- cohort %>% mutate(ckdpc_50egfr_score_cal.applied = 
-                              ifelse(treat_model1 == F, 
+                              ifelse(treat_model2 == F, 
                                      ckdpc_50egfr_score_cal, 100*(1-cohort$ckdpc_50egfr_survival_cal_sglt2i)))
 #estimated number of events with treatment as per model 2
 ckd.tx <- round(nrow(cohort)*mean(cohort$ckdpc_50egfr_score_cal.applied/100)) 
@@ -296,47 +474,10 @@ ckd.notx - ckd.tx
 (ckd.notx - ckd.tx)/ckd.tx_all
 100*(ckd.tx/nrow(cohort))
 
-1/(mean(cohort[cohort$treat_model1 == T,]$ckdpc_50egfr_score_cal/100)-mean(cohort[cohort$treat_model1 == T,]$ckdpc_50egfr_score_cal.applied/100)) #NNT
 
 
 
-## observed data for 3 years:
 
-ddist <- datadist(cohort_guideline_Y);options(datadist='ddist')
-model <- cph(Surv(ckd_egfr50_5y_censtime_yrs, ckd_egfr50_5y_censvar) ~ studydrug2, weights=overlap_bygroup, data=cohort_guideline_Y, x=TRUE, y=TRUE, surv=TRUE)
-obs_guideline_Y_SGLT2 <- survest(model, newdata=expand.grid(studydrug2="SGLT2i"), times = 3)$surv
-obs_guideline_Y_DPP4 <- survest(model, newdata=expand.grid(studydrug2="DPP4i/SU"), times = 3)$surv           
-print(paste0(c("3-year ARR - guidelines recommend treating: ", (obs_guideline_Y_SGLT2-obs_guideline_Y_DPP4)*100)))
-
-ddist <- datadist(cohort_guideline_N);options(datadist='ddist')
-model <- cph(Surv(ckd_egfr50_5y_censtime_yrs, ckd_egfr50_5y_censvar) ~ studydrug2, weights=overlap_bygroup, data=cohort_guideline_N, x=TRUE, y=TRUE, surv=TRUE)
-obs_guideline_N_SGLT2 <- survest(model, newdata=expand.grid(studydrug2="SGLT2i"), times = 3)$surv
-obs_guideline_N_DPP4 <- survest(model, newdata=expand.grid(studydrug2="DPP4i/SU"), times = 3)$surv           
-print(paste0(c("3-year ARR - guidelines do not recommend treating: ", (obs_guideline_N_SGLT2-obs_guideline_N_DPP4)*100)))
-
-ddist <- datadist(cohort_model2_Y);options(datadist='ddist')
-model <- cph(Surv(ckd_egfr50_5y_censtime_yrs, ckd_egfr50_5y_censvar) ~ studydrug2, weights=overlap_bygroup, data=cohort_model2_Y, x=TRUE, y=TRUE, surv=TRUE)
-obs_model2_Y_SGLT2 <- survest(model, newdata=expand.grid(studydrug2="SGLT2i"), times = 3)$surv
-obs_model2_Y_DPP4 <- survest(model, newdata=expand.grid(studydrug2="DPP4i/SU"), times = 3)$surv           
-print(paste0(c("3-year ARR - model recommends treating: ", (obs_model2_Y_SGLT2-obs_model2_Y_DPP4)*100)))
-
-ddist <- datadist(cohort_model2_N);options(datadist='ddist')
-model <- cph(Surv(ckd_egfr50_5y_censtime_yrs, ckd_egfr50_5y_censvar) ~ studydrug2, weights=overlap_bygroup, data=cohort_model2_N, x=TRUE, y=TRUE, surv=TRUE)
-obs_model2_N_SGLT2 <- survest(model, newdata=expand.grid(studydrug2="SGLT2i"), times = 3)$surv
-obs_model2_N_DPP4 <- survest(model, newdata=expand.grid(studydrug2="DPP4i/SU"), times = 3)$surv           
-print(paste0(c("3-year ARR - model does not recommend treating: ", (obs_model2_N_SGLT2-obs_model2_N_DPP4)*100)))
-
-ddist <- datadist(cohort_model1_Y);options(datadist='ddist')
-model <- cph(Surv(ckd_egfr50_5y_censtime_yrs, ckd_egfr50_5y_censvar) ~ studydrug2, weights=overlap_bygroup, data=cohort_model1_Y, x=TRUE, y=TRUE, surv=TRUE)
-obs_model1_Y_SGLT2 <- survest(model, newdata=expand.grid(studydrug2="SGLT2i"), times = 3)$surv
-obs_model1_Y_DPP4 <- survest(model, newdata=expand.grid(studydrug2="DPP4i/SU"), times = 3)$surv           
-print(paste0(c("3-year ARR - model recommends treating: ", (obs_model1_Y_SGLT2-obs_model1_Y_DPP4)*100)))
-
-ddist <- datadist(cohort_model1_N);options(datadist='ddist')
-model <- cph(Surv(ckd_egfr50_5y_censtime_yrs, ckd_egfr50_5y_censvar) ~ studydrug2, weights=overlap_bygroup, data=cohort_model1_N, x=TRUE, y=TRUE, surv=TRUE)
-obs_model1_N_SGLT2 <- survest(model, newdata=expand.grid(studydrug2="SGLT2i"), times = 3)$surv
-obs_model1_N_DPP4 <- survest(model, newdata=expand.grid(studydrug2="DPP4i/SU"), times = 3)$surv           
-print(paste0(c("3-year ARR - model does not recommend treating: ", (obs_model1_N_SGLT2-obs_model1_N_DPP4)*100)))
 
 nnt_median_overall <- cohort %>% summarise(median_benefit = median(survdiff_ckd_egfr50)) %>% mutate(nnt = 1/median_benefit) %>% select(nnt) %>% as.numeric()
 nnt_median_guideline_recommended <- cohort %>% filter(risk_group != "uACR <3mg/mmol") %>% summarise(median_benefit = median(survdiff_ckd_egfr50)) %>% mutate(nnt = 1/median_benefit) %>% select(nnt) %>% as.numeric()

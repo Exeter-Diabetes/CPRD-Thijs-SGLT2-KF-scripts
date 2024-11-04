@@ -1209,7 +1209,7 @@ labels_plot5 <- overall
 
 labels5 <- data.frame(matrix("", nrow = 1, ncol = length(overall)))
 names(labels5) <- names(overall)
-labels5 <- labels5 %>% mutate(contrast = " All participants", 
+labels5 <- labels5 %>% mutate(contrast = " All subjects", 
                  analysis = "Overall", 
                  string = "Hazard Ratio (95% CI)",
                  SGLT2i_nN = "Events/subjects (SGLT2i)",
