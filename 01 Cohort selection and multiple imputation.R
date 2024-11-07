@@ -17,9 +17,9 @@ source("00 Setup.R")
 ## A Cohort selection (see cohort_definition_kf function for details)
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-load("2024-07-23_t2d_1stinstance_a.Rda")
-load("2024-07-23_t2d_1stinstance_b.Rda")
-load("2024-07-13_t2d_all_drug_periods.Rda")
+load("2024-11-06_t2d_1stinstance_a.Rda")
+load("2024-11-06_t2d_1stinstance_b.Rda")
+load("2024-11-06_t2d_all_drug_periods.Rda")
 
 t2d_1stinstance <- rbind(t2d_1stinstance_a, t2d_1stinstance_b)
 rm(t2d_1stinstance_a)
@@ -32,7 +32,7 @@ cohort <- define_cohort(t2d_1stinstance, t2d_all_drug_periods)
 
 table(cohort$studydrug)
 # DPP4 SGLT2    SU 
-# 72840 56740 43947
+# 59840 53674 38389
 
 ## B Make variables for survival analysis of all endpoints (see survival_variables_kf function for details)
 
@@ -95,7 +95,8 @@ cohort <- cohort %>%
          predrug_dka, predrug_falls, predrug_urinary_frequency, predrug_volume_depletion, 
          predrug_micturition_control, predrug_dementia, hosp_admission_prev_year,
          statin, ACEi, ARB, BB, CCB, ThZD, loopD, MRA, steroids, immunosuppr, 
-         osteoporosis, genital_infection
+         osteoporosis, genital_infection,
+         ckd_egfr50_outcome_type, preacr_confirmed
   )
 
 # set SU as reference group
@@ -126,6 +127,10 @@ cohort <- cohort %>% mutate(
                                            ifelse(imd2015_10 %in% c(9,10), "9/10", NA))))),
   imd2015_10 = factor(imd2015_10)
 )
+
+# variable preacr_confirmed indicates whether a person had their presence of albuminuria (3mg/mmol) confirmed on 2 readings
+# this shows as NA if no second reading available to confirm - replace with NA
+cohort <- cohort %>% mutate(preacr_confirmed = ifelse(is.na(preacr_confirmed), F, preacr_confirmed))
 
 ########################2 MULTIPLE IMPUTATION####################################################################
 # 2 Impute missing data
@@ -171,7 +176,8 @@ meth[c("death_date", "preacr", "last_sglt2_stop", "preckdstage", "predrug_earlie
        "predrug_latest_arb",
        "predrug_latest_beta_blockers", "predrug_latest_calcium_channel_blockers",
        "ethnicity_qrisk2", 
-       "predrug_latest_thiazide_diuretics")] <- ""
+       "predrug_latest_thiazide_diuretics",
+       "ckd_egfr50_outcome_type", "preacr_confirmed")] <- ""
 
 meth[c("qrisk2_smoking_cat", "imd2015_10")] <- "polyreg"
 
@@ -195,7 +201,8 @@ outlist1 <- c("patid", "gp_record_end", "drugclass", "drugline_all", "ncurrtx",
               "DPP4", "GLP1", "SGLT2", "SU", "INS", 
               names(cohort)[grep("cens", names(cohort))], 
               "oha", "predrug_angina", "predrug_myocardialinfarction", "predrug_stroke", 
-              "predrug_revasc", "predrug_heartfailure", "initiation_year", "ethnicity_5cat")
+              "predrug_revasc", "predrug_heartfailure", "initiation_year", "ethnicity_5cat",
+              "ckd_egfr50_outcome_type", "preacr_confirmed")
 
 #list variables with outflux <0.5 
 #outflux is an indicator of the potential usefulness for imputing other variables - 
@@ -410,7 +417,8 @@ temp <- temp %>% mutate(
   obesity = ifelse(prebmi < 30, F, T),
   smoking_hx = ifelse(qrisk2_smoking_cat == 0, F, T),
   smoking_status = ifelse(qrisk2_smoking_cat == 0, "never", ifelse(qrisk2_smoking_cat == 1, "ex", "current")),
-  albuminuria = ifelse(uacr < 3, F, T),
+  albuminuria_unconfirmed = ifelse(uacr < 3, F, T),
+  albuminuria = preacr_confirmed,
   dyslipidaemia = ifelse(pretotalcholesterol < 5 &
                            preldl < 4 &
                            pretriglyceride < 2.3, F, T),
@@ -444,15 +452,13 @@ setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
 save(temp, file=paste0(today, "_t2d_ckdpc_imputed_data.Rda"))
 
 
-
-
 # create table one: this will be an average of the imputed datasets (n to be divided by n.imp)
 
 #variables to be shown
 vars <- c("dstartdate_age", "malesex", "ethnicity_5cat", "imd2015_10",             # sociodemographic variables
           "prebmi", "presbp", "predbp", "pretotalcholesterol", "prehdl", "preldl", # vital signs and laboratory measurements
           "pretriglyceride", "prehba1c",  "preegfr",
-          "uacr", "albuminuria",
+          "uacr", "albuminuria_unconfirmed", "albuminuria",
           "dstartdate_dm_dur_all", "smoking_status", "predrug_hypertension",   # comorbidities
           "predrug_af", "predrug_dka", "genital_infection", "osteoporosis",
           "predrug_acutepancreatitis", "predrug_falls",
@@ -465,7 +471,8 @@ vars <- c("dstartdate_age", "malesex", "ethnicity_5cat", "imd2015_10",          
 )
 
 #categorical variables
-factors <- c("malesex", "ethnicity_5cat", "imd2015_10", "albuminuria", "smoking_status", "predrug_hypertension",
+factors <- c("malesex", "ethnicity_5cat", "imd2015_10", "albuminuria_unconfirmed", "albuminuria", 
+             "smoking_status", "predrug_hypertension",
              "predrug_af", "predrug_dka", "genital_infection", "osteoporosis", "predrug_acutepancreatitis",
              "predrug_falls", "predrug_urinary_frequency", "predrug_volume_depletion",
              "predrug_micturition_control", "predrug_dementia", "hosp_admission_prev_year",

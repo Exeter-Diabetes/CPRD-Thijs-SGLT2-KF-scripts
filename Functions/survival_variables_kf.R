@@ -70,6 +70,17 @@ add_surv_vars <- function(cohort_dataset, main_only=FALSE) {
                                    kf_death_date_any_cause,
                                    na.rm=TRUE),
            
+           ckd_egfr50_outcome_type=ifelse(
+             is.na(ckd_egfr50_outcome), 
+             NA,
+             ifelse(ckd_egfr50_outcome == egfr_50_decline_date, 
+                    "50% eGFR decline",
+                    ifelse(ckd_egfr50_outcome == postckdstage5date, 
+                           "ESKD", 
+                           "Kidney-related death")
+             )
+           ),
+           
            macroalb_outcome=macroalb_date,
            
            dka_outcome=postdrug_first_dka,

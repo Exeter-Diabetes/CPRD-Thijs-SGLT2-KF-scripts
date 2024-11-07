@@ -6,7 +6,7 @@ setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/scripts/CPRD-Thi
 source("00 Setup.R")
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-load("2024-11-01_t2d_ckdpc_recalibrated_with_adjsurv.Rda")
+load("2024-11-06_t2d_ckdpc_recalibrated_with_adjsurv.Rda")
 
 
 ############################1 DEFINE CUTOFFS################################################################
@@ -40,7 +40,7 @@ cohort <- cohort %>% mutate(
 
 ############################2 EVALUATE OBSERVED BENEFIT DISTRIBUTION/CALIBRATION################################################################
 
-## FIGURE 2A: histogram of predicted benefit (people with albuminuria <30mg/mmol only)
+## FIGURE 2A: histogram of predicted benefit
 benefit_histogram <- ggplot(cohort %>%
                       mutate(predicted_benefit_percent = ckdpc_50egfr_sglt2i_benefit * 100), 
                     aes(x = predicted_benefit_percent)) +
@@ -51,9 +51,9 @@ benefit_histogram <- ggplot(cohort %>%
   geom_vline(xintercept = cutoff2*100, linetype = "dashed", color = "black", size = 1) +
   geom_vline(xintercept = cutoff3*100, linetype = "dashed", color = "black", size = 1) +
 
-  annotate("text", x = cutoff1*100, y = Inf, label = "Benchmark strategy", vjust = -0.5, hjust = 1.1, angle = 90, size = 4, color = "black") +
-  annotate("text", x = cutoff2*100, y = Inf, label = "Alternative strategy 1", vjust = -0.5, hjust = 1.1, angle = 90, size = 4, color = "black") +
-  annotate("text", x = cutoff3*100, y = Inf, label = "Alternative strategy 2", vjust = -0.5, hjust = 1.1, angle = 90, size = 4, color = "black") +
+  annotate("text", x = cutoff1*100, y = Inf, label = "Strategy A", vjust = -0.5, hjust = 1.1, angle = 90, size = 4, color = "black") +
+  annotate("text", x = cutoff2*100, y = Inf, label = "Strategy B", vjust = -0.5, hjust = 1.1, angle = 90, size = 4, color = "black") +
+  annotate("text", x = cutoff3*100, y = Inf, label = "Strategy C", vjust = -0.5, hjust = 1.1, angle = 90, size = 4, color = "black") +
   
   labs(x = "Predicted absolute risk reduction with SGLT2i (%)", y = "Frequency") +
   theme_minimal() +
@@ -293,7 +293,7 @@ p1_2 <- ggsurvplot(
 p1_3 <- ggsurvplot(
   survfit_list_1[[3]],
   data = cohort1,
-  title = paste0("Model: SGLT2i not recommended (", round(100 * (nrow(cohort_model1_N) / nrow(cohort)), 1), "%)"),
+  title = paste0("Strategy A: SGLT2i not recommended (", round(100 * (nrow(cohort_model1_N) / nrow(cohort)), 1), "%)"),
   subtitle = paste0("Predicted benefit below threshold (matched to guideline-treated %)\n5-year ARR: ", sprintf("%.2f", arr_model1_N), "%"),
   size = 1.5,
   fun = function(x) {100 - x * 100},
@@ -312,7 +312,7 @@ p1_3 <- ggsurvplot(
 p1_4 <- ggsurvplot(
   survfit_list_1[[4]],
   data = cohort1,
-  title = paste0("Model: SGLT2i recommended (", round(100 * (nrow(cohort_model1_Y) / nrow(cohort)), 1), "%)"),
+  title = paste0("Strategy A: SGLT2i recommended (", round(100 * (nrow(cohort_model1_Y) / nrow(cohort)), 1), "%)"),
   subtitle = paste0("Predicted benefit above threshold (matched to guideline-treated %)\n5-year ARR: ", sprintf("%.2f", arr_model1_Y), "%"),
   size = 1.5,
   fun = function(x) {100 - x * 100},
@@ -408,7 +408,7 @@ p2_3 <- ggsurvplot(
 p2_4 <- ggsurvplot(
   survfit_list_2[[4]],
   data = cohort2,
-  title = paste0("Model: SGLT2i recommended (", round(100 * (nrow(cohort_model2_Y) / nrow(cohort)), 1), "%)"),
+  title = paste0("Strategy B: SGLT2i recommended (", round(100 * (nrow(cohort_model2_Y) / nrow(cohort)), 1), "%)"),
   subtitle = paste0("Predicted benefit in top quintile of those with uACR 3-30mg/mmol\n5-year ARR: ", sprintf("%.2f", arr_model2_Y), "%"),
   size = 1.5,
   fun = function(x) {100 - x * 100},
@@ -485,7 +485,7 @@ p3_2 <- ggsurvplot(
 p3_3 <- ggsurvplot(
   survfit_list_3[[3]],
   data = cohort3,
-  title = paste0("Model: SGLT2i not recommended (", round(100 * (nrow(cohort_model3_N) / nrow(cohort)), 1), "%)"),
+  title = paste0("Strategy C: SGLT2i not recommended (", round(100 * (nrow(cohort_model3_N) / nrow(cohort)), 1), "%)"),
   subtitle = paste0("Predicted benefit below top decile of those with uACR 3-30mg/mmol\n5-year ARR: ", sprintf("%.2f", arr_model3_N), "%"),
   size = 1.5,
   fun = function(x) {100 - x * 100},
@@ -504,7 +504,7 @@ p3_3 <- ggsurvplot(
 p3_4 <- ggsurvplot(
   survfit_list_3[[4]],
   data = cohort3,
-  title = paste0("Model: SGLT2i recommended (", round(100 * (nrow(cohort_model3_Y) / nrow(cohort)), 1), "%)"),
+  title = paste0("Strategy C: SGLT2i recommended (", round(100 * (nrow(cohort_model3_Y) / nrow(cohort)), 1), "%)"),
   subtitle = paste0("Predicted benefit in top decile of those with uACR 3-30mg/mmol\n5-year ARR: ", sprintf("%.2f", arr_model3_Y), "%"),
   size = 1.5,
   fun = function(x) {100 - x * 100},
@@ -557,7 +557,7 @@ cohort <- cohort %>% mutate(ckdpc_50egfr_score_cal.applied.guideline =
 ckd.tx.guideline <- round(nrow(cohort)*mean(cohort$ckdpc_50egfr_score_cal.applied.guideline/100)) 
 
 
-#Treat as per model 1
+#Treat as per strategy A
 describe(cohort$treat_model1)
 cohort <- cohort %>% mutate(ckdpc_50egfr_score_cal.applied.model1 = 
                               ifelse(treat_model1 == F, 
@@ -566,7 +566,7 @@ cohort <- cohort %>% mutate(ckdpc_50egfr_score_cal.applied.model1 =
 ckd.tx.model1 <- round(nrow(cohort)*mean(cohort$ckdpc_50egfr_score_cal.applied.model1/100)) 
 
 
-#Treat as per model 2
+#Treat as per strategy B
 describe(cohort$treat_model2)
 cohort <- cohort %>% mutate(ckdpc_50egfr_score_cal.applied.model2 = 
                               ifelse(treat_model2 == F, 
@@ -575,7 +575,7 @@ cohort <- cohort %>% mutate(ckdpc_50egfr_score_cal.applied.model2 =
 ckd.tx.model2 <- round(nrow(cohort)*mean(cohort$ckdpc_50egfr_score_cal.applied.model2/100)) 
 
 
-#Treat as per model 3
+#Treat as per strategy C
 describe(cohort$treat_model3)
 cohort <- cohort %>% mutate(ckdpc_50egfr_score_cal.applied.model3 = 
                               ifelse(treat_model3 == F, 
@@ -599,25 +599,25 @@ print(paste0(c("NNT with guideline treatment strategy: ",
                round(1/(mean(cohort[cohort$treat_guideline == T,]$ckdpc_50egfr_score_cal/100) - 
                           mean(cohort[cohort$treat_guideline == T,]$ckdpc_50egfr_score_cal.applied.guideline/100)))), collapse = ""))
 
-print(paste0(c("Number of people treated with model 1 treatment strategy: ", round(nrow(cohort[cohort$treat_model1 == T,])/n.imp), " (", round(nrow(cohort[cohort$treat_model1 == T,])/nrow(cohort)*100,1), "%)"), collapse = ""))
-print(paste0(c("Number of events with model 1 treatment strategy: ", round(ckd.tx.model1/n.imp), " (", round(100*(ckd.tx.model1/nrow(cohort)),1), "%)"), collapse = ""))
-print(paste0(c("Number of events avoided with model 1 treatment strategy: ", round(abs(ckd.tx.model1-ckd.notx)/n.imp), " (", round((ckd.tx.model1-ckd.notx)/(ckd.tx_all-ckd.notx)*100,1), "%)"), collapse = ""))
-print(paste0(c("NNT with model 1 treatment strategy: ", 
+print(paste0(c("Number of people treated with treatment strategy A: ", round(nrow(cohort[cohort$treat_model1 == T,])/n.imp), " (", round(nrow(cohort[cohort$treat_model1 == T,])/nrow(cohort)*100,1), "%)"), collapse = ""))
+print(paste0(c("Number of events with treatment strategy A: ", round(ckd.tx.model1/n.imp), " (", round(100*(ckd.tx.model1/nrow(cohort)),1), "%)"), collapse = ""))
+print(paste0(c("Number of events avoided with treatment strategy A: ", round(abs(ckd.tx.model1-ckd.notx)/n.imp), " (", round((ckd.tx.model1-ckd.notx)/(ckd.tx_all-ckd.notx)*100,1), "%)"), collapse = ""))
+print(paste0(c("NNT with treatment strategy A: ", 
                round(1/(mean(cohort[cohort$treat_model1 == T,]$ckdpc_50egfr_score_cal/100) - 
                           mean(cohort[cohort$treat_model1 == T,]$ckdpc_50egfr_score_cal.applied.model1/100)))), collapse = ""))
 
-print(paste0(c("Number of people treated with model 2 treatment strategy: ", round(nrow(cohort[cohort$treat_model2 == T,])/n.imp), " (", round(nrow(cohort[cohort$treat_model2 == T,])/nrow(cohort)*100,1), "%)"), collapse = ""))
-print(paste0(c("Number of events with model 2 treatment strategy: ", round(ckd.tx.model2/n.imp), " (", round(100*(ckd.tx.model2/nrow(cohort)),1), "%)"), collapse = ""))
-print(paste0(c("Number of events avoided with model 2 treatment strategy: ", round(abs(ckd.tx.model2-ckd.notx)/n.imp), " (", round((ckd.tx.model2-ckd.notx)/(ckd.tx_all-ckd.notx)*100,1), "%)"), collapse = ""))
-print(paste0(c("NNT with model 2 treatment strategy: ", 
+print(paste0(c("Number of people treated with treatment strategy B: ", round(nrow(cohort[cohort$treat_model2 == T,])/n.imp), " (", round(nrow(cohort[cohort$treat_model2 == T,])/nrow(cohort)*100,1), "%)"), collapse = ""))
+print(paste0(c("Number of events with treatment strategy B: ", round(ckd.tx.model2/n.imp), " (", round(100*(ckd.tx.model2/nrow(cohort)),1), "%)"), collapse = ""))
+print(paste0(c("Number of events avoided with treatment strategy B: ", round(abs(ckd.tx.model2-ckd.notx)/n.imp), " (", round((ckd.tx.model2-ckd.notx)/(ckd.tx_all-ckd.notx)*100,1), "%)"), collapse = ""))
+print(paste0(c("NNT with treatment strategy B: ", 
                round(1/(mean(cohort[cohort$treat_model2 == T,]$ckdpc_50egfr_score_cal/100) - 
                           mean(cohort[cohort$treat_model2 == T,]$ckdpc_50egfr_score_cal.applied.model2/100)))), collapse = ""))
 
 
-print(paste0(c("Number of people treated with model 3 treatment strategy: ", round(nrow(cohort[cohort$treat_model3 == T,])/n.imp), " (", round(nrow(cohort[cohort$treat_model3 == T,])/nrow(cohort)*100,1), "%)"), collapse = ""))
-print(paste0(c("Number of events with model 3 treatment strategy: ", round(ckd.tx.model3/n.imp), " (", round(100*(ckd.tx.model3/nrow(cohort)),1), "%)"), collapse = ""))
-print(paste0(c("Number of events avoided with model 3 treatment strategy: ", round(abs(ckd.tx.model3-ckd.notx)/n.imp), " (", round((ckd.tx.model3-ckd.notx)/(ckd.tx_all-ckd.notx)*100,1), "%)"), collapse = ""))
-print(paste0(c("NNT with model 3 treatment strategy: ", 
+print(paste0(c("Number of people treated with treatment strategy C: ", round(nrow(cohort[cohort$treat_model3 == T,])/n.imp), " (", round(nrow(cohort[cohort$treat_model3 == T,])/nrow(cohort)*100,1), "%)"), collapse = ""))
+print(paste0(c("Number of events with treatment strategy C: ", round(ckd.tx.model3/n.imp), " (", round(100*(ckd.tx.model3/nrow(cohort)),1), "%)"), collapse = ""))
+print(paste0(c("Number of events avoided with treatment strategy C: ", round(abs(ckd.tx.model3-ckd.notx)/n.imp), " (", round((ckd.tx.model3-ckd.notx)/(ckd.tx_all-ckd.notx)*100,1), "%)"), collapse = ""))
+print(paste0(c("NNT with treatment strategy C: ", 
                round(1/(mean(cohort[cohort$treat_model3 == T,]$ckdpc_50egfr_score_cal/100) - 
                           mean(cohort[cohort$treat_model3 == T,]$ckdpc_50egfr_score_cal.applied.model3/100)))), collapse = ""))
 

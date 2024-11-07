@@ -20,7 +20,7 @@ library(aurum)
 library(EHRBiomarkr)
 rm(list=ls())
 
-cprd = CPRDData$new(cprdEnv = "test-remote",cprdConf = "C:/Users/tj358/OneDrive - University of Exeter/CPRD/aurum.yaml")
+cprd = CPRDData$new(cprdEnv = "diabetes-2020",cprdConf = "C:/Users/tj358/OneDrive - University of Exeter/CPRD/aurum.yaml")
 codesets = cprd$codesets()
 codes = codesets$getAllCodeSetVersion(v = "31/10/2021")
 
@@ -156,14 +156,12 @@ for (i in biomarkers) {
 
 
 # Combine with baseline values and find response
-
 baseline_biomarkers <- baseline_biomarkers %>% analysis$cached("baseline_biomarkers")
 combo_start_stop <- combo_start_stop %>% analysis$cached("combo_start_stop")
 
 response_biomarkers <- baseline_biomarkers %>%
   left_join((combo_start_stop %>% select(patid, dcstartdate, timetochange, timetoaddrem, multi_drug_start, timeprevcombo)), by=c("patid","dstartdate"="dcstartdate")) %>%
   filter(druginstance==1)
-
 
 for (i in biomarkers) {
   
@@ -235,8 +233,6 @@ analysis = cprd$analysis("Thijs_ckd")
 
 acr_long <- acr_temp %>% union_all(acr_temp2) %>% analysis$cached("acr_long")
 
-analysis = cprd$analysis("mm")
-
 next_egfr <- baseline_biomarkers %>%
   select(patid, drugclass, dstartdate, preegfrdate) %>%
   left_join(egfr_long, by="patid") %>%
@@ -266,16 +262,23 @@ egfr50 <- baseline_biomarkers %>%
   summarise(egfr_50_decline_date=min(date, na.rm=TRUE)) %>%
   analysis$cached("response_biomarkers_egfr50", indexes=c("patid", "dstartdate", "drugclass"))
 
-
-analysis = cprd$analysis("Thijs_ckd")
-
-next_acr <- baseline_biomarkers %>%
+# add variable to check whether presence of albuminuria has been confirmed
+prev_acr <- baseline_biomarkers %>%
   select(patid, drugclass, dstartdate, preacrdate) %>%
   left_join(acr_long, by="patid", copy = T) %>%
-  filter(datediff(date, preacrdate)>0) %>%
-  group_by(patid, drugclass, dstartdate) %>%
-  summarise(next_acr_date=min(date, na.rm=TRUE)) %>%
-  analysis$cached("response_biomarkers_next_acr", indexes=c("patid", "dstartdate", "drugclass"))
+  mutate(drugdatediff=datediff(date, preacrdate)) %>%
+  filter(drugdatediff<=7 & drugdatediff>=-730) %>%
+  group_by(patid, dstartdate, drugclass) %>%
+  dbplyr::window_order(drugdatediff) %>%
+  filter(row_number() <=2) %>%
+  mutate(next_value=ifelse(row_number()==1, lead(testvalue), NA)) %>%
+  mutate(
+    preacr_confirmed = ifelse(testvalue >= 3 & next_value >= 3, TRUE, FALSE),
+    preacr_confirmed = ifelse(is.na(preacr_confirmed), FALSE, preacr_confirmed)
+  ) %>%
+  filter(row_number() == 1) %>%
+  select(patid, dstartdate, drugclass, preacr_confirmed) %>%
+  analysis$cached("response_biomarkers_acr_confirmed", indexes=c("patid", "dstartdate", "drugclass"))
 
 
 # Add in new macroalbuminuria (acr >30mg/mmol)
@@ -285,7 +288,19 @@ next_acr <- baseline_biomarkers %>%
 new_macroalb <- baseline_biomarkers %>%
   select(patid, drugclass, dstartdate, preacrdate) %>%
   left_join(acr_long, by="patid", copy = T) %>%
-  filter(datediff(date, preacrdate)>0 & testvalue>=30) %>%
+  left_join(prev_acr, by=c("patid", "drugclass", "dstartdate")) %>%
+  mutate(drugdatediff=datediff(date, preacrdate)) %>%
+  filter(drugdatediff>0) %>%
+  analysis$cached("response_biomarkers_macroalb_im", indexes=c("patid", "dstartdate", "drugclass"))
+
+new_macroalb <- new_macroalb %>%
+  group_by(patid, dstartdate, drugclass) %>%
+    dbplyr::window_order(drugdatediff) %>%
+    mutate(nextvalue = lead(testvalue)) %>%
+  ungroup() %>%
+  
+  filter(preacr_confirmed == T & testvalue >=30 | 
+           preacr_confirmed == F & testvalue >=30 & nextvalue >=30) %>%
   group_by(patid, drugclass, dstartdate) %>%
   summarise(macroalb_date=min(date, na.rm=TRUE)) %>%
   analysis$cached("response_biomarkers_macroalb", indexes=c("patid", "dstartdate", "drugclass"))
@@ -295,8 +310,9 @@ response_biomarkers <- response_biomarkers %>%
   left_join(next_egfr, by=c("patid", "drugclass", "dstartdate")) %>%
   left_join(egfr40, by=c("patid", "drugclass", "dstartdate")) %>%
   left_join(egfr50, by=c("patid", "drugclass", "dstartdate")) %>%
-  left_join(next_acr, by=c("patid", "drugclass", "dstartdate")) %>%
+  # left_join(next_acr, by=c("patid", "drugclass", "dstartdate")) %>%
   left_join(new_macroalb, by=c("patid", "drugclass", "dstartdate")) %>%
+  left_join(prev_acr, by=c("patid", "drugclass", "dstartdate")) %>%
   relocate(height, .after=timeprevcombo) %>%
   relocate(prehba1c12m, .after=hba1cresp12m) %>%
   relocate(prehba1c12mdate, .after=prehba1c12m) %>%

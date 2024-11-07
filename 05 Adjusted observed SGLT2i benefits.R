@@ -6,7 +6,7 @@ setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/scripts/CPRD-Thi
 source("00 Setup.R")
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-load("2024-11-01_t2d_ckdpc_recalibrated.Rda")
+load("2024-11-06_t2d_ckdpc_recalibrated.Rda")
 
 ############################1 PREPARE DATASET################################################################
 
@@ -73,18 +73,20 @@ save(cohort_5y, file=paste0(today, "_recalibrated_data_centred_predictors_5y.Rda
 
 rm(list = setdiff(ls(), c("n.imp", "covariates", "today", "outcomes")))
 
+outcomes <- "ckd_egfr50"
+
 ## estimate absolute benefit
 for (k in outcomes) {
   
   for (i in 1:n.imp) {
     setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-    load("2024-11-01_recalibrated_data_centred_predictors.Rda")
+    load("2024-11-06_recalibrated_data_centred_predictors.Rda")
     
     if (k == "macroalb") {
       # remove subjects with established macroalbuminuria from these analyses
       cohort <- cohort %>% filter(.imp == i & macroalb_censtime_yrs >= 0)
     } else if (k == "ckd_egfr50_5y") {
-      load("2024-11-01_recalibrated_data_centred_predictors_5y.Rda")
+      load("2024-11-06_recalibrated_data_centred_predictors_5y.Rda")
       cohort <- cohort_5y %>% filter(.imp == i)
       rm(cohort_5y)
     } else {
@@ -127,12 +129,12 @@ for (k in outcomes) {
   
   for (i in 1:n.imp) {
     setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-    load("2024-11-01_recalibrated_data_centred_predictors.Rda")
+    load("2024-11-06_recalibrated_data_centred_predictors.Rda")
     
     if (k == "macroalb") {
       cohort <- cohort %>% filter(.imp == i & macroalb_censtime_yrs >= 0)
     } else if (k == "ckd_egfr50_5y") {
-      load("2024-11-01_recalibrated_data_centred_predictors_5y.Rda")
+      load("2024-11-06_recalibrated_data_centred_predictors_5y.Rda")
       cohort <- cohort_5y %>% filter(.imp == i)
       rm(cohort_5y)
     } else {
@@ -173,8 +175,8 @@ for (k in outcomes) {
   #for every outcome, join survival estimates from each imputation in one dataframe
   for (i in 1:n.imp) {
     setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/output/")
-    load(paste0("2024-11-01_adjusted_surv_",k,"_SGLT2i_imp.", i, ".Rda"))
-    load(paste0("2024-11-01_adjusted_surv_",k,"_DPP4iSU_imp.", i, ".Rda"))
+    load(paste0("2024-11-06_adjusted_surv_",k,"_SGLT2i_imp.", i, ".Rda"))
+    load(paste0("2024-11-06_adjusted_surv_",k,"_DPP4iSU_imp.", i, ".Rda"))
     temp_sglt2 <- temp_sglt2 %>% rbind(observed_sglt2)
     temp_dpp4su <- temp_dpp4su %>% rbind(observed_dpp4su)
     rm(observed_sglt2)
@@ -205,12 +207,12 @@ rm(list = setdiff(ls(), c("n.imp", "covariates", "k", "today", "outcomes")))
 
 ### add adjusted (observed) survival estimates to main dataset
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-load("2024-11-01_t2d_ckdpc_recalibrated_with_riskgroup.Rda")
+load("2024-11-06_t2d_ckdpc_recalibrated_with_riskgroup.Rda")
 
 for (k in outcomes) {
   
   setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/output/")
-  load(paste0("2024-11-01_adjusted_surv_", k, ".Rda"))
+  load(paste0("2024-11-06_adjusted_surv_", k, ".Rda"))
   cohort <- cohort %>% left_join(benefits %>%
                                    select(.imp, patid, studydrug2, contains("survdiff")), 
                                  by=c(".imp", "patid", "studydrug2"))

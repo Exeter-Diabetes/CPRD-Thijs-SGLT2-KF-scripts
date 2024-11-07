@@ -19,7 +19,7 @@ library(aurum)
 library(EHRBiomarkr)
 rm(list=ls())
 
-cprd = CPRDData$new(cprdEnv = "test-remote",cprdConf = "C:/Users/tj358/OneDrive - University of Exeter/CPRD/aurum.yaml")
+cprd = CPRDData$new(cprdEnv = "diabetes-2020",cprdConf = "C:/Users/tj358/OneDrive - University of Exeter/CPRD/aurum.yaml")
 
 
 ############################################################################################
@@ -44,8 +44,9 @@ drug_start_stop <- drug_start_stop %>% analysis$cached("drug_start_stop")
 combo_start_stop <- combo_start_stop %>% analysis$cached("combo_start_stop")
 
 ## Biomarkers inc. CKD
-#baseline_biomarkers <- baseline_biomarkers %>% analysis$cached("baseline_biomarkers")
 ckd_stages <- ckd_stages %>% analysis$cached("ckd_stages")
+# baseline_biomarkers <- baseline_biomarkers %>% analysis$cached("baseline_biomarkers")
+
 analysis = cprd$analysis("Thijs_ckd") # nieuwe versie daarom onder mijn naam opgeslagen ipv onder mm
 response_biomarkers <- response_biomarkers %>% analysis$cached("response_biomarkers") #includes baseline biomarker values for first instance drug periods so no need to use baseline_biomakers table
 

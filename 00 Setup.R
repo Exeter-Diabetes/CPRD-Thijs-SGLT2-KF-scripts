@@ -38,7 +38,7 @@ n.quantiles <- 10
 n.bootstrap <- 500
 
 #today <- as.character(Sys.Date(), format="%Y%m%d")
-today <- "2024-11-01"
+today <- "2024-11-06"
 
 
 #write function to pool HRs from multiple imputations later on

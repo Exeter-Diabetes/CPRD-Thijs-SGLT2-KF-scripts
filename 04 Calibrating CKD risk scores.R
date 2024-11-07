@@ -18,7 +18,7 @@ source("00 Setup.R")
 
 # load data
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-load("2024-11-01_t2d_ckdpc_imputed_data_withweights.Rda")
+load("2024-11-06_t2d_ckdpc_imputed_data_withweights.Rda")
 
 cols <- cols[names(cols) %in% cohort$studydrug2]
 cols <- cols[order(names(cols))]
