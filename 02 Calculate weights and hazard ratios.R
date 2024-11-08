@@ -680,6 +680,63 @@ for (k in outcomes) {
 
 ############################4 STORE HAZARD RATIOS################################################################
 
+# add numbers treated and events in suitable format for graphs
+
+all_hrs$model <- paste0(all_hrs$string, " [", all_hrs$analysis, "]")
+all_hrs$model <- factor(all_hrs$model, levels = unique(all_hrs$model))
+
+all_SGLT2ivsDPP4iSU_hrs$model <- paste0(all_SGLT2ivsDPP4iSU_hrs$string, " [", all_SGLT2ivsDPP4iSU_hrs$analysis, "]")
+all_SGLT2ivsDPP4iSU_hrs$model <- factor(all_SGLT2ivsDPP4iSU_hrs$model, levels = unique(all_SGLT2ivsDPP4iSU_hrs$model))
+
+# have to coerce HR and CI to class numeric as they sometimes default to character
+class(all_hrs$HR) <- class(all_hrs$LB) <- class(all_hrs$UB) <-
+  class(all_SGLT2ivsDPP4iSU_hrs$HR) <- class(all_SGLT2ivsDPP4iSU_hrs$LB) <- class(all_SGLT2ivsDPP4iSU_hrs$UB) <- 
+  class(subgroup_hrs$HR) <- class(subgroup_hrs$LB) <- class(subgroup_hrs$UB) <- "numeric"
+
+# remove unadjusted HR as we do not want to plot these
+all_hrs <- all_hrs[!all_hrs$analysis == "Unadjusted",]
+all_SGLT2ivsDPP4iSU_hrs <- all_SGLT2ivsDPP4iSU_hrs[!all_SGLT2ivsDPP4iSU_hrs$analysis == "Unadjusted",]
+
+#add event count and total count to hr dataframe
+all_SGLT2ivsDPP4iSU_hrs <- all_SGLT2ivsDPP4iSU_hrs %>% left_join(SGLT2ivsDPP4iSU_hrs %>% select(1:7))
+subgroup_hrs <- subgroup_hrs %>% cbind(subgroup_SGLT2ivsDPP4iSU_hrs %>% select(-c(outcome, adjusted, unadjusted)))
+
+
+all_hrs <- all_hrs %>%
+  separate(`DPP4i_events`, into = c("DPP4i_events_number", "DPP4i_events_percentage"), sep = " \\(", remove = FALSE) %>%
+  separate(`SU_events`, into = c("SU_events_number", "SU_events_percentage"), sep = " \\(", remove = FALSE) %>%
+  separate(SGLT2i_events, into = c("SGLT2i_events_number", "SGLT2i_events_percentage"), sep = " \\(", remove = FALSE) %>%
+  mutate(
+    `DPP4i_events_percentage` = str_replace(`DPP4i_events_percentage`, "\\)", ""),
+    SU_events_percentage = str_replace(SU_events_percentage, "\\)", ""),
+    SGLT2i_events_percentage = str_replace(SGLT2i_events_percentage, "\\)", ""),
+    `DPP4i_nN` = paste0(`DPP4i_events_number`, "/", `DPP4i_count`),
+    `SU_nN` = paste0(`SU_events_number`, "/", `SU_count`),
+    SGLT2i_nN = paste0(SGLT2i_events_number, "/", SGLT2i_count)
+  )
+
+
+all_SGLT2ivsDPP4iSU_hrs <- all_SGLT2ivsDPP4iSU_hrs %>%
+  separate(`DPP4i/SU_events`, into = c("DPP4i/SU_events_number", "DPP4i/SU_events_percentage"), sep = " \\(", remove = FALSE) %>%
+  separate(SGLT2i_events, into = c("SGLT2i_events_number", "SGLT2i_events_percentage"), sep = " \\(", remove = FALSE) %>%
+  mutate(
+    `DPP4i/SU_events_percentage` = str_replace(`DPP4i/SU_events_percentage`, "\\)", ""),
+    SGLT2i_events_percentage = str_replace(SGLT2i_events_percentage, "\\)", ""),
+    `DPP4i/SU_nN` = paste0(`DPP4i/SU_events_number`, "/", `DPP4i/SU_count`),
+    SGLT2i_nN = paste0(SGLT2i_events_number, "/", SGLT2i_count)
+  )
+
+subgroup_hrs <- subgroup_hrs %>%
+  separate(`DPP4i/SU_events`, into = c("DPP4i/SU_events_number", "DPP4i/SU_events_percentage"), sep = " \\(", remove = FALSE) %>%
+  separate(SGLT2i_events, into = c("SGLT2i_events_number", "SGLT2i_events_percentage"), sep = " \\(", remove = FALSE) %>%
+  mutate(
+    `DPP4i/SU_events_percentage` = str_replace(`DPP4i/SU_events_percentage`, "\\)", ""),
+    SGLT2i_events_percentage = str_replace(SGLT2i_events_percentage, "\\)", ""),
+    `DPP4i/SU_nN` = paste0(`DPP4i/SU_events_number`, "/", `DPP4i/SU_count`),
+    SGLT2i_nN = paste0(SGLT2i_events_number, "/", SGLT2i_count)
+  )
+
+
 # save all_hrs table and SGLT2i vs DPP4i/su table
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/output/")
 

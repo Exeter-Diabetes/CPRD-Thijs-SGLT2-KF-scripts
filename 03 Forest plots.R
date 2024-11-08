@@ -2,7 +2,8 @@
 # 1 per drug class
 # 2 by analysis strategy
 # 3 by albuminuria status
-# 4 secondary outcomes
+# 4 secondary outcomes by albuminuria status
+# 5 secondary outcomes by pARR threshold
 
 ############################0 SETUP################################################################
 # 0 Setup
@@ -15,62 +16,8 @@ load("2024-11-06_all_SGLT2ivsDPP4iSU_hrs.Rda")
 load("2024-11-06_SGLT2ivsDPP4iSU_hrs.Rda")
 load("2024-11-06_subgroup_hrs.Rda")
 load("2024-11-06_subgroup_SGLT2ivsDPP4iSU_hrs.Rda")
-
-# add numbers treated and events in suitable format for graphs
-
-all_hrs$model <- paste0(all_hrs$string, " [", all_hrs$analysis, "]")
-all_hrs$model <- factor(all_hrs$model, levels = unique(all_hrs$model))
-
-all_SGLT2ivsDPP4iSU_hrs$model <- paste0(all_SGLT2ivsDPP4iSU_hrs$string, " [", all_SGLT2ivsDPP4iSU_hrs$analysis, "]")
-all_SGLT2ivsDPP4iSU_hrs$model <- factor(all_SGLT2ivsDPP4iSU_hrs$model, levels = unique(all_SGLT2ivsDPP4iSU_hrs$model))
-
-# have to coerce HR and CI to class numeric as they sometimes default to character
-class(all_hrs$HR) <- class(all_hrs$LB) <- class(all_hrs$UB) <-
-  class(all_SGLT2ivsDPP4iSU_hrs$HR) <- class(all_SGLT2ivsDPP4iSU_hrs$LB) <- class(all_SGLT2ivsDPP4iSU_hrs$UB) <- 
-  class(subgroup_hrs$HR) <- class(subgroup_hrs$LB) <- class(subgroup_hrs$UB) <- "numeric"
-
-# remove unadjusted HR as we do not want to plot these
-all_hrs <- all_hrs[!all_hrs$analysis == "Unadjusted",]
-all_SGLT2ivsDPP4iSU_hrs <- all_SGLT2ivsDPP4iSU_hrs[!all_SGLT2ivsDPP4iSU_hrs$analysis == "Unadjusted",]
-
-#add event count and total count to hr dataframe
-all_SGLT2ivsDPP4iSU_hrs <- all_SGLT2ivsDPP4iSU_hrs %>% left_join(SGLT2ivsDPP4iSU_hrs %>% select(1:7))
-subgroup_hrs <- subgroup_hrs %>% cbind(subgroup_SGLT2ivsDPP4iSU_hrs %>% select(-c(outcome, adjusted, unadjusted)))
-
-
-all_hrs <- all_hrs %>%
-  separate(`DPP4i_events`, into = c("DPP4i_events_number", "DPP4i_events_percentage"), sep = " \\(", remove = FALSE) %>%
-  separate(`SU_events`, into = c("SU_events_number", "SU_events_percentage"), sep = " \\(", remove = FALSE) %>%
-  separate(SGLT2i_events, into = c("SGLT2i_events_number", "SGLT2i_events_percentage"), sep = " \\(", remove = FALSE) %>%
-  mutate(
-    `DPP4i_events_percentage` = str_replace(`DPP4i_events_percentage`, "\\)", ""),
-    SU_events_percentage = str_replace(SU_events_percentage, "\\)", ""),
-    SGLT2i_events_percentage = str_replace(SGLT2i_events_percentage, "\\)", ""),
-    `DPP4i_nN` = paste0(`DPP4i_events_number`, "/", `DPP4i_count`),
-    `SU_nN` = paste0(`SU_events_number`, "/", `SU_count`),
-    SGLT2i_nN = paste0(SGLT2i_events_number, "/", SGLT2i_count)
-  )
-
-
-all_SGLT2ivsDPP4iSU_hrs <- all_SGLT2ivsDPP4iSU_hrs %>%
-  separate(`DPP4i/SU_events`, into = c("DPP4i/SU_events_number", "DPP4i/SU_events_percentage"), sep = " \\(", remove = FALSE) %>%
-  separate(SGLT2i_events, into = c("SGLT2i_events_number", "SGLT2i_events_percentage"), sep = " \\(", remove = FALSE) %>%
-  mutate(
-    `DPP4i/SU_events_percentage` = str_replace(`DPP4i/SU_events_percentage`, "\\)", ""),
-    SGLT2i_events_percentage = str_replace(SGLT2i_events_percentage, "\\)", ""),
-    `DPP4i/SU_nN` = paste0(`DPP4i/SU_events_number`, "/", `DPP4i/SU_count`),
-    SGLT2i_nN = paste0(SGLT2i_events_number, "/", SGLT2i_count)
-  )
-
-subgroup_hrs <- subgroup_hrs %>%
-  separate(`DPP4i/SU_events`, into = c("DPP4i/SU_events_number", "DPP4i/SU_events_percentage"), sep = " \\(", remove = FALSE) %>%
-  separate(SGLT2i_events, into = c("SGLT2i_events_number", "SGLT2i_events_percentage"), sep = " \\(", remove = FALSE) %>%
-  mutate(
-    `DPP4i/SU_events_percentage` = str_replace(`DPP4i/SU_events_percentage`, "\\)", ""),
-    SGLT2i_events_percentage = str_replace(SGLT2i_events_percentage, "\\)", ""),
-    `DPP4i/SU_nN` = paste0(`DPP4i/SU_events_number`, "/", `DPP4i/SU_count`),
-    SGLT2i_nN = paste0(SGLT2i_events_number, "/", SGLT2i_count)
-  )
+load("2024-11-06_subgroup_parr_hrs.Rda")
+load("2024-11-06_subgroup_parr_SGLT2ivsDPP4iSU_hrs.Rda")
 
 ############################1 FOREST PLOT FOR HRs PER DRUG CLASS (SUPPLEMENTAL FIGURE)################################################################
 
@@ -868,7 +815,171 @@ layout <- eval(str2lang(layout))
 plot_expression <- paste0(plot_expression, "plot_layout(design = layout)")
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Output/")
-tiff(paste0(today, "_HR_secondary_outcomes.tiff"), width=18, height=5.5, units = "in", res=800) 
+tiff(paste0(today, "_HR_secondary_outcomes_by_albuminuria.tiff"), width=18, height=5.5, units = "in", res=800) 
+eval(str2lang(plot_expression))
+dev.off()
+
+############################5 FOREST PLOT FOR HRs OF SECONDARY OUTCOMES (SUPPLEMENTAL FIGURE)################################################################
+
+secondary2 <- subgroup_parr_hrs %>% 
+  filter(analysis=="Adjusted") %>%
+  filter(!outcome %in% c("ckd_egfr50", "death")) %>%
+  mutate(parr_status = case_when(
+    contrast == "pARR below 90th percentile" ~ "pARR below 90th percentile",
+    contrast == "pARR above 90th percentile" ~ "pARR above 90th percentile"
+  ))
+
+# Prepare labels for each outcome by pARR status
+labels_plot6 <- secondary2
+
+labels6 <- data.frame(matrix("", nrow = 1, ncol = length(labels_plot6)))
+names(labels6) <- names(labels_plot6)
+labels6 <- labels6 %>% mutate(analysis = "Overall",
+                              string = "Hazard Ratio (95% CI)",
+                              SGLT2i_nN = "Events/subjects (SGLT2i)",
+                              `DPP4i/SU_nN` = "(DPP4i/SU)")
+
+for (m in unique(secondary2$outcome)) {
+  labels_temp <- labels6
+  labels_temp$outcome <- m
+  labels_plot6 <- rbind(labels_temp, labels_plot6)
+}
+
+labels_plot6 <- labels_plot6 %>%
+  mutate(
+    outcome_label = case_when(
+      outcome == "ckd_egfr40" ~ "40% eGFR decline / ESKD",
+      outcome == "ckd_egfr50_5y" ~ "50% eGFR decline / ESKD (5 years)",
+      outcome == "macroalb" ~ "Progression to albuminuria ≥30mg/mmol",
+      outcome == "dka" ~ "Diabetic keto-acidosis",
+      outcome == "amputation" ~ "Amputation",
+      outcome == "side_effect" ~ "Mycotic genital infection"
+    )
+  )
+
+labels_plot6 <- labels_plot6 %>%
+  mutate(
+    contrast = ifelse(analysis == "Overall", paste0(" ", outcome_label), parr_status),
+    contrast = factor(contrast, levels = c(" 40% eGFR decline / ESKD",
+                                           " 50% eGFR decline / ESKD (5 years)",
+                                           " Progression to albuminuria ≥30mg/mmol",
+                                           " Diabetic keto-acidosis",
+                                           " Amputation",
+                                           " Mycotic genital infection",
+                                           "pARR below 90th percentile",
+                                           "pARR above 90th percentile"))
+  )
+
+
+# have to coerce HR and CI to class numeric as they sometimes default to character
+class(secondary2$HR) <- class(secondary2$LB) <- class(secondary2$UB) <- "numeric"
+
+plot_expression <- ""
+
+for (m in rev(unique(secondary2$outcome))) {
+  
+  p_counts <- labels_plot6 %>% filter(outcome==m) %>%
+    ggplot(aes(y = factor(contrast, levels = rev(unique(contrast))))) + 
+    geom_text(aes(x = 1, label = SGLT2i_nN), hjust = 1, 
+              colour = ifelse(!m==unique(secondary2$outcome)[1] & labels_plot6[labels_plot6$outcome == m,]$SGLT2i_nN == labels6$SGLT2i_nN,
+                              "white", "black"),
+              fontface = ifelse(m==unique(secondary2$outcome)[1] & labels_plot6[labels_plot6$outcome == m,]$SGLT2i_nN == labels6$SGLT2i_nN,
+                                "bold", "plain")) +
+    geom_text(aes(x = 3, label = `DPP4i/SU_nN`), hjust = 1, 
+              colour = ifelse(!m==unique(secondary2$outcome)[1] & labels_plot6[labels_plot6$outcome == m,]$`DPP4i/SU_nN` == labels6$`DPP4i/SU_nN`,
+                              "white", "black"),
+              fontface = ifelse(m==unique(secondary2$outcome)[1] & labels_plot6[labels_plot6$outcome == m,]$`DPP4i/SU_nN` == labels6$`DPP4i/SU_nN`,
+                                "bold", "plain")) +
+    theme_void() +
+    coord_cartesian(xlim = c(-2, 5))
+  
+  p_hr <- 
+    secondary2 %>%
+    filter(outcome == m) %>%
+    ggplot(aes(y = factor(contrast, levels = rev(unique(contrast))))) + 
+    scale_x_continuous(trans = "log10", breaks = c(0.5, 0.75, 1.0, 1.5, 2.25, 3.25)) +
+    coord_cartesian(ylim=c(1,length(unique(labels_plot6[labels_plot6$outcome == m,]$contrast)) + 1), 
+                    xlim=c(0.5, 3.25)) +
+    theme_classic() +
+    geom_point(aes(x=HR), shape=15, size=3) +
+    geom_linerange(aes(xmin=LB, xmax=UB)) +
+    geom_vline(xintercept = 1, linetype="dashed") +
+    annotate("text", x = .65, 
+             y = length(unique(secondary2[secondary2$outcome == m,]$contrast)) + 2, 
+             label = ifelse(m==unique(secondary2$outcome)[1], "Favours SGLT2i", "")) +
+    annotate("text", x = 1.5,
+             y = length(unique(secondary2[secondary2$outcome == m,]$contrast)) + 2, 
+             label = ifelse(m==unique(secondary2$outcome)[1], "Favours DPP4i/SU", "")) +
+    labs(x=ifelse(m==unique(secondary2$outcome)[nlevels(as.factor(secondary2$outcome))], "Hazard ratio", ""), y="") +
+    theme(axis.line.y = element_blank(),
+          axis.ticks.y= element_blank(),
+          axis.text.y= element_blank(),
+          axis.title.y= element_blank(),
+          axis.line.x = if (!m==unique(secondary2$outcome)[nlevels(as.factor(secondary2$outcome))]) {element_blank()},
+          axis.text.x = if (!m==unique(secondary2$outcome)[nlevels(as.factor(secondary2$outcome))]) {element_blank()},
+          axis.ticks.x = if (!m==unique(secondary2$outcome)[nlevels(as.factor(secondary2$outcome))]) {element_blank()},
+          plot.title = element_text(hjust = 0.5),
+          plot.subtitle = element_text(hjust = 0.5)) 
+  
+  p_left <-
+    labels_plot6 %>%
+    filter(outcome == m) %>%
+    ggplot(aes(y = rev(contrast))) + 
+    geom_text(
+      aes(x = 1, label = contrast),
+      hjust = 0,
+      fontface = ifelse(labels_plot6[labels_plot6$outcome == m,]$
+                          contrast == paste0(" ", labels_plot6[labels_plot6$outcome == m,]$outcome_label), "bold", "plain"),
+      colour = ifelse(m==unique(secondary2$outcome)[1] & labels_plot6[labels_plot6$outcome == m,]$
+                        contrast == "Outcome" | !labels_plot6[labels_plot6$outcome == m,]$
+                        contrast == "Outcome", "black", "white")
+    ) +
+    theme_void() +
+    coord_cartesian(xlim = c(0, 4))
+  
+  p_right <-
+    labels_plot6 %>%
+    filter(outcome == m) %>%
+    ggplot(aes(y = factor(string, levels = rev(unique(string))))) + 
+    geom_text(
+      aes(x = 0, label = string),
+      hjust = 0,
+      fontface = ifelse(labels_plot6[labels_plot6$outcome == m,]$string == "Hazard Ratio (95% CI)", "bold", "plain"),
+      colour = ifelse(labels_plot6[labels_plot6$outcome == m,]$string == "Hazard Ratio (95% CI)" & !m==unique(secondary2$outcome)[1], 
+                      "white", "black")) +
+    theme_void() +
+    coord_cartesian(xlim = c(0, 4))
+  
+  assign(paste0("p_counts_", m), p_counts)
+  assign(paste0("p_hr_", m), p_hr)
+  assign(paste0("p_left_", m), p_left)
+  assign(paste0("p_right_", m), p_right)
+  
+  plot_expression <- paste0(plot_expression, "p_counts_", m, " + p_left_", m, " + p_hr_", m, " + p_right_", m, " + ")
+}
+
+n.plots <- nlevels(as.factor(secondary2$outcome))
+
+# layout for plots below
+
+i <- 1
+layout <- paste("area(t = ",(i-1)*24, ", l = 7, b = ",(i-1)*24+24,", r = 13), area(t = ",(i-1)*24, ", l = 0, b = ",(i-1)*24+24,", r = 7), area(t = ",(i-1)*24, ", l = 12, b = ",(i-1)*24+24,", r = 18), area(t = ",(i-1)*24, ", l = 19, b = ", (i-1)*24+24,", r = 24)")
+
+
+for (i in 2:n.plots) {
+  layout <- paste("area(t = ",(i-1)*24, ", l = 7, b = ",(i-1)*24+24,", r = 13), area(t = ",(i-1)*24, ", l = 0, b = ",(i-1)*24+24,", r = 7), area(t = ",(i-1)*24, ", l = 12, b = ",(i-1)*24+24,", r = 18), area(t = ",(i-1)*24, ", l = 19, b = ", (i-1)*24+24,", r = 24), ", layout)
+}
+
+layout <- paste0("c(", layout, ")")
+
+layout <- eval(str2lang(layout))
+
+# Final plot arrangement
+
+plot_expression <- paste0(plot_expression, "plot_layout(design = layout)")
+
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Output/")
+tiff(paste0(today, "_HR_secondary_outcomes_by_parr.tiff"), width=18, height=5.5, units = "in", res=800) 
 eval(str2lang(plot_expression))
 dev.off()
 
