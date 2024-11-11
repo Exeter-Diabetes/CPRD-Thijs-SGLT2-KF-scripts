@@ -20,6 +20,7 @@ library(patchwork)
 library(pROC)
 library(riskRegression)
 library(gridExtra)
+library(dcurves)
 
 options(dplyr.summarise.inform = FALSE)
 

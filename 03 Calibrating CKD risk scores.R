@@ -8,7 +8,6 @@
 # 2 baseline hazard update
 # 3 calibration slope update
 # 4 store dataset with recalibrated risk score
-# 5 spline plot of HR by baseline risk
 
 ############################0 SETUP################################################################
 
@@ -755,97 +754,3 @@ print(paste0("Slope optimism ", mean(slope_optimism_presegfr)))
 # save dataset with calibrated risk score so this can be used in the subsequent scripts
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
 save(cohort, file=paste0(today, "_t2d_ckdpc_recalibrated.Rda"))
-
-############################5 HR BY RISK SCORE################################################################
-## check whether there is evidence of treatment heterogeneity by baseline risk (figure 1B)
-
-# fit model using interaction term of treatment with risk score, 
-# modelled with restricted cubic splines [rcs()] with 3-5 knots
-
-ddist <- cohort %>% datadist()
-options(datadist='ddist')
-
-
-# Define the range of knots to test
-k_range <- 3:5
-
-# Initialize empty vectors to store results
-aic_values <- numeric(length(k_range))
-bic_values <- numeric(length(k_range))
-
-# Loop over each value of k
-for (i in seq_along(k_range)) {
-  k <- k_range[i]
-  
-  # Fit the model with k knots
-  model <- cph(
-    as.formula(paste0(
-      "Surv(ckd_egfr50_censtime_yrs, ckd_egfr50_censvar) ~ studydrug2*rcs(ckdpc_50egfr_score_cal,", k, ") + ",
-      paste(setdiff(covariates, "ckdpc_50egfr_score_cal"), collapse=" + ") # need to remove risk score from covariate list as already specified in interaction term
-    )),
-    data = cohort %>% filter(.imp == n.imp), x = TRUE, y = TRUE
-  )
-  
-  # Store the AIC and BIC values
-  aic_values[i] <- AIC(model)
-  bic_values[i] <- BIC(model)
-}
-
-# Find the optimal k based on minimum AIC or BIC
-optimal_k_aic <- k_range[which.min(aic_values)]
-optimal_k_bic <- k_range[which.min(bic_values)]
-
-# Fit the final model using the optimal number of knots based on AIC
-final_model <- cph(
-  as.formula(paste0(
-    "Surv(ckd_egfr50_censtime_yrs, ckd_egfr50_censvar) ~ studydrug2*rcs(ckdpc_50egfr_score_cal,", optimal_k_bic, ") + ",
-    paste(setdiff(covariates, "ckdpc_50egfr_score_cal"), collapse=" + ")
-  )),
-  data = cohort %>% filter(.imp == n.imp), x = TRUE, y = TRUE
-)
-
-# Print optimal k values
-cat("Optimal number of knots based on AIC:", optimal_k_aic, "\n")
-cat("Optimal number of knots based on BIC:", optimal_k_bic, "\n")
-
-anova(final_model)
-anova(final_model)[2,3] # p value for non-linear interaction term
-
-# create data frame with range of scores by study drug
-contrast_spline <- contrast(final_model, 
-                            list(studydrug2 = "SGLT2i", ckdpc_50egfr_score_cal = seq(quantile(cohort$ckdpc_50egfr_score_cal, .01, na.rm=TRUE), quantile(cohort$ckdpc_50egfr_score_cal, .99, na.rm=TRUE), by=0.05)), 
-                            list(studydrug2 = "DPP4i/SU", ckdpc_50egfr_score_cal = seq(quantile(cohort$ckdpc_50egfr_score_cal, .01, na.rm=TRUE), quantile(cohort$ckdpc_50egfr_score_cal, .99, na.rm=TRUE), by=0.05))
-)
-
-contrast_spline_df <- as.data.frame(contrast_spline[c('ckdpc_50egfr_score_cal','Contrast','Lower','Upper')])
-# plot
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Output/")
-tiff(paste0(today, "_HR_by_ckd_egfr50_risk.tiff"), width=10, height=4, units = "in", res=800) 
-ggplot(data=contrast_spline_df, aes(x=ckdpc_50egfr_score_cal, y=exp(Contrast))) +
-  geom_line(data=contrast_spline_df,aes(x=ckdpc_50egfr_score_cal, y=exp(Contrast)), size=1) +
-  xlab(expression(paste("Predicted 3-year risk of kidney disease progression"))) +
-  ylab("Hazard ratio") +
-  coord_trans(y = "log10") +
-  scale_x_continuous(breaks = seq(0,20,.5)) +
-  scale_y_continuous(breaks = c(seq(0, 0.8, 0.1), seq(0.8, 1.6, 0.2))) +
-  geom_ribbon(data=contrast_spline_df, aes(x=ckdpc_50egfr_score_cal, ymin=exp(Lower), ymax=exp(Upper)), alpha=0.5) +
-  geom_hline(yintercept = 1, linetype = "dashed")  +
-  geom_hline(aes(yintercept = 0.62, linetype = "hr", size="hr"), color="#D55E00")  +
-  geom_hline(aes(yintercept = 0.68, linetype = "hr_95", size="hr_95"), color="#D55E00")  +
-  geom_hline(aes(yintercept = 0.57, linetype = "hr_95", size="hr_95"), color="#D55E00")  +
-  theme_bw() +
-  theme(text = element_text(size = 18),
-        axis.line = element_line(colour =  "grey50" ),
-        panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        panel.border = element_blank(),
-        panel.background = element_blank(),
-        legend.position="bottom",
-        legend.title = element_text(size=14, face = "italic"),
-        legend.text = element_text(face="italic")) +
-  scale_linetype_manual(values = c(hr = "twodash", hr_95 = "twodash"), labels = c(hr = "0.62", hr_95 = "95% CI 0.56-0.68"), name="Trial meta-analysis hazard ratio") +
-  scale_size_manual(values = c(hr = 1, hr_95 = 0.5), labels = c(hr = "0.62", hr_95 = "95% CI 0.56-0.68"), name="Trial meta-analysis hazard ratio")
-dev.off()
-
-options(datadist = NULL)
-## there is no significant treatment heterogeneity by baseline risk score

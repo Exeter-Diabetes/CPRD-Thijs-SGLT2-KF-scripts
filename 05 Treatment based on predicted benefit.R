@@ -31,21 +31,154 @@ cohort <- cohort %>% mutate(
   treat_model2 = ifelse(ckdpc_50egfr_sglt2i_benefit > cutoff2, T, F),        # strategy B (top 10%)
 )
 
-############################2 EVALUATE OBSERVED BENEFIT DISTRIBUTION/CALIBRATION################################################################
+
+#variables to be shown
+vars <- c("dstartdate_age", "malesex", "ethnicity_5cat", "imd2015_10",             # sociodemographic variables
+          "prebmi", "presbp", "predbp", "pretotalcholesterol", "prehdl", "preldl", # vital signs and laboratory measurements
+          "pretriglyceride", "prehba1c",  "preegfr",
+          "uacr", "albuminuria_unconfirmed", "albuminuria",
+          "dstartdate_dm_dur_all", "smoking_status", "predrug_hypertension",   # comorbidities
+          "predrug_af", "predrug_dka", "genital_infection", "osteoporosis",
+          "predrug_acutepancreatitis", "predrug_falls",
+          "predrug_urinary_frequency", "predrug_volume_depletion",
+          "predrug_micturition_control", "predrug_dementia", "hosp_admission_prev_year",
+          "initiation_year",
+          "ncurrtx", "MFN", "INS", "ACEi_or_ARB",                                   # medications
+          "cv_high_risk"                                     # CV risk
+          
+)
+
+#categorical variables
+factors <- c("malesex", "ethnicity_5cat", "imd2015_10", "albuminuria_unconfirmed", "albuminuria", 
+             "smoking_status", "predrug_hypertension",
+             "predrug_af", "predrug_dka", "genital_infection", "osteoporosis", "predrug_acutepancreatitis",
+             "predrug_falls", "predrug_urinary_frequency", "predrug_volume_depletion",
+             "predrug_micturition_control", "predrug_dementia", "hosp_admission_prev_year",
+             "initiation_year",
+             "ncurrtx", "MFN", "INS", "ACEi_or_ARB",
+             "cv_high_risk")
+
+nonnormal <- c("uacr", "dstartdate_dm_dur_all")
+
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/output/")
+#my computer is set to continental settings, therefore I am using write.csv2 instead of write.csv
+
+vars <- c(vars, "studydrug2")
+factors <- c(factors, "studydrug2")
+table <- CreateTableOne(vars = vars, strata = "treat_model2", data = cohort,
+                        factorVars = factors, test = F)
+
+tabforprint2 <- print(table, nonnormal = nonnormal, quote = FALSE, noSpaces = TRUE, printToggle = T)
+
+write.csv2(tabforprint2, file = paste0(today, "_baseline_table_by_parr.csv"))
+############################2 HR BY RISK SCORE################################################################
+## check whether there is evidence of treatment heterogeneity by baseline risk (figure 1B)
+
+# fit model using interaction term of treatment with risk score, 
+# modelled with restricted cubic splines [rcs()] with 3-5 knots
+
+ddist <- cohort %>% datadist()
+options(datadist='ddist')
+
+
+# Define the range of knots to test
+k_range <- 3:5
+
+# Initialize empty vectors to store results
+aic_values <- numeric(length(k_range))
+bic_values <- numeric(length(k_range))
+
+# Loop over each value of k
+for (i in seq_along(k_range)) {
+  k <- k_range[i]
+  
+  # Fit the model with k knots
+  model <- cph(
+    as.formula(paste0(
+      "Surv(ckd_egfr50_censtime_yrs, ckd_egfr50_censvar) ~ studydrug2*rcs(ckdpc_50egfr_score_cal,", k, ") + ",
+      paste(setdiff(covariates, "ckdpc_50egfr_score_cal"), collapse=" + ") # need to remove risk score from covariate list as already specified in interaction term
+    )),
+    data = cohort %>% filter(.imp == n.imp), x = TRUE, y = TRUE
+  )
+  
+  # Store the AIC and BIC values
+  aic_values[i] <- AIC(model)
+  bic_values[i] <- BIC(model)
+}
+
+# Find the optimal k based on minimum AIC or BIC
+optimal_k_aic <- k_range[which.min(aic_values)]
+optimal_k_bic <- k_range[which.min(bic_values)]
+
+# Fit the final model using the optimal number of knots based on AIC
+final_model <- cph(
+  as.formula(paste0(
+    "Surv(ckd_egfr50_censtime_yrs, ckd_egfr50_censvar) ~ studydrug2*rcs(ckdpc_50egfr_score_cal,", optimal_k_bic, ") + ",
+    paste(setdiff(covariates, "ckdpc_50egfr_score_cal"), collapse=" + ")
+  )),
+  data = cohort %>% filter(.imp == n.imp), x = TRUE, y = TRUE
+)
+
+# Print optimal k values
+cat("Optimal number of knots based on AIC:", optimal_k_aic, "\n")
+cat("Optimal number of knots based on BIC:", optimal_k_bic, "\n")
+
+anova(final_model)
+anova(final_model)[2,3] # p value for non-linear interaction term
+
+# create data frame with range of scores by study drug
+contrast_spline <- contrast(final_model, 
+                            list(studydrug2 = "SGLT2i", ckdpc_50egfr_score_cal = seq(quantile(cohort$ckdpc_50egfr_score_cal, .01, na.rm=TRUE), quantile(cohort$ckdpc_50egfr_score_cal, .99, na.rm=TRUE), by=0.05)), 
+                            list(studydrug2 = "DPP4i/SU", ckdpc_50egfr_score_cal = seq(quantile(cohort$ckdpc_50egfr_score_cal, .01, na.rm=TRUE), quantile(cohort$ckdpc_50egfr_score_cal, .99, na.rm=TRUE), by=0.05))
+)
+
+contrast_spline_df <- as.data.frame(contrast_spline[c('ckdpc_50egfr_score_cal','Contrast','Lower','Upper')])
+# plot
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Output/")
+tiff(paste0(today, "_HR_by_ckd_egfr50_risk.tiff"), width=10, height=4, units = "in", res=800) 
+ggplot(data=contrast_spline_df, aes(x=ckdpc_50egfr_score_cal, y=exp(Contrast))) +
+  geom_line(data=contrast_spline_df,aes(x=ckdpc_50egfr_score_cal, y=exp(Contrast)), size=1) +
+  xlab(expression(paste("Predicted 3-year risk of kidney disease progression"))) +
+  ylab("Hazard ratio") +
+  coord_trans(y = "log10") +
+  scale_x_continuous(breaks = seq(0,20,.5)) +
+  scale_y_continuous(breaks = c(seq(0, 0.8, 0.1), seq(0.8, 1.6, 0.2))) +
+  geom_ribbon(data=contrast_spline_df, aes(x=ckdpc_50egfr_score_cal, ymin=exp(Lower), ymax=exp(Upper)), alpha=0.5) +
+  geom_hline(yintercept = 1, linetype = "dashed")  +
+  geom_hline(aes(yintercept = 0.62, linetype = "hr", size="hr"), color="#D55E00")  +
+  geom_hline(aes(yintercept = 0.68, linetype = "hr_95", size="hr_95"), color="#D55E00")  +
+  geom_hline(aes(yintercept = 0.57, linetype = "hr_95", size="hr_95"), color="#D55E00")  +
+  theme_bw() +
+  theme(text = element_text(size = 18),
+        axis.line = element_line(colour =  "grey50" ),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank(),
+        legend.position="bottom",
+        legend.title = element_text(size=14, face = "italic"),
+        legend.text = element_text(face="italic")) +
+  scale_linetype_manual(values = c(hr = "twodash", hr_95 = "twodash"), labels = c(hr = "0.62", hr_95 = "95% CI 0.56-0.68"), name="Trial meta-analysis hazard ratio") +
+  scale_size_manual(values = c(hr = 1, hr_95 = 0.5), labels = c(hr = "0.62", hr_95 = "95% CI 0.56-0.68"), name="Trial meta-analysis hazard ratio")
+dev.off()
+
+options(datadist = NULL)
+## there is no significant treatment heterogeneity by baseline risk score
+
+############################3 EVALUATE OBSERVED BENEFIT DISTRIBUTION/CALIBRATION################################################################
 
 ## FIGURE 2A: histogram of predicted benefit
 benefit_histogram <- ggplot(cohort %>%
                       mutate(predicted_benefit_percent = ckdpc_50egfr_sglt2i_benefit * 100), 
                     aes(x = predicted_benefit_percent)) +
-  geom_histogram(aes(y = ..count.. / 10, fill = predicted_benefit_percent > cutoff1*100),
+  geom_histogram(aes(y = ..count.. / n.imp, fill = predicted_benefit_percent > cutoff1*100),
                  binwidth = 0.02, color = "black") +  # Adjust binwidth as necessary
   scale_fill_manual(values = c("TRUE" = "#E69F00", "FALSE" = "grey")) +
   geom_vline(xintercept = cutoff1*100, linetype = "dashed", color = "black", size = 1) +
   geom_vline(xintercept = cutoff2*100, linetype = "dashed", color = "black", size = 1) +
-  # geom_vline(xintercept = cutoff3*100, linetype = "dashed", color = "black", size = 1) +
 
-  annotate("text", x = cutoff1*100, y = Inf, label = "pARR strategy A", vjust = -0.5, hjust = 1.1, angle = 90, size = 4, color = "black") +
-  annotate("text", x = cutoff2*100, y = Inf, label = "pARR strategy B", vjust = -0.5, hjust = 1.1, angle = 90, size = 4, color = "black") +
+  annotate("text", x = cutoff1*100, y = Inf, label = "pARR threshold A", vjust = -0.5, hjust = 1.1, angle = 90, size = 4, color = "black") +
+  annotate("text", x = cutoff2*100, y = Inf, label = "pARR threshold B", vjust = -0.5, hjust = 1.1, angle = 90, size = 4, color = "black") +
 
   labs(x = "Predicted absolute risk reduction with SGLT2i (%)", y = "Frequency") +
   theme_minimal() +
@@ -53,7 +186,7 @@ benefit_histogram <- ggplot(cohort %>%
   coord_cartesian(xlim=c(0,2.5))
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Output/")
-tiff(paste0(today, "_predicted_benefit_histogram.tiff"), width=8, height=4.5, units = "in", res=800) 
+tiff(paste0(today, "_predicted_benefit_histogram.tiff"), width=6, height=3.75, units = "in", res=800) 
 benefit_histogram
 dev.off()
 
@@ -132,7 +265,7 @@ print(paste0("Normoalbuminuria median pARR: ", round(100*median(cohort[cohort$al
 print(paste0("Low-level albuminuria mean pARR: ", round(100*mean(cohort[cohort$albuminuria == T,]$ckdpc_50egfr_sglt2i_benefit),2), "% ±", round(100*sd(cohort[cohort$albuminuria == T,]$ckdpc_50egfr_sglt2i_benefit),2)))
 print(paste0("Low-level albuminuria median pARR: ", round(100*median(cohort[cohort$albuminuria == T,]$ckdpc_50egfr_sglt2i_benefit),2), "%, IQR ", round(100*quantile(cohort[cohort$albuminuria == T,]$ckdpc_50egfr_sglt2i_benefit, 0.25),2), "-",round(100*quantile(cohort[cohort$albuminuria == T,]$ckdpc_50egfr_sglt2i_benefit, 0.75),2)))
 
-############################3 GUIDELINES VS MODEL TREAT/NOT TREAT################################################################
+############################4 GUIDELINES VS MODEL TREAT/NOT TREAT################################################################
 
 covariates_ps <- setdiff(covariates, "initiation_year")
 
@@ -365,7 +498,7 @@ p2_2 <- ggsurvplot(
 p2_3 <- ggsurvplot(
   survfit_list_2[[3]],
   data = cohort2,
-  title = paste0("pARR below 90th percentile (", round(100 * (nrow(cohort_model2_N) / nrow(cohort)), 1), "%)"),
+  title = paste0("pARR <90th percentile (", round(100 * (nrow(cohort_model2_N) / nrow(cohort)), 1), "%)"),
   subtitle = paste0("SGLT2i not recommended; 5-year ARR: ", sprintf("%.2f", arr_model2_N), "%"),
   size = 1.5,
   fun = function(x) {100 - x * 100},
@@ -384,7 +517,7 @@ p2_3 <- ggsurvplot(
 p2_4 <- ggsurvplot(
   survfit_list_2[[4]],
   data = cohort2,
-  title = paste0("pARR above 90th percentile (", round(100 * (nrow(cohort_model2_Y) / nrow(cohort)), 1), "%)"),
+  title = paste0("pARR ≥90th percentile (", round(100 * (nrow(cohort_model2_Y) / nrow(cohort)), 1), "%)"),
   subtitle = paste0("SGLT2i recommended; 5-year ARR: ", sprintf("%.2f", arr_model2_Y), "%"),
   size = 1.5,
   fun = function(x) {100 - x * 100},
@@ -414,7 +547,7 @@ table(cohort2$subgp)
 
 options(datadist=NULL)
 
-############################4 NUMBERS TREATED AND EVENTS AVOIDED################################################################
+############################5 NUMBERS TREATED AND EVENTS AVOIDED################################################################
 
 ### predicted data at 3 years:
 #No treatment
@@ -485,7 +618,92 @@ print(paste0(c("NNT with treatment strategy B: ",
                           mean(cohort[cohort$treat_model2 == T,]$ckdpc_50egfr_score_cal.applied.model2/100)))), collapse = ""))
 
 
-############################5 HR BY pARR THRESHOLD################################################################
+
+############################6 DECISION CURVE ANALYSIS################################################################
+dca_data <- cohort %>% mutate(ckdpc_50egfr_score_cal_risk = ckdpc_50egfr_score_cal/100) %>%
+  dca(Surv(ckd_egfr50_censtime_yrs, ckd_egfr50_censvar) ~ treat_guideline + ckdpc_50egfr_score_cal_risk,
+      thresholds = seq(0, 0.20, by = 0.005),
+      time = 3)
+
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Output/")
+tiff(paste0(today, "_decision_curve_analysis.tiff"), width=6, height=5, units = "in", res=800) 
+as_tibble(dca_data) %>%
+  dplyr::filter(!is.na(net_benefit)) %>%
+  ggplot(aes(x = threshold, y = net_benefit, color = label, linetype = label)) +
+  stat_smooth(method = "loess", se = FALSE, formula = "y ~ x", 
+              span = 0.2, size = 1.25) +
+  coord_cartesian(ylim = c(-0.00105984276971715, 0.0105984276971715
+  )) +
+  scale_x_continuous(labels = scales::percent_format(accuracy = 1)) +
+  labs(x = "Risk Tolerance", y = "Net Utility", color = "") +
+  theme_minimal() +
+  scale_color_manual(
+    values = c(
+      "black", "grey40", "#0072B2", "#E69F00"
+    ),
+    labels = c("Treat all", 
+               "Treat none", 
+               "Treat if uACR ≥3mg/mmol", 
+               "Treat according to pARR")) +
+  scale_linetype_manual(
+    values = c(
+      "solid", 
+      "solid", 
+      "longdash", 
+      "solid"),
+    labels = c("Treat all", 
+               "Treat none", 
+               "Treat if uACR ≥3mg/mmol", 
+               "Treat according to pARR")) + 
+  guides(color = guide_legend("Treatment strategy"), 
+         linetype = guide_legend("Treatment strategy")) +
+  theme(legend.position = c(0.75, 0.8)) +
+  coord_cartesian(xlim = c(0.0012,0.03), ylim = c(0,0.01))
+dev.off()
+
+# #DCA with static thresholds (pARR thresholds A + B used in table)
+# dca_data2 <- dca(Surv(ckd_egfr50_censtime_yrs, ckd_egfr50_censvar) ~ treat_guideline + treat_model1 + treat_model2,
+#                  data = cohort,
+#                  thresholds = seq(0, 0.20, by = 0.01),
+#                  time = 3)
+# 
+# #plot
+# as_tibble(dca_data2) %>%
+#   dplyr::filter(!is.na(net_benefit)) %>%
+#   ggplot(aes(x = threshold, y = net_benefit, color = label, linetype = label)) +
+#   stat_smooth(method = "loess", se = FALSE, formula = "y ~ x", 
+#               span = 0.2, size = 1.25) +
+#   coord_cartesian(ylim = c(-0.00105984276971715, 0.0105984276971715
+#   )) +
+#   scale_x_continuous(labels = scales::percent_format(accuracy = 1)) +
+#   labs(x = "Threshold Probability", y = "Net Utility", color = "") +
+#   theme_bw() +
+#   scale_color_manual(
+#     values = c(
+#       "black", "grey40", "#0072B2", "#E69F00", "#E69F00" 
+#     ),
+#     labels = c("Treat all", 
+#                "Treat none", 
+#                "Treat if uACR ≥3mg/mmol", 
+#                "Treat if pARR above threshold A", 
+#                "Treat if pARR above threshold B")) +
+#   scale_linetype_manual(
+#     values = c(
+#       "solid", 
+#       "solid", 
+#       "longdash", 
+#       "solid", 
+#       "dashed"),
+#     labels = c("Treat all", 
+#                "Treat none", 
+#                "Treat if uACR ≥3mg/mmol", 
+#                "Treat if pARR above threshold A", 
+#                "Treat if pARR above threshold B")) + 
+#   guides(color = guide_legend("Treatment strategy"), 
+#          linetype = guide_legend("Treatment strategy")) +
+#   theme(legend.position = c(0.75, 0.8)) +
+#   coord_cartesian(xlim = c(0.0012,0.03), ylim = c(0,0.01))
+############################7 HR BY pARR THRESHOLD################################################################
 
 
 #create empty data frame to which we can append the hazard ratios once calculated

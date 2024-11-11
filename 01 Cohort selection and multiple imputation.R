@@ -493,7 +493,7 @@ setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/output/")
 
 write.csv2(tabforprint, file = paste0(today, "_baseline_table.csv"))
 
-# get baseline table by eGFR/uACR subgroups:
+# get baseline table by albuminuria status:
 vars <- c(vars, "studydrug")
 factors <- c(factors, "studydrug")
 table <- CreateTableOne(vars = vars, strata = "albuminuria", data = temp %>% filter(!.imp == 0) %>%
@@ -502,7 +502,7 @@ table <- CreateTableOne(vars = vars, strata = "albuminuria", data = temp %>% fil
 
 tabforprint2 <- print(table, nonnormal = nonnormal, quote = FALSE, noSpaces = TRUE, printToggle = T)
 
-write.csv2(tabforprint2, file = paste0(today, "_baseline_table_by_subgroup.csv"))
+write.csv2(tabforprint2, file = paste0(today, "_baseline_table_by_albuminuria.csv"))
 
 
 # events rates (sum of events divided by sum of person-years) by studydrug
