@@ -22,7 +22,7 @@ setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/scripts/CPRD-Thi
 source("00 Setup.R")
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-load("2024-11-06_t2d_ckdpc_imputed_data.Rda")
+load(paste0(today, "_t2d_ckdpc_imputed_data.Rda"))
 
 ############################1 CALCULATE WEIGHTS################################################################
 
@@ -36,9 +36,9 @@ temp$IPTW2 <- temp$overlap2 <- NA
 temp2 <- temp[temp$.imp == 0,]
 
 # propensity score formula
-ps.formula <- formula(paste("studydrug ~ ", paste(covariates_ps, collapse=" + ")))
+ps.formula <- formula(paste("studydrug ~ ", paste(covariates, collapse=" + ")))
 
-ps.formula2 <- formula(paste("studydrug2 ~ ", paste(covariates_ps, collapse=" + ")))
+ps.formula2 <- formula(paste("studydrug2 ~ ", paste(covariates, collapse=" + ")))
 
 
 #calculate weights in each imputed dataset
@@ -139,7 +139,7 @@ cohort <- cohort %>% filter(!.imp == 0)
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
 save(cohort, file=paste0(today, "_t2d_ckdpc_imputed_data_withweights.Rda"))
-#load("2024-11-06_t2d_ckdpc_imputed_data_withweights.Rda")
+#load(paste0(today, "_t2d_ckdpc_imputed_data_withweights.Rda"))
 ############################2 CALCULATE HAZARD RATIOS################################################################
 
 ## 2 calculate hazard ratios (unadjusted, adjusted, weighted) and n events per study drug
@@ -606,6 +606,9 @@ for (k in outcomes) {
       # for the adjusted survival models
       COEFS.noalb.adj <- SE.noalb.adj <-
       COEFS.microalb.adj <- SE.microalb.adj <-
+      # for the overlap-weighted survival models
+      COEFS.noalb.ow <- SE.noalb.ow <-
+      COEFS.microalb.ow <- SE.microalb.ow <-
       rep(NA,n.imp)
     
     for (i in 1:n.imp) {
@@ -630,6 +633,15 @@ for (k in outcomes) {
       COEFS.microalb.adj[i] <- fit.adj$coefficients["studydrug2SGLT2i"] + fit.adj$coefficients["studydrug2SGLT2i:albuminuriaTRUE"]
       SE.microalb.adj[i] <- sqrt(abs(fit.adj$var[1]) + abs(fit.adj$var[nrow(fit.adj$var),nrow(fit.adj$var)]) + 2 * vcov(fit.adj)[1,nrow(fit.adj$var)])
       
+      #overlap-weighted analyses
+      fit.ow <- coxph(f_adjusted2, cohort[cohort$.imp == i,], weights = overlap2)
+      
+      COEFS.noalb.ow[i] <- fit.ow$coefficients["studydrug2SGLT2i"]
+      SE.noalb.ow[i] <- sqrt(fit.ow$var[1,1])
+      
+      COEFS.microalb.ow[i] <- fit.ow$coefficients["studydrug2SGLT2i"] + fit.ow$coefficients["studydrug2SGLT2i:albuminuriaTRUE"]
+      SE.microalb.ow[i] <- sqrt(abs(fit.ow$var[1]) + abs(fit.ow$var[nrow(fit.ow$var),nrow(fit.ow$var)]) + 2 * vcov(fit.ow)[1,nrow(fit.ow$var)])
+      
       if (k == "ckd_egfr50") {
         if (i == n.imp) {
           f_adjusted3 <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2 + albuminuria + ", paste(covariates, collapse=" + ")))
@@ -644,23 +656,27 @@ for (k in outcomes) {
     # pool hazard ratios
     unadjusted_noalb <- pool.rubin.HR(COEFS.noalb.unadj, SE.noalb.unadj, n.imp)
     adjusted_noalb <- pool.rubin.HR(COEFS.noalb.adj, SE.noalb.adj, n.imp)
+    ow_noalb <- pool.rubin.HR(COEFS.noalb.ow, SE.noalb.ow, n.imp)
     
     unadjusted_microalb <- pool.rubin.HR(COEFS.microalb.unadj, SE.microalb.unadj, n.imp)
     adjusted_microalb <- pool.rubin.HR(COEFS.microalb.adj, SE.microalb.adj, n.imp)
+    ow_microalb <- pool.rubin.HR(COEFS.microalb.ow, SE.microalb.ow, n.imp)
     
     # save pooled HR and 95% confidence interval
     unadjusted_noalb_string <- paste0(sprintf("%.2f", round(unadjusted_noalb[1], 2)), " (", sprintf("%.2f", round(unadjusted_noalb[2], 2)), ", ", sprintf("%.2f", round(unadjusted_noalb[3], 2)), ")")
     adjusted_noalb_string <- paste0(sprintf("%.2f", round(adjusted_noalb[1], 2)), " (", sprintf("%.2f", round(adjusted_noalb[2], 2)), ", ", sprintf("%.2f", round(adjusted_noalb[3], 2)), ")")
+    ow_noalb_string <- paste0(sprintf("%.2f", round(ow_noalb[1], 2)), " (", sprintf("%.2f", round(ow_noalb[2], 2)), ", ", sprintf("%.2f", round(ow_noalb[3], 2)), ")")
     
     unadjusted_microalb_string <- paste0(sprintf("%.2f", round(unadjusted_microalb[1], 2)), " (", sprintf("%.2f", round(unadjusted_microalb[2], 2)), ", ", sprintf("%.2f", round(unadjusted_microalb[3], 2)), ")")
     adjusted_microalb_string <- paste0(sprintf("%.2f", round(adjusted_microalb[1], 2)), " (", sprintf("%.2f", round(adjusted_microalb[2], 2)), ", ", sprintf("%.2f", round(adjusted_microalb[3], 2)), ")")
+    ow_microalb_string <- paste0(sprintf("%.2f", round(ow_microalb[1], 2)), " (", sprintf("%.2f", round(ow_microalb[2], 2)), ", ", sprintf("%.2f", round(ow_microalb[3], 2)), ")")
     
     # combine in dataframe that we can tabulate
     presegfr_noalb_hr <- cbind(outcome=k, count[1,c(2:3)], followup[1,c(2:3)], events[1,c(2:3)],
-                               unadjusted=unadjusted_noalb_string, adjusted=adjusted_noalb_string
+                               unadjusted=unadjusted_noalb_string, adjusted=adjusted_noalb_string, overlapweighted=ow_noalb_string
     )
     presegfr_microalb_hr <- cbind(outcome=k, count[2,c(2:3)], followup[2,c(2:3)], events[2,c(2:3)],
-                                  unadjusted=unadjusted_microalb_string, adjusted=adjusted_microalb_string
+                                  unadjusted=unadjusted_microalb_string, adjusted=adjusted_microalb_string, overlapweighted=ow_microalb_string
     )
     
     outcome_subgroup_SGLT2ivsDPP4iSU_hrs <- rbind(presegfr_noalb_hr, presegfr_microalb_hr)
@@ -669,7 +685,11 @@ for (k in outcomes) {
       cbind(outcome = k, contrast = "uACR <3mg/mmol", analysis = "Adjusted",
             HR = adjusted_noalb[1], LB = adjusted_noalb[2], UB = adjusted_noalb[3], string = adjusted_noalb_string),
       cbind(outcome = k, contrast = "uACR 3-30mg/mmol", analysis = "Adjusted",
-            HR = adjusted_microalb[1], LB = adjusted_microalb[2], UB = adjusted_microalb[3], string = adjusted_microalb_string)
+            HR = adjusted_microalb[1], LB = adjusted_microalb[2], UB = adjusted_microalb[3], string = adjusted_microalb_string),
+      cbind(outcome = k, contrast = "uACR <3mg/mmol", analysis = "Overlap-weighted",
+            HR = ow_noalb[1], LB = ow_noalb[2], UB = ow_noalb[3], string = ow_noalb_string),
+      cbind(outcome = k, contrast = "uACR 3-30mg/mmol", analysis = "Overlap-weighted",
+            HR = ow_microalb[1], LB = ow_microalb[2], UB = ow_microalb[3], string = ow_microalb_string)
         )
     
     subgroup_hrs <- rbind(subgroup_hrs, temp)

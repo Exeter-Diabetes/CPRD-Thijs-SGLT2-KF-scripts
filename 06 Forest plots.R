@@ -11,13 +11,13 @@ setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/scripts/CPRD-Thi
 source("00 Setup.R")
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/output/")
-load("2024-11-06_all_hrs.Rda")
-load("2024-11-06_all_SGLT2ivsDPP4iSU_hrs.Rda")
-load("2024-11-06_SGLT2ivsDPP4iSU_hrs.Rda")
-load("2024-11-06_subgroup_hrs.Rda")
-load("2024-11-06_subgroup_SGLT2ivsDPP4iSU_hrs.Rda")
-load("2024-11-06_subgroup_parr_hrs.Rda")
-load("2024-11-06_subgroup_parr_SGLT2ivsDPP4iSU_hrs.Rda")
+load(paste0(today, "_all_hrs.Rda"))
+load(paste0(today, "_all_SGLT2ivsDPP4iSU_hrs.Rda"))
+load(paste0(today, "_SGLT2ivsDPP4iSU_hrs.Rda"))
+load(paste0(today, "_subgroup_hrs.Rda"))
+load(paste0(today, "_subgroup_SGLT2ivsDPP4iSU_hrs.Rda"))
+load(paste0(today, "_subgroup_parr_hrs.Rda"))
+load(paste0(today, "_subgroup_parr_SGLT2ivsDPP4iSU_hrs.Rda"))
 
 ############################1 FOREST PLOT FOR HRs PER DRUG CLASS (SUPPLEMENTAL FIGURE)################################################################
 
@@ -466,13 +466,13 @@ dev.off()
 ############################3 FOREST PLOT OF HR BY ALBUMINURIA STATUS (FIGURE 1A)################################################################
 
 # if analyses in 02 Calculate weights and hazard ratios.R not run, then object p_value_interaction will not be defined
-# if that is the case, define p-value at 0.36 (as per analyses dd 06/11/2024)
+# if that is the case, define p-value at 0.36 (as per analyses dd 14/11/2024)
 if (!exists("p_value_interaction")) {
   p_value_interaction <- 0.36
 }
 
 # prep data frames with row for overall
-overall <- all_SGLT2ivsDPP4iSU_hrs[all_SGLT2ivsDPP4iSU_hrs$analysis == "Adjusted",]
+overall <- all_SGLT2ivsDPP4iSU_hrs[all_SGLT2ivsDPP4iSU_hrs$analysis == "Overlap-weighted",]
 overall$contrast <- "Overall"
 
 labels_plot5 <- overall
@@ -502,7 +502,7 @@ labels3 <- labels3 %>% mutate(contrast = paste0("By albuminuria status (p = ", s
                               SGLT2i_nN = "Events/subjects",
                               `DPP4i/SU_nN` = "")
 
-labels_plot3 <- subgroup_hrs
+labels_plot3 <- subgroup_hrs %>% filter(analysis == "Overlap-weighted")
 
 for (k in unique(subgroup_hrs$outcome)) {
   labels_temp <- labels3
@@ -524,7 +524,7 @@ p_counts_subgroup <- labels_plot3 %>% filter(outcome=="ckd_egfr50") %>%
   coord_cartesian(xlim = c(-2, 5))
 
 p_hr_subgroup <- 
-  subgroup_hrs %>%
+  subgroup_hrs %>% filter(analysis == "Overlap-weighted") %>%
   filter(outcome == "ckd_egfr50") %>%
   ggplot(aes(y = factor(contrast, levels = rev(unique(contrast))))) + 
   scale_x_continuous(trans = "log10", breaks = c(0.25, 0.5, 0.75, 1.0, 1.5, 2.0)) +
@@ -666,7 +666,7 @@ dev.off()
 ############################4 FOREST PLOT FOR HRs OF SECONDARY OUTCOMES (SUPPLEMENTAL FIGURE)################################################################
 
 secondary <- subgroup_hrs %>% 
-  filter(analysis=="Adjusted") %>%
+  filter(analysis=="Overlap-weighted") %>%
   filter(!outcome %in% c("ckd_egfr50", "death")) %>%
   mutate(albuminuria_status = case_when(
     contrast == "uACR <3mg/mmol" ~ "uACR <3 mg/mmol",
@@ -822,7 +822,7 @@ dev.off()
 ############################5 FOREST PLOT FOR HRs OF SECONDARY OUTCOMES (SUPPLEMENTAL FIGURE)################################################################
 
 secondary2 <- subgroup_parr_hrs %>% 
-  filter(analysis=="Adjusted") %>%
+  filter(analysis=="Overlap-weighted") %>%
   filter(!outcome %in% c("ckd_egfr50", "death")) %>%
   mutate(parr_status = case_when(
     contrast == "pARR below 90th percentile" ~ "pARR below 90th percentile",

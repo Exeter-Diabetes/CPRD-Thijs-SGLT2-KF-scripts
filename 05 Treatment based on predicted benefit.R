@@ -6,7 +6,7 @@ setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/scripts/CPRD-Thi
 source("00 Setup.R")
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-load("2024-11-06_t2d_ckdpc_recalibrated_with_adjsurv.Rda")
+load(paste0(today, "_t2d_ckdpc_recalibrated_with_adjsurv.Rda"))
 
 
 ############################1 DEFINE CUTOFFS################################################################
@@ -765,6 +765,9 @@ for (k in outcomes) {
     # for the adjusted survival models
     COEFS.lowparr.adj <- SE.lowparr.adj <-
     COEFS.highparr.adj <- SE.highparr.adj <-
+    # for the overlap-weighted survival models
+    COEFS.lowparr.ow <- SE.lowparr.ow <-
+    COEFS.highparr.ow <- SE.highparr.ow <-
     rep(NA,n.imp)
   
   for (i in 1:n.imp) {
@@ -789,6 +792,15 @@ for (k in outcomes) {
     COEFS.highparr.adj[i] <- fit.adj$coefficients["studydrug2SGLT2i"] + fit.adj$coefficients["studydrug2SGLT2i:treat_model2TRUE"]
     SE.highparr.adj[i] <- sqrt(abs(fit.adj$var[1]) + abs(fit.adj$var[nrow(fit.adj$var),nrow(fit.adj$var)]) + 2 * vcov(fit.adj)[1,nrow(fit.adj$var)])
     
+    #overlap-weighted analyses
+    fit.ow <- coxph(f_adjusted2, cohort[cohort$.imp == i,], weights = overlap2)
+    
+    COEFS.lowparr.ow[i] <- fit.ow$coefficients["studydrug2SGLT2i"]
+    SE.lowparr.ow[i] <- sqrt(fit.ow$var[1,1])
+    
+    COEFS.highparr.ow[i] <- fit.ow$coefficients["studydrug2SGLT2i"] + fit.ow$coefficients["studydrug2SGLT2i:treat_model2TRUE"]
+    SE.highparr.ow[i] <- sqrt(abs(fit.ow$var[1]) + abs(fit.ow$var[nrow(fit.ow$var),nrow(fit.ow$var)]) + 2 * vcov(fit.ow)[1,nrow(fit.ow$var)])
+    
     
     if (i == n.imp) {
       f_adjusted3 <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2 + treat_model2 + ", paste(covariates, collapse=" + ")))
@@ -803,23 +815,27 @@ for (k in outcomes) {
   # pool hazard ratios
   unadjusted_lowparr <- pool.rubin.HR(COEFS.lowparr.unadj, SE.lowparr.unadj, n.imp)
   adjusted_lowparr <- pool.rubin.HR(COEFS.lowparr.adj, SE.lowparr.adj, n.imp)
+  ow_lowparr <- pool.rubin.HR(COEFS.lowparr.ow, SE.lowparr.ow, n.imp)
   
   unadjusted_highparr <- pool.rubin.HR(COEFS.highparr.unadj, SE.highparr.unadj, n.imp)
   adjusted_highparr <- pool.rubin.HR(COEFS.highparr.adj, SE.highparr.adj, n.imp)
+  ow_highparr <- pool.rubin.HR(COEFS.highparr.ow, SE.highparr.ow, n.imp)
   
   # save pooled HR and 95% confidence interval
   unadjusted_lowparr_string <- paste0(sprintf("%.2f", round(unadjusted_lowparr[1], 2)), " (", sprintf("%.2f", round(unadjusted_lowparr[2], 2)), ", ", sprintf("%.2f", round(unadjusted_lowparr[3], 2)), ")")
   adjusted_lowparr_string <- paste0(sprintf("%.2f", round(adjusted_lowparr[1], 2)), " (", sprintf("%.2f", round(adjusted_lowparr[2], 2)), ", ", sprintf("%.2f", round(adjusted_lowparr[3], 2)), ")")
+  ow_lowparr_string <- paste0(sprintf("%.2f", round(ow_lowparr[1], 2)), " (", sprintf("%.2f", round(ow_lowparr[2], 2)), ", ", sprintf("%.2f", round(ow_lowparr[3], 2)), ")")
   
   unadjusted_highparr_string <- paste0(sprintf("%.2f", round(unadjusted_highparr[1], 2)), " (", sprintf("%.2f", round(unadjusted_highparr[2], 2)), ", ", sprintf("%.2f", round(unadjusted_highparr[3], 2)), ")")
   adjusted_highparr_string <- paste0(sprintf("%.2f", round(adjusted_highparr[1], 2)), " (", sprintf("%.2f", round(adjusted_highparr[2], 2)), ", ", sprintf("%.2f", round(adjusted_highparr[3], 2)), ")")
+  ow_highparr_string <- paste0(sprintf("%.2f", round(ow_highparr[1], 2)), " (", sprintf("%.2f", round(ow_highparr[2], 2)), ", ", sprintf("%.2f", round(ow_highparr[3], 2)), ")")
   
   # combine in dataframe that we can tabulate
   presegfr_lowparr_hr <- cbind(outcome=k, count[1,c(2:3)], followup[1,c(2:3)], events[1,c(2:3)],
-                             unadjusted=unadjusted_lowparr_string, adjusted=adjusted_lowparr_string
+                             unadjusted=unadjusted_lowparr_string, adjusted=adjusted_lowparr_string, ow=ow_lowparr_string
   )
   presegfr_highparr_hr <- cbind(outcome=k, count[2,c(2:3)], followup[2,c(2:3)], events[2,c(2:3)],
-                                unadjusted=unadjusted_highparr_string, adjusted=adjusted_highparr_string
+                                unadjusted=unadjusted_highparr_string, adjusted=adjusted_highparr_string, ow=ow_highparr_string
   )
   
   outcome_subgroup_parr_SGLT2ivsDPP4iSU_hrs <- rbind(presegfr_lowparr_hr, presegfr_highparr_hr)
@@ -828,7 +844,11 @@ for (k in outcomes) {
     cbind(outcome = k, contrast = "pARR below 90th percentile", analysis = "Adjusted",
           HR = adjusted_lowparr[1], LB = adjusted_lowparr[2], UB = adjusted_lowparr[3], string = adjusted_lowparr_string),
     cbind(outcome = k, contrast = "pARR above 90th percentile", analysis = "Adjusted",
-          HR = adjusted_highparr[1], LB = adjusted_highparr[2], UB = adjusted_highparr[3], string = adjusted_highparr_string)
+          HR = adjusted_highparr[1], LB = adjusted_highparr[2], UB = adjusted_highparr[3], string = adjusted_highparr_string),
+    cbind(outcome = k, contrast = "pARR below 90th percentile", analysis = "Overlap-weighted",
+          HR = ow_lowparr[1], LB = ow_lowparr[2], UB = ow_lowparr[3], string = ow_lowparr_string),
+    cbind(outcome = k, contrast = "pARR above 90th percentile", analysis = "Overlap-weighted",
+          HR = ow_highparr[1], LB = ow_highparr[2], UB = ow_highparr[3], string = ow_highparr_string)
   )
   
   subgroup_parr_hrs <- rbind(subgroup_parr_hrs, temp)

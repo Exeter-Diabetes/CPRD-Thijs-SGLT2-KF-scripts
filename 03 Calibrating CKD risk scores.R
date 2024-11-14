@@ -17,7 +17,7 @@ source("00 Setup.R")
 
 # load data
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-load("2024-11-06_t2d_ckdpc_imputed_data_withweights.Rda")
+load(paste0(today, "_t2d_ckdpc_imputed_data_withweights.Rda"))
 
 cols <- cols[names(cols) %in% cohort$studydrug2]
 cols <- cols[order(names(cols))]
@@ -182,7 +182,7 @@ p_uncal_bydeciles_dpp4isu <- ggplot(data=bind_rows(empty_tick,obs_v_pred), aes(x
   geom_point(aes(y = observed_dpp4isu*100, group=studydrug2, color=studydrug2), shape=18, size=3) +
   geom_abline(intercept = 0, slope = 1, lty = 2) +
   theme_bw() +
-  xlab("Uncalibrated CKD-PC risk score (%)") + ylab("Observed risk (%)")+
+  xlab("Original CKD-PC risk score (%)") + ylab("Observed risk (%)")+
   scale_x_continuous(limits=c(0,100), breaks = seq(0, 5, 1))+
   scale_y_continuous(limits=c(-1,100)) +
   scale_colour_manual(values = cols) +
@@ -194,7 +194,7 @@ p_uncal_bydeciles_dpp4isu <- ggplot(data=bind_rows(empty_tick,obs_v_pred), aes(x
         plot.title=element_text(hjust = 0.5),
         plot.subtitle=element_text(hjust = 0.5,size=rel(1.2)),
         legend.position = "none") +
-  ggtitle("Uncalibrated risk score, by risk decile") +
+  ggtitle("Original risk score, by risk decile") +
   coord_cartesian(xlim = c(0,5), ylim = c(0,5))
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Output/")
@@ -267,6 +267,8 @@ print(paste0("Brier score for raw risk score ", mean(brier_raw), ", 95% CI ", me
 # initially we will assess calibration if we only update the baseline hazard
 # this is done by fitting a cox proportional model with the linear predictor as the only variable as an offset.
 # as this would only involve adjusting the overall event probability for this cohort, no resampling (internal validation) is needed
+ddist <- datadist(cohort)
+options(datadist="ddist")
 recal_mod <- cph(Surv(ckd_egfr50_censtime_yrs, ckd_egfr50_censvar) ~ stats::offset(ckdpc_50egfr_lin_predictor), 
                  data = cohort %>% filter(studydrug2 == "DPP4i/SU"), x = TRUE, y = TRUE, surv = TRUE)
 
@@ -754,3 +756,5 @@ print(paste0("Slope optimism ", mean(slope_optimism_presegfr)))
 # save dataset with calibrated risk score so this can be used in the subsequent scripts
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
 save(cohort, file=paste0(today, "_t2d_ckdpc_recalibrated.Rda"))
+
+options(datadist=NULL)

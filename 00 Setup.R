@@ -39,7 +39,7 @@ n.quantiles <- 10
 n.bootstrap <- 500
 
 #today <- as.character(Sys.Date(), format="%Y%m%d")
-today <- "2024-11-06"
+today <- "2024-11-14"
 
 
 #write function to pool HRs from multiple imputations later on
@@ -86,9 +86,6 @@ pool.rubin.KM <- function(EST,SE,n.imp){
 covariates <- c("dstartdate_age", "malesex", "imd2015_10", "ethnicity_5cat", "initiation_year", "prebmi", "prehba1c",
                 "pretotalcholesterol", "preegfr", "uacr", "presbp", "ckdpc_50egfr_score", "ncurrtx", "statin", "INS", 
                 "ACEi_or_ARB", "smoking_status", "dstartdate_dm_dur_all", "predrug_hypertension", "predrug_af", "hosp_admission_prev_year")
-
-# we exclude initiation_year from the propensity score model
-covariates_ps <- setdiff(covariates, "initiation_year")
 
 #outcomes to be studied:
 outcomes <- c("ckd_egfr40", "ckd_egfr50", "ckd_egfr50_5y", "death", "macroalb", "dka", "amputation", "side_effect")
