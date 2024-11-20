@@ -466,9 +466,9 @@ dev.off()
 ############################3 FOREST PLOT OF HR BY ALBUMINURIA STATUS (FIGURE 1A)################################################################
 
 # if analyses in 02 Calculate weights and hazard ratios.R not run, then object p_value_interaction will not be defined
-# if that is the case, define p-value at 0.36 (as per analyses dd 14/11/2024)
+# if that is the case, define p-value at 0.34 (as per analyses dd 14/11/2024)
 if (!exists("p_value_interaction")) {
-  p_value_interaction <- 0.36
+  p_value_interaction <- 0.3387864
 }
 
 # prep data frames with row for overall

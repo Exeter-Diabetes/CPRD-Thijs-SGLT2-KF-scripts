@@ -448,7 +448,7 @@ print(paste0("Number of subjects in study population ", q))
 # 5 tabulate and save imputed dataset for further analyses
 
 # save imputed dataset so this can be used in the subsequent scripts
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
 save(temp, file=paste0(today, "_t2d_ckdpc_imputed_data.Rda"))
 
 

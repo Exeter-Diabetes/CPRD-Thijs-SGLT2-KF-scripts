@@ -16,7 +16,7 @@ setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/scripts/CPRD-Thi
 source("00 Setup.R")
 
 # load data
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
 load(paste0(today, "_t2d_ckdpc_imputed_data_withweights.Rda"))
 
 cols <- cols[names(cols) %in% cohort$studydrug2]
@@ -754,7 +754,7 @@ print(paste0("Calibration slope ", coef_recal, ", 95% CI ", coef_recal-1.96*coef
 print(paste0("Slope optimism ", mean(slope_optimism_presegfr)))
 
 # save dataset with calibrated risk score so this can be used in the subsequent scripts
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
 save(cohort, file=paste0(today, "_t2d_ckdpc_recalibrated.Rda"))
 
 options(datadist=NULL)

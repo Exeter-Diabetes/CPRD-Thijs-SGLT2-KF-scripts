@@ -21,7 +21,7 @@
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/scripts/CPRD-Thijs-SGLT2-KF-scripts/")
 source("00 Setup.R")
 
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
 load(paste0(today, "_t2d_ckdpc_imputed_data.Rda"))
 
 ############################1 CALCULATE WEIGHTS################################################################
@@ -137,7 +137,7 @@ cohort <- temp
 rm(temp)
 cohort <- cohort %>% filter(!.imp == 0)
 
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
 save(cohort, file=paste0(today, "_t2d_ckdpc_imputed_data_withweights.Rda"))
 #load(paste0(today, "_t2d_ckdpc_imputed_data_withweights.Rda"))
 ############################2 CALCULATE HAZARD RATIOS################################################################

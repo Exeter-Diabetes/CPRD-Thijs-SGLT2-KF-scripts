@@ -5,7 +5,7 @@
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/scripts/CPRD-Thijs-SGLT2-KF-scripts/")
 source("00 Setup.R")
 
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
 load(paste0(today, "_t2d_ckdpc_recalibrated.Rda"))
 
 ############################1 PREPARE DATASET################################################################
@@ -24,7 +24,7 @@ cohort <- cohort %>%
 
 cohort <- cohort %>% filter(!.imp > n.imp)
 
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
 save(cohort, file=paste0(today, "_t2d_ckdpc_recalibrated_with_riskgroup.Rda"))
 
 ## prep data for estimating absolute benefit:
@@ -65,7 +65,7 @@ cohort <- cohort %>%
          all_of(covariates)) %>% 
   centre_and_reference(covariates)
 
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
 save(cohort, file=paste0(today, "_recalibrated_data_centred_predictors.Rda"))
 save(cohort_5y, file=paste0(today, "_recalibrated_data_centred_predictors_5y.Rda"))
 
@@ -79,7 +79,7 @@ outcomes <- "ckd_egfr50"
 for (k in outcomes) {
   
   for (i in 1:n.imp) {
-    setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
+    setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
     load(paste0(today, "_recalibrated_data_centred_predictors.Rda"))
     
     if (k == "macroalb") {
@@ -128,7 +128,7 @@ for (k in outcomes) {
   # similar for DPP4i/SU:
   
   for (i in 1:n.imp) {
-    setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
+    setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
     load(paste0(today, "_recalibrated_data_centred_predictors.Rda"))
     
     if (k == "macroalb") {
@@ -206,7 +206,7 @@ for (k in outcomes) {
 rm(list = setdiff(ls(), c("n.imp", "covariates", "k", "today", "outcomes")))
 
 ### add adjusted (observed) survival estimates to main dataset
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
 load(paste0(today, "_t2d_ckdpc_recalibrated_with_riskgroup.Rda"))
 
 for (k in outcomes) {
@@ -223,7 +223,7 @@ cohort$studydrug2 <- as.factor(cohort$studydrug2)
 
 # save dataset with adjusted survival probabilities
 
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
 save(cohort, file=paste0(today, "_t2d_ckdpc_recalibrated_with_adjsurv.Rda"))
 
 

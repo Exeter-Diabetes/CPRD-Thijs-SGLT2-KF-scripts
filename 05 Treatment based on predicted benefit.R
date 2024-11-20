@@ -5,7 +5,7 @@
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/scripts/CPRD-Thijs-SGLT2-KF-scripts/")
 source("00 Setup.R")
 
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
 load(paste0(today, "_t2d_ckdpc_recalibrated_with_adjsurv.Rda"))
 
 
@@ -216,7 +216,7 @@ p_benefit_bydeciles_mean <- ggplot(data=bind_rows(empty_tick,obs_v_pred_for_plot
   geom_point(aes(y = mean_benefit*100, color="#E69F00"), shape=18, size=3) +
   geom_abline(intercept = 0, slope = 1, lty = 2) +
   theme_bw() +
-  xlab("Predicted SGLT2-inhibitor benefit (%)") + ylab("Observed benefit (%)")+
+  xlab("Predicted SGLT2-inhibitor absolute risk reduction (%)") + ylab("Observed absolute risk reduction (%)")+
   scale_colour_manual(values = "#E69F00") +
   theme(panel.border=element_blank(), panel.grid.major=element_blank(),panel.grid.minor=element_blank(),
         axis.line.x=element_line(colour = "black"), axis.line.y=element_line(colour="black"),
@@ -226,7 +226,7 @@ p_benefit_bydeciles_mean <- ggplot(data=bind_rows(empty_tick,obs_v_pred_for_plot
         plot.title=element_text(hjust = 0.5),
         plot.subtitle=element_text(hjust = 0.5,size=rel(1.2)),
         legend.position = "none") +
-  ggtitle("Mean predicted versus observed SGLT2-inhibitor benefit", subtitle = "By predicted benefit decile") +
+  # ggtitle("Mean predicted versus observed SGLT2-inhibitor benefit", subtitle = "By predicted benefit decile") +
   coord_cartesian(xlim = c(0,2.5), ylim = c(0,2.5))
 
 p_benefit_bydeciles_mean
