@@ -454,34 +454,6 @@ save(temp, file=paste0(today, "_t2d_ckdpc_imputed_data.Rda"))
 
 # create table one: this will be an average of the imputed datasets (n to be divided by n.imp)
 
-#variables to be shown
-vars <- c("dstartdate_age", "malesex", "ethnicity_5cat", "imd2015_10",             # sociodemographic variables
-          "prebmi", "presbp", "predbp", "pretotalcholesterol", "prehdl", "preldl", # vital signs and laboratory measurements
-          "pretriglyceride", "prehba1c",  "preegfr",
-          "uacr", "albuminuria_unconfirmed", "albuminuria",
-          "dstartdate_dm_dur_all", "smoking_status", "predrug_hypertension",   # comorbidities
-          "predrug_af", "predrug_dka", "genital_infection", "osteoporosis",
-          "predrug_acutepancreatitis", "predrug_falls",
-          "predrug_urinary_frequency", "predrug_volume_depletion",
-          "predrug_micturition_control", "predrug_dementia", "hosp_admission_prev_year",
-          "initiation_year",
-          "ncurrtx", "MFN", "INS", "ACEi_or_ARB",                                   # medications
-          "cv_high_risk"                                     # CV risk
-
-)
-
-#categorical variables
-factors <- c("malesex", "ethnicity_5cat", "imd2015_10", "albuminuria_unconfirmed", "albuminuria", 
-             "smoking_status", "predrug_hypertension",
-             "predrug_af", "predrug_dka", "genital_infection", "osteoporosis", "predrug_acutepancreatitis",
-             "predrug_falls", "predrug_urinary_frequency", "predrug_volume_depletion",
-             "predrug_micturition_control", "predrug_dementia", "hosp_admission_prev_year",
-             "initiation_year",
-             "ncurrtx", "MFN", "INS", "ACEi_or_ARB",
-             "cv_high_risk")
-
-nonnormal <- c("uacr", "dstartdate_dm_dur_all")
-
 table <- CreateTableOne(vars = vars, strata = "studydrug2", data = temp %>% filter(!.imp == 0) %>%  ## dataset at present contains separate drug episodes if a subject started a DPP4i and later a sulfonylurea
                           group_by(.imp, patid) %>% filter(!duplicated(studydrug2)) %>% ungroup(),  ## these "duplicate" episodes will be removed after we have done the drug-specific analyses
                         factorVars = factors, test = F)
@@ -494,13 +466,13 @@ setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/output/")
 write.csv2(tabforprint, file = paste0(today, "_baseline_table.csv"))
 
 # get baseline table by albuminuria status:
-vars <- c(vars, "studydrug")
-factors <- c(factors, "studydrug")
-table <- CreateTableOne(vars = vars, strata = "albuminuria", data = temp %>% filter(!.imp == 0) %>%
+vars <- c(vars, "studydrug2")
+factors <- c(factors, "studydrug2")
+table2 <- CreateTableOne(vars = vars, strata = "albuminuria", data = temp %>% filter(!.imp == 0) %>%
                           group_by(.imp, patid) %>% filter(!duplicated(studydrug2)) %>% ungroup(),
                         factorVars = factors, test = F)
 
-tabforprint2 <- print(table, nonnormal = nonnormal, quote = FALSE, noSpaces = TRUE, printToggle = T)
+tabforprint2 <- print(table2, nonnormal = nonnormal, quote = FALSE, noSpaces = TRUE, printToggle = T)
 
 write.csv2(tabforprint2, file = paste0(today, "_baseline_table_by_albuminuria.csv"))
 

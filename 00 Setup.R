@@ -95,3 +95,31 @@ outcomes_per_drugclass <- c("ckd_egfr50", "ckd_egfr50_pp")
 cols <- c("SGLT2i" = "#E69F00", "GLP1" = "#56B4E9", "SU" = "#CC79A7", "DPP4i" = "#0072B2", "TZD" = "#D55E00")
 #in further analyses, the dpp4/su group will be combined, and we will use the dpp4 colour for this (strongest contrast)
 cols <- c(cols, "DPP4i/SU" = "#0072B2")
+
+# variables to be shown in tables
+vars <- c("dstartdate_age", "malesex", "ethnicity_5cat", "imd2015_10",             # sociodemographic variables
+          "prebmi", "presbp", "predbp", "pretotalcholesterol", "prehdl", "preldl", # vital signs and laboratory measurements
+          "pretriglyceride", "prehba1c",  "preegfr",
+          "uacr", "albuminuria_unconfirmed", "albuminuria",
+          "dstartdate_dm_dur_all", "smoking_status", "predrug_hypertension",   # comorbidities
+          "predrug_af", "predrug_dka", "genital_infection", "osteoporosis",
+          "predrug_acutepancreatitis", "predrug_falls",
+          "predrug_urinary_frequency", "predrug_volume_depletion",
+          "predrug_micturition_control", "predrug_dementia", "hosp_admission_prev_year",
+          "initiation_year",
+          "ncurrtx", "statin", "MFN", "INS", "ACEi_or_ARB",                                   # medications
+          "cv_high_risk"                                     # CV risk
+          
+)
+
+#categorical variables
+factors <- c("malesex", "ethnicity_5cat", "imd2015_10", "albuminuria_unconfirmed", "albuminuria", 
+             "smoking_status", "predrug_hypertension",
+             "predrug_af", "predrug_dka", "genital_infection", "osteoporosis", "predrug_acutepancreatitis",
+             "predrug_falls", "predrug_urinary_frequency", "predrug_volume_depletion",
+             "predrug_micturition_control", "predrug_dementia", "hosp_admission_prev_year",
+             "initiation_year",
+             "ncurrtx", "statin", "MFN", "INS", "ACEi_or_ARB",
+             "cv_high_risk")
+
+nonnormal <- c("uacr", "dstartdate_dm_dur_all")

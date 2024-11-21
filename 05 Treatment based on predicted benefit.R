@@ -31,44 +31,15 @@ cohort <- cohort %>% mutate(
   treat_model2 = ifelse(ckdpc_50egfr_sglt2i_benefit > cutoff2, T, F),        # strategy B (top 10%)
 )
 
-
-#variables to be shown
-vars <- c("dstartdate_age", "malesex", "ethnicity_5cat", "imd2015_10",             # sociodemographic variables
-          "prebmi", "presbp", "predbp", "pretotalcholesterol", "prehdl", "preldl", # vital signs and laboratory measurements
-          "pretriglyceride", "prehba1c",  "preegfr",
-          "uacr", "albuminuria_unconfirmed", "albuminuria",
-          "dstartdate_dm_dur_all", "smoking_status", "predrug_hypertension",   # comorbidities
-          "predrug_af", "predrug_dka", "genital_infection", "osteoporosis",
-          "predrug_acutepancreatitis", "predrug_falls",
-          "predrug_urinary_frequency", "predrug_volume_depletion",
-          "predrug_micturition_control", "predrug_dementia", "hosp_admission_prev_year",
-          "initiation_year",
-          "ncurrtx", "MFN", "INS", "ACEi_or_ARB",                                   # medications
-          "cv_high_risk"                                     # CV risk
-          
-)
-
-#categorical variables
-factors <- c("malesex", "ethnicity_5cat", "imd2015_10", "albuminuria_unconfirmed", "albuminuria", 
-             "smoking_status", "predrug_hypertension",
-             "predrug_af", "predrug_dka", "genital_infection", "osteoporosis", "predrug_acutepancreatitis",
-             "predrug_falls", "predrug_urinary_frequency", "predrug_volume_depletion",
-             "predrug_micturition_control", "predrug_dementia", "hosp_admission_prev_year",
-             "initiation_year",
-             "ncurrtx", "MFN", "INS", "ACEi_or_ARB",
-             "cv_high_risk")
-
-nonnormal <- c("uacr", "dstartdate_dm_dur_all")
-
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/output/")
 #my computer is set to continental settings, therefore I am using write.csv2 instead of write.csv
 
 vars <- c(vars, "studydrug2")
 factors <- c(factors, "studydrug2")
-table <- CreateTableOne(vars = vars, strata = "treat_model2", data = cohort,
+table3 <- CreateTableOne(vars = vars, strata = "treat_model2", data = cohort,
                         factorVars = factors, test = F)
 
-tabforprint2 <- print(table, nonnormal = nonnormal, quote = FALSE, noSpaces = TRUE, printToggle = T)
+tabforprint3 <- print(table3, nonnormal = nonnormal, quote = FALSE, noSpaces = TRUE, printToggle = T)
 
 write.csv2(tabforprint2, file = paste0(today, "_baseline_table_by_parr.csv"))
 ############################2 HR BY RISK SCORE################################################################
@@ -267,9 +238,7 @@ print(paste0("Low-level albuminuria median pARR: ", round(100*median(cohort[coho
 
 ############################4 GUIDELINES VS MODEL TREAT/NOT TREAT################################################################
 
-covariates_ps <- setdiff(covariates, "initiation_year")
-
-ps.formula2 <- formula(paste("studydrug2 ~ ", paste(covariates_ps, collapse=" + ")))
+ps.formula2 <- formula(paste("studydrug2 ~ ", paste(covariates, collapse=" + ")))
 
 #guideline-based strata
 cohort_guideline_N <- cohort %>% filter(treat_guideline==F) %>% mutate(subgp="cohort_guideline_N")
@@ -534,12 +503,45 @@ p2_4 <- ggsurvplot(
 )
 
 # Combine the plots
+# Arrange the top row with a title
+top_row <- arrangeGrob(
+  p2_1[["plot"]] + theme(legend.position = c(0.5, 0.3), legend.title = element_blank(),
+                         legend.text = element_text(size = 16, face = "bold"),
+                         plot.title = element_text(face = "bold.italic", hjust = 0.5, margin = margin(b = 5, t = 12), size = 18),
+                         plot.subtitle = element_text(hjust = 0.5, margin = margin(b = -25), size = 16),
+                         axis.title.y = element_text(vjust = -0.3),
+                         plot.margin = margin(l = 5, r = 5)) + guides(colour = guide_legend(nrow = 1)),
+  p2_2[["plot"]] + theme(legend.position = "none", 
+                         plot.title = element_text(face = "bold.italic", hjust = 0.5, margin = margin(b = 5, t = 12), size = 18),
+                         plot.subtitle = element_text(hjust = 0.5, margin = margin(b = -25), size = 16),
+                         axis.title.y = element_text(vjust = -0.3),
+                         plot.margin = margin(l = 5, r = 5)),
+  ncol = 2,
+  top = textGrob("uACR strategy", gp = gpar(fontsize = 22, fontface = "bold"))
+)
+
+# Arrange the bottom row with a title
+bottom_row <- arrangeGrob(
+  p2_3[["plot"]] + theme(legend.position = "none", 
+                         plot.title = element_text(face = "bold.italic", hjust = 0.5, margin = margin(b = 5, t = 12), size = 18),
+                         plot.subtitle = element_text(hjust = 0.5, margin = margin(b = -25), size = 16),
+                         axis.title.y = element_text(vjust = -0.3),
+                         plot.margin = margin(l = 5, r = 5)),
+  p2_4[["plot"]] + theme(legend.position = "none", 
+                         plot.title = element_text(face = "bold.italic", hjust = 0.5, margin = margin(b = 5, t = 12), size = 18),
+                         plot.subtitle = element_text(hjust = 0.5, margin = margin(b = -25), size = 16),
+                         axis.title.y = element_text(vjust = -0.3),
+                         plot.margin = margin(l = 5, r = 5)),
+  ncol = 2,
+  top = textGrob("pARR strategy", gp = gpar(fontsize = 22, fontface = "bold"))
+)
+
+
+
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Output/")
 tiff(paste0(today, "_treat_asper_guidelines_vs_model2.tiff"), width=16, height=10, units = "in", res=800) 
-grid.arrange(arrangeGrob(p2_1[["plot"]] + theme(legend.position=c(0.5, 0.3), legend.title=element_blank(), legend.text=element_text(size=16, face="bold"), plot.title=element_text(face="bold", hjust=0.5, margin=margin(b=5, t=12), size = 22), plot.subtitle=element_text(hjust=0.5, margin=margin(b=-25), size = 16), axis.title.y=element_text(vjust=-0.3), plot.margin=margin(l=5, r=5)) + guides(colour = guide_legend(nrow = 1)),
-                         p2_2[["plot"]] + theme(legend.position="none", plot.title=element_text(face="bold", hjust=0.5, margin=margin(b=5, t=12), size = 22), plot.subtitle=element_text(hjust=0.5, margin=margin(b=-25), size = 16), axis.title.y=element_text(vjust=-0.3), plot.margin=margin(l=5, r=5)),
-                         p2_3[["plot"]] + theme(legend.position="none", plot.title=element_text(face="bold", hjust=0.5, margin=margin(b=5, t=12), size = 22), plot.subtitle=element_text(hjust=0.5, margin=margin(b=-25), size = 16), axis.title.y=element_text(vjust=-0.3), plot.margin=margin(l=5, r=5)),
-                         p2_4[["plot"]] + theme(legend.position="none", plot.title=element_text(face="bold", hjust=0.5, margin=margin(b=5, t=12), size = 22), plot.subtitle=element_text(hjust=0.5, margin=margin(b=-25), size = 16), axis.title.y=element_text(vjust=-0.3), plot.margin=margin(l=5, r=5)), ncol=2, nrow=2, widths=c(1,1)))
+# Combine the two rows into a grid
+grid.arrange(top_row, bottom_row, nrow = 2)
 dev.off()
 
 
