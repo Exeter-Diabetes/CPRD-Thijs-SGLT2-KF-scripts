@@ -406,13 +406,47 @@ p1_4 <- ggsurvplot(
   palette = c("#0072B2", "#E69F00")
 )
 
+
 # Combine the plots
+# Arrange the top row with a title
+top_row <- arrangeGrob(
+  p1_1[["plot"]] + theme(legend.position = c(0.5, 0.3), legend.title = element_blank(),
+                         legend.text = element_text(size = 16, face = "bold"),
+                         plot.title = element_text(face = "bold", hjust = 0.5, margin = margin(b = 5, t = 12), size = 16),
+                         plot.subtitle = element_text(face = "italic", hjust = 0.5, margin = margin(b = -25), size = 16),
+                         axis.title.y = element_text(vjust = -0.3),
+                         plot.margin = margin(l = 5, r = 5)) + guides(colour = guide_legend(nrow = 1)),
+  p1_2[["plot"]] + theme(legend.position = "none", 
+                         plot.title = element_text(face = "bold", hjust = 0.5, margin = margin(b = 5, t = 12), size = 16),
+                         plot.subtitle = element_text(face = "italic", hjust = 0.5, margin = margin(b = -25), size = 16),
+                         axis.title.y = element_text(vjust = -0.3),
+                         plot.margin = margin(l = 5, r = 5)),
+  ncol = 2,
+  top = textGrob("uACR strategy", gp = gpar(fontsize = 26, fontface = "bold"))
+)
+
+# Arrange the bottom row with a title
+bottom_row <- arrangeGrob(
+  p1_3[["plot"]] + theme(legend.position = "none", 
+                         plot.title = element_text(face = "bold", hjust = 0.5, margin = margin(b = 5, t = 12), size = 16),
+                         plot.subtitle = element_text(face = "italic", hjust = 0.5, margin = margin(b = -25), size = 16),
+                         axis.title.y = element_text(vjust = -0.3),
+                         plot.margin = margin(l = 5, r = 5)),
+  p1_4[["plot"]] + theme(legend.position = "none", 
+                         plot.title = element_text(face = "bold", hjust = 0.5, margin = margin(b = 5, t = 12), size = 16),
+                         plot.subtitle = element_text(face = "italic", hjust = 0.5, margin = margin(b = -25), size = 16),
+                         axis.title.y = element_text(vjust = -0.3),
+                         plot.margin = margin(l = 5, r = 5)),
+  ncol = 2,
+  top = textGrob("pARR strategy", gp = gpar(fontsize = 26, fontface = "bold"))
+)
+
+
+
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Output/")
 tiff(paste0(today, "_treat_asper_guidelines_vs_model1.tiff"), width=16, height=10, units = "in", res=800) 
-grid.arrange(arrangeGrob(p1_1[["plot"]] + theme(legend.position=c(0.5, 0.3), legend.title=element_blank(), legend.text=element_text(size=16, face="bold"), plot.title=element_text(face="bold", hjust=0.5, margin=margin(b=5, t=12), size = 22), plot.subtitle=element_text(hjust=0.5, margin=margin(b=-25), size = 16), axis.title.y=element_text(vjust=-0.3), plot.margin=margin(l=5, r=5)) + guides(colour = guide_legend(nrow = 1)),
-                         p1_2[["plot"]] + theme(legend.position="none", plot.title=element_text(face="bold", hjust=0.5, margin=margin(b=5, t=12), size = 22), plot.subtitle=element_text(hjust=0.5, margin=margin(b=-25), size = 16), axis.title.y=element_text(vjust=-0.3), plot.margin=margin(l=5, r=5)),
-                         p1_3[["plot"]] + theme(legend.position="none", plot.title=element_text(face="bold", hjust=0.5, margin=margin(b=5, t=12), size = 22), plot.subtitle=element_text(hjust=0.5, margin=margin(b=-25), size = 16), axis.title.y=element_text(vjust=-0.3), plot.margin=margin(l=5, r=5)),
-                         p1_4[["plot"]] + theme(legend.position="none", plot.title=element_text(face="bold", hjust=0.5, margin=margin(b=5, t=12), size = 22), plot.subtitle=element_text(hjust=0.5, margin=margin(b=-25), size = 16), axis.title.y=element_text(vjust=-0.3), plot.margin=margin(l=5, r=5)), ncol=2, nrow=2, widths=c(1,1)))
+# Combine the two rows into a grid
+grid.arrange(top_row, bottom_row, nrow = 2)
 dev.off()
 
 
@@ -507,33 +541,33 @@ p2_4 <- ggsurvplot(
 top_row <- arrangeGrob(
   p2_1[["plot"]] + theme(legend.position = c(0.5, 0.3), legend.title = element_blank(),
                          legend.text = element_text(size = 16, face = "bold"),
-                         plot.title = element_text(face = "bold.italic", hjust = 0.5, margin = margin(b = 5, t = 12), size = 18),
-                         plot.subtitle = element_text(hjust = 0.5, margin = margin(b = -25), size = 16),
+                         plot.title = element_text(face = "bold", hjust = 0.5, margin = margin(b = 5, t = 12), size = 16),
+                         plot.subtitle = element_text(face = "italic", hjust = 0.5, margin = margin(b = -25), size = 16),
                          axis.title.y = element_text(vjust = -0.3),
                          plot.margin = margin(l = 5, r = 5)) + guides(colour = guide_legend(nrow = 1)),
   p2_2[["plot"]] + theme(legend.position = "none", 
-                         plot.title = element_text(face = "bold.italic", hjust = 0.5, margin = margin(b = 5, t = 12), size = 18),
-                         plot.subtitle = element_text(hjust = 0.5, margin = margin(b = -25), size = 16),
+                         plot.title = element_text(face = "bold", hjust = 0.5, margin = margin(b = 5, t = 12), size = 16),
+                         plot.subtitle = element_text(face = "italic", hjust = 0.5, margin = margin(b = -25), size = 16),
                          axis.title.y = element_text(vjust = -0.3),
                          plot.margin = margin(l = 5, r = 5)),
   ncol = 2,
-  top = textGrob("uACR strategy", gp = gpar(fontsize = 22, fontface = "bold"))
+  top = textGrob("uACR strategy", gp = gpar(fontsize = 26, fontface = "bold"))
 )
 
 # Arrange the bottom row with a title
 bottom_row <- arrangeGrob(
   p2_3[["plot"]] + theme(legend.position = "none", 
-                         plot.title = element_text(face = "bold.italic", hjust = 0.5, margin = margin(b = 5, t = 12), size = 18),
-                         plot.subtitle = element_text(hjust = 0.5, margin = margin(b = -25), size = 16),
+                         plot.title = element_text(face = "bold", hjust = 0.5, margin = margin(b = 5, t = 12), size = 16),
+                         plot.subtitle = element_text(face = "italic", hjust = 0.5, margin = margin(b = -25), size = 16),
                          axis.title.y = element_text(vjust = -0.3),
                          plot.margin = margin(l = 5, r = 5)),
   p2_4[["plot"]] + theme(legend.position = "none", 
-                         plot.title = element_text(face = "bold.italic", hjust = 0.5, margin = margin(b = 5, t = 12), size = 18),
-                         plot.subtitle = element_text(hjust = 0.5, margin = margin(b = -25), size = 16),
+                         plot.title = element_text(face = "bold", hjust = 0.5, margin = margin(b = 5, t = 12), size = 16),
+                         plot.subtitle = element_text(face = "italic", hjust = 0.5, margin = margin(b = -25), size = 16),
                          axis.title.y = element_text(vjust = -0.3),
                          plot.margin = margin(l = 5, r = 5)),
   ncol = 2,
-  top = textGrob("pARR strategy", gp = gpar(fontsize = 22, fontface = "bold"))
+  top = textGrob("pARR strategy", gp = gpar(fontsize = 26, fontface = "bold"))
 )
 
 
