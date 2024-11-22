@@ -280,7 +280,7 @@ temp <- temp %>% mutate(precholhdl=pretotalcholesterol/prehdl,
                           ifelse(is.na(predrug_earliest_calcium_channel_blockers),as.Date("2050-01-01"),predrug_earliest_calcium_channel_blockers),
                           ifelse(is.na(predrug_earliest_thiazide_diuretics),as.Date("2050-01-01"),predrug_earliest_thiazide_diuretics),
                           na.rm=TRUE
-                        ),
+                        ) %>% as.Date(),
                         latest_bp_med=pmax(
                           ifelse(is.na(predrug_latest_ace_inhibitors),as.Date("1900-01-01"),predrug_latest_ace_inhibitors),
                           ifelse(is.na(predrug_latest_arb),as.Date("1900-01-01"),predrug_latest_arb),
@@ -288,7 +288,7 @@ temp <- temp %>% mutate(precholhdl=pretotalcholesterol/prehdl,
                           ifelse(is.na(predrug_latest_calcium_channel_blockers),as.Date("1900-01-01"),predrug_latest_calcium_channel_blockers),
                           ifelse(is.na(predrug_latest_thiazide_diuretics),as.Date("1900-01-01"),predrug_latest_thiazide_diuretics),
                           na.rm=TRUE
-                        ),
+                        ) %>% as.Date(),
                         bp_meds_qrisk2=ifelse(earliest_bp_med!=as.Date("2050-01-01") & latest_bp_med!=as.Date("1900-01-01") & difftime(dstartdate, latest_bp_med, units="days")<=28 & earliest_bp_med!=latest_bp_med, 1L, 0L),
                         
                         type1=0L,
@@ -367,9 +367,8 @@ temp <- temp %>%
 # Look at counts of people whose characteristics are outside the reference range for the scores
 
 ckdpc_outofrange <- temp[temp$.imp > 0,] %>%
-  mutate(uacr_val=ifelse(uacr < 56.5, "in range",
-                         ifelse(uacr < 113, "in range for 40eGFR but above range for CKD60",
-                                "above range for both scores")),
+  mutate(uacr_val=ifelse(uacr < 113, "in range for 50eGFR score",
+                                "above range for both scores"),
          egfr_under_60=ifelse(!is.na(preegfr) & preegfr<60, 1, 0),
          hba1c_val=ifelse(prehba1c<42, "under",
                           ifelse(prehba1c>97, "over", "in range")),

@@ -10,7 +10,7 @@
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/scripts/CPRD-Thijs-SGLT2-KF-scripts/")
 source("00 Setup.R")
 
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/output/")
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
 load(paste0(today, "_all_hrs.Rda"))
 load(paste0(today, "_all_SGLT2ivsDPP4iSU_hrs.Rda"))
 load(paste0(today, "_SGLT2ivsDPP4iSU_hrs.Rda"))
@@ -466,9 +466,9 @@ dev.off()
 ############################3 FOREST PLOT OF HR BY ALBUMINURIA STATUS (FIGURE 1A)################################################################
 
 # if analyses in 02 Calculate weights and hazard ratios.R not run, then object p_value_interaction will not be defined
-# if that is the case, define p-value at 0.34 (as per analyses dd 14/11/2024)
+# if that is the case, define p-value at 0.35 (as per analyses dd 14/11/2024)
 if (!exists("p_value_interaction")) {
-  p_value_interaction <- 0.3387864
+  p_value_interaction <- 0.3451527
 }
 
 # prep data frames with row for overall
@@ -978,7 +978,7 @@ layout <- eval(str2lang(layout))
 
 plot_expression <- paste0(plot_expression, "plot_layout(design = layout)")
 
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Output/")
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/output/")
 tiff(paste0(today, "_HR_secondary_outcomes_by_parr.tiff"), width=18, height=5.5, units = "in", res=800) 
 eval(str2lang(plot_expression))
 dev.off()

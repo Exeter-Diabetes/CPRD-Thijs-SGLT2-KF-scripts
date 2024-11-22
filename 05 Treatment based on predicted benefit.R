@@ -41,7 +41,7 @@ table3 <- CreateTableOne(vars = vars, strata = "treat_model2", data = cohort,
 
 tabforprint3 <- print(table3, nonnormal = nonnormal, quote = FALSE, noSpaces = TRUE, printToggle = T)
 
-write.csv2(tabforprint2, file = paste0(today, "_baseline_table_by_parr.csv"))
+write.csv2(tabforprint3, file = paste0(today, "_baseline_table_by_parr.csv"))
 ############################2 HR BY RISK SCORE################################################################
 ## check whether there is evidence of treatment heterogeneity by baseline risk (figure 1B)
 
@@ -444,7 +444,7 @@ bottom_row <- arrangeGrob(
 
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Output/")
-tiff(paste0(today, "_treat_asper_guidelines_vs_model1.tiff"), width=16, height=10, units = "in", res=800) 
+tiff(paste0(today, "_treat_asper_guidelines_vs_model1.tiff"), width=12, height=8, units = "in", res=800) 
 # Combine the two rows into a grid
 grid.arrange(top_row, bottom_row, nrow = 2)
 dev.off()
@@ -573,7 +573,7 @@ bottom_row <- arrangeGrob(
 
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Output/")
-tiff(paste0(today, "_treat_asper_guidelines_vs_model2.tiff"), width=16, height=10, units = "in", res=800) 
+tiff(paste0(today, "_treat_asper_guidelines_vs_model2.tiff"), width=12, height=8, units = "in", res=800) 
 # Combine the two rows into a grid
 grid.arrange(top_row, bottom_row, nrow = 2)
 dev.off()
@@ -656,10 +656,11 @@ print(paste0(c("NNT with treatment strategy B: ",
 
 
 ############################6 DECISION CURVE ANALYSIS################################################################
-dca_data <- cohort %>% mutate(ckdpc_50egfr_score_cal_risk = ckdpc_50egfr_score_cal/100) %>%
-  dca(Surv(ckd_egfr50_censtime_yrs, ckd_egfr50_censvar) ~ treat_guideline + ckdpc_50egfr_score_cal_risk,
+cohort <- cohort %>% mutate(ckdpc_50egfr_score_cal_risk = ckdpc_50egfr_score_cal/100) 
+dca_data <- dca(Surv(ckd_egfr50_censtime_yrs, ckd_egfr50_censvar) ~ treat_guideline + ckdpc_50egfr_score_cal_risk,
       thresholds = seq(0, 0.20, by = 0.005),
-      time = 3)
+      time = 3,
+      data=cohort)
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Output/")
 tiff(paste0(today, "_decision_curve_analysis.tiff"), width=6, height=5, units = "in", res=800) 
@@ -907,7 +908,7 @@ subgroup_parr_hrs <- subgroup_parr_hrs %>%
 
 
 # save all_hrs table and SGLT2i vs DPP4i/su table
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/output/")
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
 save(subgroup_parr_hrs, file=paste0(today, "_subgroup_parr_hrs.Rda"))
 save(subgroup_parr_SGLT2ivsDPP4iSU_hrs, file=paste0(today, "_subgroup_parr_SGLT2ivsDPP4iSU_hrs.Rda"))
 

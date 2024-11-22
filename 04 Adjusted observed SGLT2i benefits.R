@@ -5,11 +5,9 @@
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/scripts/CPRD-Thijs-SGLT2-KF-scripts/")
 source("00 Setup.R")
 
+############################1 PREPARE DATASET################################################################
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
 load(paste0(today, "_t2d_ckdpc_recalibrated.Rda"))
-
-############################1 PREPARE DATASET################################################################
-
 
 cohort$studydrug2 <- as.factor(cohort$studydrug2)
 
@@ -118,7 +116,7 @@ for (k in outcomes) {
       mutate(group=as.numeric(group)) %>%
       inner_join(obs_SGLT2, by=c("group"="rowno"))
     
-    setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/output/")
+    setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
     # save estimates
     save(observed_sglt2, file=paste0(today, "_adjusted_surv_",k,"_SGLT2i_imp.", i, ".Rda"))
     
@@ -164,7 +162,7 @@ for (k in outcomes) {
       mutate(group=as.numeric(group)) %>%
       inner_join(obs_DPP4SU, by=c("group"="rowno"))
     
-    setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/output/")
+    setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
     save(observed_dpp4su, file=paste0(today, "_adjusted_surv_",k,"_DPP4iSU_imp.", i, ".Rda"))
     
     rm(list = setdiff(ls(), c("n.imp", "covariates", "k", "today", "outcomes")))
@@ -174,7 +172,7 @@ for (k in outcomes) {
   
   #for every outcome, join survival estimates from each imputation in one dataframe
   for (i in 1:n.imp) {
-    setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/output/")
+    setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
     load(paste0(today, "_adjusted_surv_",k,"_SGLT2i_imp.", i, ".Rda"))
     load(paste0(today, "_adjusted_surv_",k,"_DPP4iSU_imp.", i, ".Rda"))
     temp_sglt2 <- temp_sglt2 %>% rbind(observed_sglt2)
@@ -198,7 +196,7 @@ for (k in outcomes) {
     contains("survdiff")
   )
   
-  setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/output/")
+  setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
   save(benefits, file=paste0(today, "_adjusted_surv_",k,".Rda"))
   rm(benefits)
 }
@@ -211,7 +209,7 @@ load(paste0(today, "_t2d_ckdpc_recalibrated_with_riskgroup.Rda"))
 
 for (k in outcomes) {
   
-  setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/output/")
+  setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
   load(paste0(today, "_adjusted_surv_", k, ".Rda"))
   cohort <- cohort %>% left_join(benefits %>%
                                    select(.imp, patid, studydrug2, contains("survdiff")), 

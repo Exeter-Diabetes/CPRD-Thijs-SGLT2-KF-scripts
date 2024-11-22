@@ -758,7 +758,7 @@ subgroup_hrs <- subgroup_hrs %>%
 
 
 # save all_hrs table and SGLT2i vs DPP4i/su table
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/output/")
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
 
 save(all_hrs, file=paste0(today, "_all_hrs.Rda"))
 save(all_SGLT2ivsDPP4iSU_hrs, file=paste0(today, "_all_SGLT2ivsDPP4iSU_hrs.Rda"))

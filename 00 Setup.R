@@ -19,6 +19,7 @@ library(PSweight)
 library(patchwork)
 library(pROC)
 library(riskRegression)
+library(grid)
 library(gridExtra)
 library(dcurves)
 
