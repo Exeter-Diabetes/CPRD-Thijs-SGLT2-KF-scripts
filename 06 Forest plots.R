@@ -466,9 +466,9 @@ dev.off()
 ############################3 FOREST PLOT OF HR BY ALBUMINURIA STATUS (FIGURE 1A)################################################################
 
 # if analyses in 02 Calculate weights and hazard ratios.R not run, then object p_value_interaction will not be defined
-# if that is the case, define p-value at 0.35 (as per analyses dd 14/11/2024)
+# if that is the case, define p-value at 0.34 (as per analyses dd 14/11/2024)
 if (!exists("p_value_interaction")) {
-  p_value_interaction <- 0.3451527
+  p_value_interaction <- 0.3446956
 }
 
 # prep data frames with row for overall
@@ -825,8 +825,8 @@ secondary2 <- subgroup_parr_hrs %>%
   filter(analysis=="Overlap-weighted") %>%
   filter(!outcome %in% c("ckd_egfr50", "death")) %>%
   mutate(parr_status = case_when(
-    contrast == "pARR below 90th percentile" ~ "pARR below 90th percentile",
-    contrast == "pARR above 90th percentile" ~ "pARR above 90th percentile"
+    contrast == "pARR below threshold" ~ "pARR below threshold",
+    contrast == "pARR above threshold" ~ "pARR above threshold"
   ))
 
 # Prepare labels for each outcome by pARR status
@@ -866,8 +866,8 @@ labels_plot6 <- labels_plot6 %>%
                                            " Diabetic keto-acidosis",
                                            " Amputation",
                                            " Mycotic genital infection",
-                                           "pARR below 90th percentile",
-                                           "pARR above 90th percentile"))
+                                           "pARR below threshold",
+                                           "pARR above threshold"))
   )
 
 

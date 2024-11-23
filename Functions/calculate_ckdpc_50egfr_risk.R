@@ -1,8 +1,6 @@
 calculate_ckdpc_50egfr_risk <- function(dataframe, age, sex, egfr, acr, sbp, bp_meds, hf, 
-                                        chd, af, current_smoker, ex_smoker, bmi, hba1c, oha, insulin, 
-                                        remote) {
-  message("Note that values may be incorrect if 'remote' is not specified correctly (TRUE = on SQL server; FALSE = local in R)")
-  
+                                            chd, af, current_smoker, ex_smoker, bmi, hba1c, oha, insulin) {
+
   # Convert column names to symbols
   age_col <- deparse(substitute(age))
   sex_col <- deparse(substitute(sex))
@@ -56,7 +54,7 @@ calculate_ckdpc_50egfr_risk <- function(dataframe, age, sex, egfr, acr, sbp, bp_
       oha_var = ifelse(!!sym(insulin_col) == 1, 1L, !!sym(oha_col)),
       ex_smoker_var = ifelse(!!sym(current_smoker_col) == 1, 0L, !!sym(ex_smoker_col)),
       acr_mgg = !!sym(acr_col) * 8.8402,
-      log_acr_var = ifelse(remote, sql("LN(acr_mgg/10)"), log(acr_mgg/10)),
+      log_acr_var = log(acr_mgg/10),
       ckdpc_50egfr_lin_predictor = ifelse(
         is.na(!!sym(acr_col)) | !!sym(acr_col) == 0, NA,
         (age_cons * ((!!sym(age_col) - 60) / 10)) + 
@@ -116,7 +114,7 @@ calculate_ckdpc_50egfr_risk <- function(dataframe, age, sex, egfr, acr, sbp, bp_
       oha_var = ifelse(!!sym(insulin_col) == 1, 1L, !!sym(oha_col)),
       ex_smoker_var = ifelse(!!sym(current_smoker_col) == 1, 0L, !!sym(ex_smoker_col)),
       acr_mgg = !!sym(acr_col) * 8.8402,
-      log_acr_var = ifelse(remote, sql("LN(acr_mgg/10)"), log(acr_mgg/10)),
+      log_acr_var = log(acr_mgg/10),
       ckdpc_50egfr_lin_predictor = ifelse(
         is.na(!!sym(acr_col)) | !!sym(acr_col) == 0, NA,
         (age_cons * ((!!sym(age_col) - 60) / 10)) + 

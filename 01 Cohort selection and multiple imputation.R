@@ -348,16 +348,12 @@ temp <- temp %>%
 #ckdpc kidney disease progression risk score
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/scripts/CPRD-Thijs-SGLT2-KF-scripts/Functions/")
-source("calculate_ckdpc_40egfr_risk.R")
 source("calculate_ckdpc_50egfr_risk.R")
 
 temp <- temp %>% 
   
   mutate(sex2=ifelse(sex=="male", "male", ifelse(sex=="female", "female", NA))) %>%
-
-  calculate_ckdpc_40egfr_risk(age=dstartdate_age, sex=sex2, egfr=preegfr, acr=uacr, sbp=presbp, bp_meds=bp_meds_ckdpc, hf=predrug_heartfailure, chd=chd, af=predrug_af, current_smoker=current_smoker, ex_smoker=ex_smoker, bmi=prebmi, hba1c=prehba1c, oha=oha, insulin=INS, remote=FALSE) %>%
- 
-   calculate_ckdpc_50egfr_risk(age=dstartdate_age, sex=sex2, egfr=preegfr, acr=uacr, sbp=presbp, bp_meds=bp_meds_ckdpc, hf=predrug_heartfailure, chd=chd, af=predrug_af, current_smoker=current_smoker, ex_smoker=ex_smoker, bmi=prebmi, hba1c=prehba1c, oha=oha, insulin=INS, remote=FALSE) 
+  calculate_ckdpc_50egfr_risk(age=dstartdate_age, sex=sex2, egfr=preegfr, acr=uacr, sbp=presbp, bp_meds=bp_meds_ckdpc, hf=predrug_heartfailure, chd=chd, af=predrug_af, current_smoker=current_smoker, ex_smoker=ex_smoker, bmi=prebmi, hba1c=prehba1c, oha=oha, insulin=INS) 
 
 
 ########################4 REMOVE RISK SCORE VALUES OUTSIDE OF RANGE####################################################################

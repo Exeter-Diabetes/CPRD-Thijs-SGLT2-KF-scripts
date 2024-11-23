@@ -40,7 +40,7 @@ n.quantiles <- 10
 n.bootstrap <- 500
 
 #today <- as.character(Sys.Date(), format="%Y%m%d")
-today <- "2024-11-14"
+today <- "2024-11-22"
 
 
 #write function to pool HRs from multiple imputations later on
@@ -85,7 +85,7 @@ pool.rubin.KM <- function(EST,SE,n.imp){
 
 # set vector of covariates used for multivariable adjustments and weighting
 covariates <- c("dstartdate_age", "malesex", "imd2015_10", "ethnicity_5cat", "initiation_year", "prebmi", "prehba1c",
-                "pretotalcholesterol", "preegfr", "uacr", "presbp", "ckdpc_50egfr_score", "ncurrtx", "statin", "INS", 
+                "pretotalcholesterol", "preegfr", "uacr", "presbp", "ncurrtx", "statin", "INS", 
                 "ACEi_or_ARB", "smoking_status", "dstartdate_dm_dur_all", "predrug_hypertension", "predrug_af", "hosp_admission_prev_year")
 
 #outcomes to be studied:

@@ -11,6 +11,15 @@ load(paste0(today, "_t2d_ckdpc_recalibrated_with_adjsurv.Rda"))
 
 ############################1 DEFINE CUTOFFS################################################################
 
+# calculate predicted sglt2 benefit (absolute risk reduction = ARR):
+# ARR = S0(t)^HR - S0(t)
+trial_hr_kf_sglt2i <- 0.62
+
+cohort <- cohort %>% 
+  mutate(ckdpc_50egfr_survival=(100-ckdpc_50egfr_score)/100,
+         ckdpc_50egfr_survival_sglt2i=ckdpc_50egfr_survival^trial_hr_kf_sglt2i,
+         ckdpc_50egfr_sglt2i_benefit=ckdpc_50egfr_survival_sglt2i - ckdpc_50egfr_survival)
+
 ## consider following methods to define cut-off:
 # 1 Strategy A: choose cut-off that matches treatment proportion of guidelines but improves outcomes through better-targeted treatment
 # 2 Strategy B: take as cut-off the top decile  (10%) of predicted benefit
@@ -18,12 +27,12 @@ load(paste0(today, "_t2d_ckdpc_recalibrated_with_adjsurv.Rda"))
 cutoff1 <- cohort %>% .$ckdpc_50egfr_sglt2i_benefit %>% quantile( 
   1 - (cohort %>% filter(albuminuria == T) %>% nrow() / cohort  %>% nrow())) %>% as.numeric()
 
-cutoff1_equivalent_40egfr_score <- cohort  %>% .$ckdpc_40egfr_score %>% quantile( 
+cutoff1_equivalent_40egfr_score <- cohort  %>% .$ckdpc_50egfr_score %>% quantile( 
   1 - (cohort %>% filter(albuminuria == T) %>% nrow() / cohort  %>% nrow())) %>% as.numeric()
 
 cutoff2 <- cohort %>% .$ckdpc_50egfr_sglt2i_benefit %>% quantile(0.90) %>% as.numeric()
 
-cutoff2_equivalent_40egfr_score <- cohort %>% .$ckdpc_40egfr_score %>% quantile(0.90) %>% as.numeric()
+cutoff2_equivalent_40egfr_score <- cohort %>% .$ckdpc_50egfr_score %>% quantile(0.90) %>% as.numeric()
 
 cohort <- cohort %>% mutate(
   treat_guideline = ifelse(albuminuria == F, F, T),                          # everyone current guidelines recommend treating (uACR cutoff)
@@ -36,7 +45,7 @@ setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/output/")
 
 vars <- c(vars, "studydrug2")
 factors <- c(factors, "studydrug2")
-table3 <- CreateTableOne(vars = vars, strata = "treat_model2", data = cohort,
+table3 <- CreateTableOne(vars = vars, strata = "treat_model1", data = cohort,
                         factorVars = factors, test = F)
 
 tabforprint3 <- print(table3, nonnormal = nonnormal, quote = FALSE, noSpaces = TRUE, printToggle = T)
@@ -66,8 +75,8 @@ for (i in seq_along(k_range)) {
   # Fit the model with k knots
   model <- cph(
     as.formula(paste0(
-      "Surv(ckd_egfr50_censtime_yrs, ckd_egfr50_censvar) ~ studydrug2*rcs(ckdpc_50egfr_score_cal,", k, ") + ",
-      paste(setdiff(covariates, "ckdpc_50egfr_score_cal"), collapse=" + ") # need to remove risk score from covariate list as already specified in interaction term
+      "Surv(ckd_egfr50_censtime_yrs, ckd_egfr50_censvar) ~ studydrug2*rcs(ckdpc_50egfr_score,", k, ") + ",
+      paste(setdiff(covariates, "ckdpc_50egfr_score"), collapse=" + ") # need to remove risk score from covariate list as already specified in interaction term
     )),
     data = cohort %>% filter(.imp == n.imp), x = TRUE, y = TRUE
   )
@@ -84,8 +93,8 @@ optimal_k_bic <- k_range[which.min(bic_values)]
 # Fit the final model using the optimal number of knots based on AIC
 final_model <- cph(
   as.formula(paste0(
-    "Surv(ckd_egfr50_censtime_yrs, ckd_egfr50_censvar) ~ studydrug2*rcs(ckdpc_50egfr_score_cal,", optimal_k_bic, ") + ",
-    paste(setdiff(covariates, "ckdpc_50egfr_score_cal"), collapse=" + ")
+    "Surv(ckd_egfr50_censtime_yrs, ckd_egfr50_censvar) ~ studydrug2*rcs(ckdpc_50egfr_score,", optimal_k_bic, ") + ",
+    paste(setdiff(covariates, "ckdpc_50egfr_score"), collapse=" + ")
   )),
   data = cohort %>% filter(.imp == n.imp), x = TRUE, y = TRUE
 )
@@ -99,22 +108,22 @@ anova(final_model)[2,3] # p value for non-linear interaction term
 
 # create data frame with range of scores by study drug
 contrast_spline <- contrast(final_model, 
-                            list(studydrug2 = "SGLT2i", ckdpc_50egfr_score_cal = seq(quantile(cohort$ckdpc_50egfr_score_cal, .01, na.rm=TRUE), quantile(cohort$ckdpc_50egfr_score_cal, .99, na.rm=TRUE), by=0.05)), 
-                            list(studydrug2 = "DPP4i/SU", ckdpc_50egfr_score_cal = seq(quantile(cohort$ckdpc_50egfr_score_cal, .01, na.rm=TRUE), quantile(cohort$ckdpc_50egfr_score_cal, .99, na.rm=TRUE), by=0.05))
+                            list(studydrug2 = "SGLT2i", ckdpc_50egfr_score = seq(quantile(cohort$ckdpc_50egfr_score, .01, na.rm=TRUE), quantile(cohort$ckdpc_50egfr_score, .99, na.rm=TRUE), by=0.05)), 
+                            list(studydrug2 = "DPP4i/SU", ckdpc_50egfr_score = seq(quantile(cohort$ckdpc_50egfr_score, .01, na.rm=TRUE), quantile(cohort$ckdpc_50egfr_score, .99, na.rm=TRUE), by=0.05))
 )
 
-contrast_spline_df <- as.data.frame(contrast_spline[c('ckdpc_50egfr_score_cal','Contrast','Lower','Upper')])
+contrast_spline_df <- as.data.frame(contrast_spline[c('ckdpc_50egfr_score','Contrast','Lower','Upper')])
 # plot
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Output/")
 tiff(paste0(today, "_HR_by_ckd_egfr50_risk.tiff"), width=10, height=4, units = "in", res=800) 
-ggplot(data=contrast_spline_df, aes(x=ckdpc_50egfr_score_cal, y=exp(Contrast))) +
-  geom_line(data=contrast_spline_df,aes(x=ckdpc_50egfr_score_cal, y=exp(Contrast)), size=1) +
+ggplot(data=contrast_spline_df, aes(x=ckdpc_50egfr_score, y=exp(Contrast))) +
+  geom_line(data=contrast_spline_df,aes(x=ckdpc_50egfr_score, y=exp(Contrast)), size=1) +
   xlab(expression(paste("Predicted 3-year risk of kidney disease progression"))) +
   ylab("Hazard ratio") +
   coord_trans(y = "log10") +
   scale_x_continuous(breaks = seq(0,20,.5)) +
   scale_y_continuous(breaks = c(seq(0, 0.8, 0.1), seq(0.8, 1.6, 0.2))) +
-  geom_ribbon(data=contrast_spline_df, aes(x=ckdpc_50egfr_score_cal, ymin=exp(Lower), ymax=exp(Upper)), alpha=0.5) +
+  geom_ribbon(data=contrast_spline_df, aes(x=ckdpc_50egfr_score, ymin=exp(Lower), ymax=exp(Upper)), alpha=0.5) +
   geom_hline(yintercept = 1, linetype = "dashed")  +
   geom_hline(aes(yintercept = 0.62, linetype = "hr", size="hr"), color="#D55E00")  +
   geom_hline(aes(yintercept = 0.68, linetype = "hr_95", size="hr_95"), color="#D55E00")  +
@@ -181,27 +190,6 @@ names(empty_tick) <- names(obs_v_pred_for_plot)
 empty_tick <- empty_tick %>%
   mutate(benefit_decile=0)
 
-## SGLT2i benefit predicted vs observed - mean
-p_benefit_bydeciles_mean <- ggplot(data=bind_rows(empty_tick,obs_v_pred_for_plot), aes(x=mean_predicted_benefit*100)) +
-  geom_errorbar(aes(ymax=upper_ci*100,ymin=lower_ci*100, color= "#E69F00"),width=0.1,size=1) +
-  geom_point(aes(y = mean_benefit*100, color="#E69F00"), shape=18, size=3) +
-  geom_abline(intercept = 0, slope = 1, lty = 2) +
-  theme_bw() +
-  xlab("Predicted SGLT2-inhibitor absolute risk reduction (%)") + ylab("Observed absolute risk reduction (%)")+
-  scale_colour_manual(values = "#E69F00") +
-  theme(panel.border=element_blank(), panel.grid.major=element_blank(),panel.grid.minor=element_blank(),
-        axis.line.x=element_line(colour = "black"), axis.line.y=element_line(colour="black"),
-        plot.title = element_text(size = rel(1.5), face = "bold")) + theme(plot.margin = margin()) +
-  theme(axis.text=element_text(size=rel(1.5)),
-        axis.title=element_text(size=rel(1.5)),
-        plot.title=element_text(hjust = 0.5),
-        plot.subtitle=element_text(hjust = 0.5,size=rel(1.2)),
-        legend.position = "none") +
-  # ggtitle("Mean predicted versus observed SGLT2-inhibitor benefit", subtitle = "By predicted benefit decile") +
-  coord_cartesian(xlim = c(0,2.5), ylim = c(0,2.5))
-
-p_benefit_bydeciles_mean
-
 ## SGLT2i benefit predicted vs observed - median
 p_benefit_bydeciles_median <- ggplot(data=bind_rows(empty_tick,obs_v_pred_for_plot), aes(x=median_predicted_benefit*100)) +
   geom_errorbar(aes(ymax=uq_benefit*100,ymin=lq_benefit*100, color= "#E69F00"),width=0.1,size=1) +
@@ -219,12 +207,22 @@ p_benefit_bydeciles_median <- ggplot(data=bind_rows(empty_tick,obs_v_pred_for_pl
         plot.subtitle=element_text(hjust = 0.5,size=rel(1.2)),
         legend.position = "none") +
 #  ggtitle("Median predicted versus observed SGLT2-inhibitor benefit", subtitle = "By predicted benefit decile") +
-  coord_cartesian(xlim = c(0,1.5), ylim = c(-.1,1.5))
+  coord_cartesian(xlim = c(0,1.5), ylim = c(-.1,1.55))
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Output/")
 tiff(paste0(today, "_predicted_benefit_calibration.tiff"), width=6, height=5.5, units = "in", res=800) 
 p_benefit_bydeciles_median
 dev.off()
+
+# calibration slope
+x <- lm(mean_benefit ~ mean_predicted_benefit, data = obs_v_pred_for_plot)
+slope <- coef(x)
+slope <- slope[2]
+x <- confint(x)
+slope_lc <- x[2,1]
+slope_uc <- x[2,2]
+rm(x)
+print(paste0("Calibration slope for mean pARR and observed ARR by decile: ", round(slope, 3), ", 95% CI ", round(slope_lc, 3), "-", round(slope_uc,3)))
 
 # mean / median pARR overall and by group
 print(paste0("Overall mean pARR: ", round(100*mean(cohort$ckdpc_50egfr_sglt2i_benefit),2), "% ±", round(100*sd(cohort$ckdpc_50egfr_sglt2i_benefit),2)))
@@ -372,7 +370,7 @@ p1_3 <- ggsurvplot(
   survfit_list_1[[3]],
   data = cohort1,
   title = paste0("pARR below threshold (", round(100 * (nrow(cohort_model1_N) / nrow(cohort)), 1), "%)"),
-  subtitle = paste0("Threshold matched to uACR-recommended proportion\nSGLT2i not recommended; 5-year ARR: ", sprintf("%.2f", arr_model1_N), "%"),
+  subtitle = paste0("SGLT2i not recommended; 5-year ARR: ", sprintf("%.2f", arr_model1_N), "%"),
   size = 1.5,
   fun = function(x) {100 - x * 100},
   conf.int = TRUE,
@@ -391,7 +389,7 @@ p1_4 <- ggsurvplot(
   survfit_list_1[[4]],
   data = cohort1,
   title = paste0("pARR above threshold (", round(100 * (nrow(cohort_model1_Y) / nrow(cohort)), 1), "%)"),
-  subtitle = paste0("Threshold matched to uACR-recommended proportion\nSGLT2i recommended; 5-year ARR: ", sprintf("%.2f", arr_model1_Y), "%"),
+  subtitle = paste0("SGLT2i recommended; 5-year ARR: ", sprintf("%.2f", arr_model1_Y), "%"),
   size = 1.5,
   fun = function(x) {100 - x * 100},
   conf.int = TRUE,
@@ -587,41 +585,41 @@ options(datadist=NULL)
 
 ### predicted data at 3 years:
 #No treatment
-describe(cohort$ckdpc_50egfr_score_cal) #
+describe(cohort$ckdpc_50egfr_score) #
 #estimated number of events with no one treated
-ckd.notx <- round(nrow(cohort)*mean(cohort$ckdpc_50egfr_score_cal/100)) 
+ckd.notx <- round(nrow(cohort)*mean(cohort$ckdpc_50egfr_score/100)) 
 
 #Treat all
-describe(1-cohort$ckdpc_50egfr_survival_cal_sglt2i) #
+describe(1-cohort$ckdpc_50egfr_survival_sglt2i) #
 #estimated number of events with everyone treated
-ckd.tx_all <- round(nrow(cohort)*mean(1-cohort$ckdpc_50egfr_survival_cal_sglt2i)) 
+ckd.tx_all <- round(nrow(cohort)*mean(1-cohort$ckdpc_50egfr_survival_sglt2i)) 
 
 
 #Treat as per guideline recommendations
 describe(cohort$treat_guideline)
-cohort <- cohort %>% mutate(ckdpc_50egfr_score_cal.applied.guideline = 
+cohort <- cohort %>% mutate(ckdpc_50egfr_score.applied.guideline = 
                               ifelse(treat_guideline == F ,
-                                     ckdpc_50egfr_score_cal, 100*(1-cohort$ckdpc_50egfr_survival_cal_sglt2i)))
+                                     ckdpc_50egfr_score, 100*(1-cohort$ckdpc_50egfr_survival_sglt2i)))
 #estimated number of events with treatment as per guidelines
-ckd.tx.guideline <- round(nrow(cohort)*mean(cohort$ckdpc_50egfr_score_cal.applied.guideline/100)) 
+ckd.tx.guideline <- round(nrow(cohort)*mean(cohort$ckdpc_50egfr_score.applied.guideline/100)) 
 
 
 #Treat as per strategy A
 describe(cohort$treat_model1)
-cohort <- cohort %>% mutate(ckdpc_50egfr_score_cal.applied.model1 = 
+cohort <- cohort %>% mutate(ckdpc_50egfr_score.applied.model1 = 
                               ifelse(treat_model1 == F, 
-                                     ckdpc_50egfr_score_cal, 100*(1-cohort$ckdpc_50egfr_survival_cal_sglt2i)))
+                                     ckdpc_50egfr_score, 100*(1-cohort$ckdpc_50egfr_survival_sglt2i)))
 #estimated number of events with treatment as per model 1
-ckd.tx.model1 <- round(nrow(cohort)*mean(cohort$ckdpc_50egfr_score_cal.applied.model1/100)) 
+ckd.tx.model1 <- round(nrow(cohort)*mean(cohort$ckdpc_50egfr_score.applied.model1/100)) 
 
 
 #Treat as per strategy B
 describe(cohort$treat_model2)
-cohort <- cohort %>% mutate(ckdpc_50egfr_score_cal.applied.model2 = 
+cohort <- cohort %>% mutate(ckdpc_50egfr_score.applied.model2 = 
                               ifelse(treat_model2 == F, 
-                                     ckdpc_50egfr_score_cal, 100*(1-cohort$ckdpc_50egfr_survival_cal_sglt2i)))
+                                     ckdpc_50egfr_score, 100*(1-cohort$ckdpc_50egfr_survival_sglt2i)))
 #estimated number of events with treatment as per model 2
-ckd.tx.model2 <- round(nrow(cohort)*mean(cohort$ckdpc_50egfr_score_cal.applied.model2/100)) 
+ckd.tx.model2 <- round(nrow(cohort)*mean(cohort$ckdpc_50egfr_score.applied.model2/100)) 
 
 
 print(paste0(c("Number of people treated if no one treated: 0 (0%)")))
@@ -630,34 +628,34 @@ print(paste0(c("Number of events if no one treated: ", round(ckd.notx/n.imp), " 
 print(paste0(c("Number of people treated with treat-everyone strategy: ", round(nrow(cohort)/n.imp), " (", round(nrow(cohort)/nrow(cohort)*100,1), "%)"), collapse = ""))
 print(paste0(c("Number of events with treat-everyone strategy: ", round(ckd.tx_all/n.imp), " (", round(100*(ckd.tx_all/nrow(cohort)),1), "%)"), collapse = ""))
 print(paste0(c("Number of events avoided with treat-everyone strategy: ", round((ckd.notx - ckd.tx_all)/n.imp), " (", round((ckd.tx_all-ckd.notx)/(ckd.tx_all-ckd.notx)*100,1), "%)"), collapse = ""))
-print(paste0(c("NNT with treat-everyone strategy: ", round(1/(mean(cohort$ckdpc_50egfr_score_cal/100)-mean(1-cohort$ckdpc_50egfr_survival_cal_sglt2i)))), collapse = ""))
+print(paste0(c("NNT with treat-everyone strategy: ", round(1/(mean(cohort$ckdpc_50egfr_score/100)-mean(1-cohort$ckdpc_50egfr_survival_sglt2i)))), collapse = ""))
 
 print(paste0(c("Number of people treated with guideline treatment strategy: ", round(nrow(cohort[cohort$treat_guideline == T,])/n.imp), " (", round(nrow(cohort[cohort$treat_guideline == T,])/nrow(cohort)*100,1), "%)"), collapse = ""))
 print(paste0(c("Number of events with guideline treatment strategy: ", round(ckd.tx.guideline/n.imp), " (", round(100*(ckd.tx.guideline/nrow(cohort)),1), "%)"), collapse = ""))
 print(paste0(c("Number of events avoided with guideline treatment strategy: ", round(abs(ckd.tx.guideline-ckd.notx)/n.imp), " (", round((ckd.tx.guideline-ckd.notx)/(ckd.tx_all-ckd.notx)*100,1), "%)"), collapse = ""))
 print(paste0(c("NNT with guideline treatment strategy: ", 
-               round(1/(mean(cohort[cohort$treat_guideline == T,]$ckdpc_50egfr_score_cal/100) - 
-                          mean(cohort[cohort$treat_guideline == T,]$ckdpc_50egfr_score_cal.applied.guideline/100)))), collapse = ""))
+               round(1/(mean(cohort[cohort$treat_guideline == T,]$ckdpc_50egfr_score/100) - 
+                          mean(cohort[cohort$treat_guideline == T,]$ckdpc_50egfr_score.applied.guideline/100)))), collapse = ""))
 
 print(paste0(c("Number of people treated with treatment strategy A: ", round(nrow(cohort[cohort$treat_model1 == T,])/n.imp), " (", round(nrow(cohort[cohort$treat_model1 == T,])/nrow(cohort)*100,1), "%)"), collapse = ""))
 print(paste0(c("Number of events with treatment strategy A: ", round(ckd.tx.model1/n.imp), " (", round(100*(ckd.tx.model1/nrow(cohort)),1), "%)"), collapse = ""))
 print(paste0(c("Number of events avoided with treatment strategy A: ", round(abs(ckd.tx.model1-ckd.notx)/n.imp), " (", round((ckd.tx.model1-ckd.notx)/(ckd.tx_all-ckd.notx)*100,1), "%)"), collapse = ""))
 print(paste0(c("NNT with treatment strategy A: ", 
-               round(1/(mean(cohort[cohort$treat_model1 == T,]$ckdpc_50egfr_score_cal/100) - 
-                          mean(cohort[cohort$treat_model1 == T,]$ckdpc_50egfr_score_cal.applied.model1/100)))), collapse = ""))
+               round(1/(mean(cohort[cohort$treat_model1 == T,]$ckdpc_50egfr_score/100) - 
+                          mean(cohort[cohort$treat_model1 == T,]$ckdpc_50egfr_score.applied.model1/100)))), collapse = ""))
 
 print(paste0(c("Number of people treated with treatment strategy B: ", round(nrow(cohort[cohort$treat_model2 == T,])/n.imp), " (", round(nrow(cohort[cohort$treat_model2 == T,])/nrow(cohort)*100,1), "%)"), collapse = ""))
 print(paste0(c("Number of events with treatment strategy B: ", round(ckd.tx.model2/n.imp), " (", round(100*(ckd.tx.model2/nrow(cohort)),1), "%)"), collapse = ""))
 print(paste0(c("Number of events avoided with treatment strategy B: ", round(abs(ckd.tx.model2-ckd.notx)/n.imp), " (", round((ckd.tx.model2-ckd.notx)/(ckd.tx_all-ckd.notx)*100,1), "%)"), collapse = ""))
 print(paste0(c("NNT with treatment strategy B: ", 
-               round(1/(mean(cohort[cohort$treat_model2 == T,]$ckdpc_50egfr_score_cal/100) - 
-                          mean(cohort[cohort$treat_model2 == T,]$ckdpc_50egfr_score_cal.applied.model2/100)))), collapse = ""))
+               round(1/(mean(cohort[cohort$treat_model2 == T,]$ckdpc_50egfr_score/100) - 
+                          mean(cohort[cohort$treat_model2 == T,]$ckdpc_50egfr_score.applied.model2/100)))), collapse = ""))
 
 
 
 ############################6 DECISION CURVE ANALYSIS################################################################
-cohort <- cohort %>% mutate(ckdpc_50egfr_score_cal_risk = ckdpc_50egfr_score_cal/100) 
-dca_data <- dca(Surv(ckd_egfr50_censtime_yrs, ckd_egfr50_censvar) ~ treat_guideline + ckdpc_50egfr_score_cal_risk,
+cohort <- cohort %>% mutate(ckdpc_50egfr_score_risk = ckdpc_50egfr_score/100) 
+dca_data <- dca(Surv(ckd_egfr50_censtime_yrs, ckd_egfr50_censvar) ~ treat_guideline + ckdpc_50egfr_score_risk,
       thresholds = seq(0, 0.20, by = 0.005),
       time = 3,
       data=cohort)
@@ -746,8 +744,8 @@ dev.off()
 #create empty data frame to which we can append the hazard ratios once calculated
 subgroup_parr_SGLT2ivsDPP4iSU_hrs <- subgroup_parr_hrs <- data.frame()
 
-#ensure treat_model2 recognised as logical variable:
-cohort <- cohort %>% mutate(treat_model2 = as.logical(treat_model2))
+#ensure treat_model1 recognised as logical variable:
+cohort <- cohort %>% mutate(treat_model1 = as.logical(treat_model1))
 
 p_value_interaction <- setNames(vector("numeric", length(outcomes)), outcomes)
 
@@ -763,7 +761,7 @@ for (k in outcomes) {
   
   # calculate number of subjects in each group
   count <- cohort %>%
-    group_by(studydrug2,treat_model2) %>%
+    group_by(studydrug2,treat_model1) %>%
     summarise(count=round(n()/n.imp, 0)) %>% # the total number of subjects in the stacked imputed datasets has to be divided by the number of imputed datasets
     pivot_wider(names_from=studydrug2,
                 names_glue="{studydrug2}_count",
@@ -771,7 +769,7 @@ for (k in outcomes) {
   
   # calculate median follow up time (years) per group
   followup <- cohort %>%
-    group_by(studydrug2,treat_model2) %>%
+    group_by(studydrug2,treat_model1) %>%
     summarise(time=round(median(!!sym(censtime_var)), 2)) %>%
     pivot_wider(names_from=studydrug2,
                 names_glue="{studydrug2}_followup",
@@ -779,21 +777,21 @@ for (k in outcomes) {
   
   # summarise number of events per group
   events <- cohort %>%
-    group_by(studydrug2,treat_model2) %>%
+    group_by(studydrug2,treat_model1) %>%
     summarise(event_count=round(sum(!!sym(censvar_var))/n.imp, 0),
               drug_count=round(n()/n.imp, 0)) %>%
     mutate(events_perc=round(event_count*100/drug_count, 1),
            events=paste0(event_count, " (", events_perc, "%)")) %>%
-    select(studydrug2, treat_model2, events) %>%
+    select(studydrug2, treat_model1, events) %>%
     pivot_wider(names_from=studydrug2,
                 names_glue="{studydrug2}_events",
                 values_from=events)
   
   
   # write formulas for adjusted and unadjusted analyses
-  f2 <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2*treat_model2"))
+  f2 <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2*treat_model1"))
   
-  f_adjusted2 <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2*treat_model2 + ", paste(covariates, collapse=" + ")))
+  f_adjusted2 <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2*treat_model1 + ", paste(covariates, collapse=" + ")))
   
   # create empty vectors to store the hazard ratios from every imputed dataset
   # for the unadjusted survival models
@@ -817,7 +815,7 @@ for (k in outcomes) {
     COEFS.lowparr.unadj[i] <- fit.unadj$coefficients["studydrug2SGLT2i"]
     SE.lowparr.unadj[i] <- sqrt(fit.unadj$var[1,1])
     
-    COEFS.highparr.unadj[i] <- fit.unadj$coefficients["studydrug2SGLT2i"] + fit.unadj$coefficients["studydrug2SGLT2i:treat_model2TRUE"]
+    COEFS.highparr.unadj[i] <- fit.unadj$coefficients["studydrug2SGLT2i"] + fit.unadj$coefficients["studydrug2SGLT2i:treat_model1TRUE"]
     SE.highparr.unadj[i] <- sqrt(abs(fit.unadj$var[1]) + abs(fit.unadj$var[nrow(fit.unadj$var),nrow(fit.unadj$var)]) + 2 * vcov(fit.unadj)[1,nrow(fit.unadj$var)])
     
     #adjusted analyses
@@ -826,7 +824,7 @@ for (k in outcomes) {
     COEFS.lowparr.adj[i] <- fit.adj$coefficients["studydrug2SGLT2i"]
     SE.lowparr.adj[i] <- sqrt(fit.adj$var[1,1])
     
-    COEFS.highparr.adj[i] <- fit.adj$coefficients["studydrug2SGLT2i"] + fit.adj$coefficients["studydrug2SGLT2i:treat_model2TRUE"]
+    COEFS.highparr.adj[i] <- fit.adj$coefficients["studydrug2SGLT2i"] + fit.adj$coefficients["studydrug2SGLT2i:treat_model1TRUE"]
     SE.highparr.adj[i] <- sqrt(abs(fit.adj$var[1]) + abs(fit.adj$var[nrow(fit.adj$var),nrow(fit.adj$var)]) + 2 * vcov(fit.adj)[1,nrow(fit.adj$var)])
     
     #overlap-weighted analyses
@@ -835,12 +833,12 @@ for (k in outcomes) {
     COEFS.lowparr.ow[i] <- fit.ow$coefficients["studydrug2SGLT2i"]
     SE.lowparr.ow[i] <- sqrt(fit.ow$var[1,1])
     
-    COEFS.highparr.ow[i] <- fit.ow$coefficients["studydrug2SGLT2i"] + fit.ow$coefficients["studydrug2SGLT2i:treat_model2TRUE"]
+    COEFS.highparr.ow[i] <- fit.ow$coefficients["studydrug2SGLT2i"] + fit.ow$coefficients["studydrug2SGLT2i:treat_model1TRUE"]
     SE.highparr.ow[i] <- sqrt(abs(fit.ow$var[1]) + abs(fit.ow$var[nrow(fit.ow$var),nrow(fit.ow$var)]) + 2 * vcov(fit.ow)[1,nrow(fit.ow$var)])
     
     
     if (i == n.imp) {
-      f_adjusted3 <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2 + treat_model2 + ", paste(covariates, collapse=" + ")))
+      f_adjusted3 <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2 + treat_model1 + ", paste(covariates, collapse=" + ")))
       fit.no_interaction <- coxph(f_adjusted3, cohort[cohort$.imp == i,])
       
       loglikelihood_test <- anova(fit.no_interaction, fit.adj, test = "Chisq")
@@ -878,13 +876,13 @@ for (k in outcomes) {
   outcome_subgroup_parr_SGLT2ivsDPP4iSU_hrs <- rbind(presegfr_lowparr_hr, presegfr_highparr_hr)
   
   temp <- rbind(
-    cbind(outcome = k, contrast = "pARR below 90th percentile", analysis = "Adjusted",
+    cbind(outcome = k, contrast = "pARR below threshold", analysis = "Adjusted",
           HR = adjusted_lowparr[1], LB = adjusted_lowparr[2], UB = adjusted_lowparr[3], string = adjusted_lowparr_string),
-    cbind(outcome = k, contrast = "pARR above 90th percentile", analysis = "Adjusted",
+    cbind(outcome = k, contrast = "pARR above threshold", analysis = "Adjusted",
           HR = adjusted_highparr[1], LB = adjusted_highparr[2], UB = adjusted_highparr[3], string = adjusted_highparr_string),
-    cbind(outcome = k, contrast = "pARR below 90th percentile", analysis = "Overlap-weighted",
+    cbind(outcome = k, contrast = "pARR below threshold", analysis = "Overlap-weighted",
           HR = ow_lowparr[1], LB = ow_lowparr[2], UB = ow_lowparr[3], string = ow_lowparr_string),
-    cbind(outcome = k, contrast = "pARR above 90th percentile", analysis = "Overlap-weighted",
+    cbind(outcome = k, contrast = "pARR above threshold", analysis = "Overlap-weighted",
           HR = ow_highparr[1], LB = ow_highparr[2], UB = ow_highparr[3], string = ow_highparr_string)
   )
   

@@ -11,15 +11,6 @@ load(paste0(today, "_t2d_ckdpc_recalibrated.Rda"))
 
 cohort$studydrug2 <- as.factor(cohort$studydrug2)
 
-# calculate predicted sglt2 benefit (absolute risk reduction = ARR):
-# ARR = S0(t)^HR - S0(t)
-trial_hr_kf_sglt2i <- 0.62
-
-cohort <- cohort %>% 
-  mutate(ckdpc_50egfr_survival_cal=(100-ckdpc_50egfr_score_cal)/100,
-         ckdpc_50egfr_survival_cal_sglt2i=ckdpc_50egfr_survival_cal^trial_hr_kf_sglt2i,
-         ckdpc_50egfr_sglt2i_benefit=ckdpc_50egfr_survival_cal_sglt2i - ckdpc_50egfr_survival_cal)
-
 cohort <- cohort %>% filter(!.imp > n.imp)
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
