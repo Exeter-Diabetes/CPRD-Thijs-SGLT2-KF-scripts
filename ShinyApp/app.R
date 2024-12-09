@@ -73,16 +73,21 @@ calculate_parr <- function(dataframe, age, sex, egfr, acr, sbp, bp_meds, hf, chd
 
 # UI for the Shiny app
 ui <- fluidPage(
+  
   tags$head(
     tags$style(HTML("
       .title {
       text-align: center;
       margin-top: 20px;
+      max-width: 700px; 
+      min-width: 650px
     }
     .subtitle {
       text-align: center;
       font-size: 18px;
       margin-top: 10px;
+      max-width: 700px; 
+      min-width: 650px
     }
       .result-text {
         font-size: 48px;
@@ -103,55 +108,67 @@ ui <- fluidPage(
       }
       .references-title {
         font-weight: bold;
+      max-width: 700px; 
+      min-width: 650px
       }
     "))
   ),
-  div(class="title", titlePanel("Predicted kidney protection benefit from SGLT2-inhibitors")),
-  div(class="subtitle", h4("3-year absolute risk reduction in kidney disease progression (≥50% decline in eGFR or kidney failure)")),
-  uiOutput("result_text"),  # Result displayed here
-  plotOutput("risk_plot", height = "120px"),  # Add the bar chart
+  column(width = 12, align = "center", div(class="title", titlePanel("Predicted kidney protection benefit from SGLT2-inhibitors in people with type 2 diabetes"))),
+  column(width = 12, align = "center", div(class="subtitle", h4("3-year risk of kidney disease progression (≥50% decline in eGFR or kidney failure):"))),
+  column(width = 12, align="center",
+         div(style = "max-width: 700px; min-width: 650px", # these values set the min and max width for the elements inside
+             uiOutput("result_text"),  # Result displayed here
+             plotOutput("risk_plot", height = "120px"),  # Add the bar chart
+         )
+  ),
   fluidRow(
-    column(6,
-           selectInput("age", "Age (years):", 
-                       choices = as.list(seq(20, 80, 1)), selected = 50),
-           selectInput("sex", "Sex:", 
-                       choices = list(Male = "Male", Female = "Female")),
-           selectInput("egfr", "eGFR (ml/min/1.73m2):", 
-                       choices = as.list(seq(60, 140, 1)), selected = 90),
-           selectInput("acr", "ACR (mg/mmol):", 
-                       choices = as.list(seq(0.6, 29.9, 0.1)), selected = 1),
-           selectInput("bmi", "BMI (kg/m2):", 
-                       choices = as.list(seq(20, 40, 1)), selected = 30),
-           selectInput("sbp", "SBP (mmHg):", 
-                       choices = as.list(seq(90, 180, 1)), selected = 130),
-           checkboxInput("bp_meds", "On BP Medications", value = FALSE)
+    column(12, align = "center",
+           div(style = "max-width: 650px; display: flex; justify-content: space-between; text-align: center;",
+               column(6, 
+                      selectInput("age", "Age (years):",
+                                  choices = as.list(seq(20, 80, 1)), selected = 50),
+                      selectInput("hba1c", "HbA1c (mmol/mol):", 
+                                  choices = as.list(seq(42, 97, 1)), selected = 58),
+                      selectInput("egfr", "eGFR (ml/min per 1.73m2):", 
+                                  choices = as.list(seq(60, 140, 1)), selected = 90),
+                      selectInput("acr", "ACR (mg/mmol):", 
+                                  choices = as.list(c(0.6, seq(1, 29.5, 0.5))), selected = 1),
+                      selectInput("bmi", "BMI (kg/m2):", 
+                                  choices = as.list(seq(20, 40, 1)), selected = 30),
+                      selectInput("sbp", "SBP (mmHg):", 
+                                  choices = as.list(seq(90, 180, 1)), selected = 130)
+               ),
+               column(6, 
+                      selectInput("sex", "Sex:", 
+                                  choices = list(Male = "Male", Female = "Female")),
+                      selectInput("diabetes_med", "Diabetes Medication:", 
+                                  choices = list("No diabetes medications" = "No Diabetes Medication", 
+                                                 "Oral medications only" = "Oral Medications Only", 
+                                                 "Insulin (with or without oral medications)" = "Insulin")),
+                      selectInput("smoking_status", "Smoking Status:", 
+                                  choices = list("Never smoker" = "Never Smoker", 
+                                                 "Ex smoker" = "Ex Smoker", 
+                                                 "Current smoker" = "Current Smoker")),
+               #      checkboxInput("type2_dm", "Type 2 diabetes", value = TRUE),
+                      checkboxInput("bp_meds", "On BP medications", value = FALSE),
+                      checkboxInput("hf", "History of heart failure (HF)", value = FALSE),
+                      checkboxInput("chd", "History of ischaemic heart disease, stroke, or peripheral vascular disease", value = FALSE),
+                      checkboxInput("af", "History of atrial fibrillation (AF)", value = FALSE)
+               )
+           )
     ),
-    column(6,
-           checkboxInput("type2_dm", "Type 2 Diabetes", value = TRUE),
-           selectInput("hba1c", "HbA1c (mmol/mol):", 
-                       choices = as.list(seq(42, 97, 1)), selected = 58),
-           selectInput("diabetes_med", "Diabetes Medication:", 
-                       choices = list("No Diabetes Medication" = "No Diabetes Medication", 
-                                      "Oral Medications Only" = "Oral Medications Only", 
-                                      Insulin = "Insulin")),
-           checkboxInput("hf", "History of Heart Failure (HF)", value = FALSE),
-           checkboxInput("chd", "History of Coronary Heart Disease (CHD)", value = FALSE),
-           checkboxInput("af", "History of Atrial Fibrillation (AF)", value = FALSE),
-           selectInput("smoking_status", "Smoking Status:", 
-                       choices = list("Never Smoker" = "Never Smoker", 
-                                      "Current Smoker" = "Current Smoker", 
-                                      "Ex Smoker" = "Ex Smoker"))
-    )
   ),
   div(style = "text-align:center; margin-top:20px;", 
       actionButton("predict", "Predict", class = "btn-primary btn-lg")
   ),
-  div(style = "text-align:center; margin-top:50px;",
-      p("This prediction model integrates the relative risk reduction estimate from SGLT2-inhibitor trial meta-analysis with an existing prediction model for risk of a composite of ≥50% decline in eGFR or kidney failure over 3 years. It was validated using UK routine general practice data of 120,315 participants with type 2 diabetes, preserved eGFR (≥60mL/min/1.73m2), normal or low-level albuminuria (<30mg/mmol), and without a history of atherosclerotic vascular disease or heart failure."),
-      p(class = "references-title", "References:"),
-      p("Nuffield Department of Population Health Renal Studies Group, SGLT2 inhibitor Meta-Analysis Cardio-Renal Trialists' Consortium. Impact of diabetes on the effects of sodium glucose co-transporter-2 inhibitors on kidney outcomes: collaborative meta-analysis of large placebo-controlled trials. Lancet 2022; 400(10365): 1788-801."),
-      p("Grams ME, Brunskill NJ, Ballew SH, et al. Development and Validation of Prediction Models of Adverse Kidney Outcomes in the Population With and Without Diabetes. Diabetes Care 2022; 45(9): 2055-63.")
-  )
+  column(width = 12, align = "center",
+         div(style = "text-align:center; margin-top:50px; max-width: 700px; min-width: 650px",
+             p("This prediction model integrates the relative risk reduction estimate from SGLT2-inhibitor trial meta-analysis with an existing prediction model for risk of a composite of ≥50% decline in eGFR or kidney failure over 3 years. It was validated using UK routine general practice data of 120,315 participants with type 2 diabetes, preserved eGFR (≥60mL/min/1.73m2), normal or low-level albuminuria (<30mg/mmol), and without a history of atherosclerotic vascular disease or heart failure."),
+             p(class = "references-title", "References:"),
+             p("Nuffield Department of Population Health Renal Studies Group, SGLT2 inhibitor Meta-Analysis Cardio-Renal Trialists' Consortium. Impact of diabetes on the effects of sodium glucose co-transporter-2 inhibitors on kidney outcomes: collaborative meta-analysis of large placebo-controlled trials. Lancet 2022; 400(10365): 1788-801."),
+             p("Grams ME, Brunskill NJ, Ballew SH, et al. Development and Validation of Prediction Models of Adverse Kidney Outcomes in the Population With and Without Diabetes. Diabetes Care 2022; 45(9): 2055-63.")
+         )
+  ),
 )
 
 # Server logic for the Shiny app
@@ -159,26 +176,10 @@ server <- function(input, output, session) {
   # Ensure decimal separator uses a period
   Sys.setlocale("LC_NUMERIC", "C")
   
-  result <- eventReactive(input$predict, {
-    if (input$hf || input$chd || !input$type2_dm) {
-      return(NULL)
-    }
-    calculate_parr(
-      dataframe = data.frame(
-        age = input$age,
-        sex = input$sex,
-        egfr = input$egfr,
-        acr = input$acr,
-        sbp = input$sbp,
-        bp_meds = as.numeric(input$bp_meds),
-        hf = as.numeric(input$hf),
-        chd = as.numeric(input$chd),
-        af = as.numeric(input$af),
-        smoking_status = input$smoking_status,
-        diabetes_med = input$diabetes_med,
-        bmi = input$bmi,
-        hba1c = input$hba1c
-      ),
+  patient <- eventReactive(input$predict, {
+    
+    # combine everything into a data.frame first
+    data.frame(
       age = input$age,
       sex = input$sex,
       egfr = input$egfr,
@@ -191,17 +192,58 @@ server <- function(input, output, session) {
       smoking_status = input$smoking_status,
       diabetes_med = input$diabetes_med,
       bmi = input$bmi,
-      hba1c = input$hba1c
+      hba1c = input$hba1c#,
+    #  type2_dm = input$type2_dm
+    )
+  })
+  
+  
+  result <- eventReactive(input$predict, {
+    patient <- patient()
+    if (patient$hf | patient$chd #| !patient$type2_dm
+        ) {
+      return(NULL)
+    }
+    calculate_parr(
+      dataframe = data.frame(
+        age = patient$age,
+        sex = patient$sex,
+        egfr = patient$egfr,
+        acr = patient$acr,
+        sbp = patient$sbp,
+        bp_meds = as.numeric(patient$bp_meds),
+        hf = as.numeric(patient$hf),
+        chd = as.numeric(patient$chd),
+        af = as.numeric(patient$af),
+        smoking_status = patient$smoking_status,
+        diabetes_med = patient$diabetes_med,
+        bmi = patient$bmi,
+        hba1c = patient$hba1c
+      ),
+      age = patient$age,
+      sex = patient$sex,
+      egfr = patient$egfr,
+      acr = patient$acr,
+      sbp = patient$sbp,
+      bp_meds = as.numeric(patient$bp_meds),
+      hf = as.numeric(patient$hf),
+      chd = as.numeric(patient$chd),
+      af = as.numeric(patient$af),
+      smoking_status = patient$smoking_status,
+      diabetes_med = patient$diabetes_med,
+      bmi = patient$bmi,
+      hba1c = patient$hba1c
     )
   })
   
   output$result_text <- renderUI({
+    patient <- patient()
     if (input$predict == 0) {
       NULL
-    } else if (!input$type2_dm) {
-      div(class = "validation-message", 
-          "This prediction model is validated for individuals with type 2 diabetes only.")
-    } else if (input$hf || input$chd) {
+    # } else if (!patient$type2_dm) {
+    #   div(class = "validation-message", 
+    #       "This prediction model is validated for individuals with type 2 diabetes only.")
+    } else if (patient$hf || patient$chd) {
       div(class = "validation-message", 
           "This prediction model is validated for individuals without a history of atherosclerotic vascular disease or heart failure.")
     } else {
@@ -215,30 +257,46 @@ server <- function(input, output, session) {
         parr <- df$parr[1]
         nnt <- ifelse(df$parr[1] > 0, round(1 / (df$parr[1]/100), 0), NA)
         
-        div(style = "display: flex; justify-content: space-between; text-align: center;",
-            div(class = "result-text", style = "width: 33%;", 
-                h4("Current risk"), 
-                span(style = "color: #0072B2; text-shadow: 1px 1px 2px black;", 
-                     sprintf("%.2f%%", current_risk))),
-            # div(class = "result-text", style = "width: 33%;", 
-            #     h4("Residual risk with treatment"), 
-            #     span(style = "color: #0072B2; text-shadow: 1px 1px 2px black;", 
-            #          sprintf("%.2f%%", risk_with_treatment))),
-            div(class = "result-text", style = "width: 33%;", 
-                h4("Reduction with treatment"), 
-                span(style = "color: #E69F00; text-shadow: 1px 1px 2px black;", 
-                     sprintf("%.2f%%", parr))),
-            div(class = "result-text", style = "width: 33%;", 
-                h4("3-year NNT"), 
-                span(style = "color: #E69F00; text-shadow: 1px 1px 2px black;", 
-                     ifelse(!is.na(nnt), sprintf("%d", nnt), "N/A")))
+        
+        div(
+          div(style = "display: flex; justify-content: space-between; text-align: center;",
+              div(class = "result-text", style = "width: 33%;",
+                  h4("Current risk"),
+              ),
+              div(class = "result-text", style = "width: 33%;",
+                  h4("Reduction with treatment"),
+              ),
+              div(class = "result-text", style = "width: 33%;",
+                  h4("3-year NNT"),
+              ),
+          ),
+          div(style = "display: flex; justify-content: space-between; text-align: center;",
+              div(class = "result-text", style = "width: 33%;",
+                  span(style = "color: #0072B2; text-shadow: 1px 1px 2px black;",
+                       sprintf("%.1f%%", current_risk))
+              ),
+              div(class = "result-text", style = "width: 33%;",
+                  span(style = "color: #E69F00; text-shadow: 1px 1px 2px black;",
+                       sprintf("%.1f%%", parr))
+              ),
+              div(class = "result-text", style = "width: 33%;",
+                  span(style = "color: #E69F00; text-shadow: 1px 1px 2px black;",
+                       ifelse(!is.na(nnt), sprintf("%d", nnt), "N/A"))
+              ),
+          ),
+          
         )
+        
+        
+        
       }
     }
   })
   
   output$risk_plot <- renderPlot({
-    if (input$predict == 0 || !input$type2_dm || input$hf || input$chd) {
+    patient <- patient()
+    if (input$predict == 0 #|| !patient$type2_dm 
+        || patient$hf || patient$chd) {
       return(NULL)
     }
     
@@ -273,8 +331,8 @@ server <- function(input, output, session) {
       
       # X-axis configuration
       scale_x_continuous(limits = c(0, max(current_risk, 10)), 
-                         breaks = seq(0, 10, 1), 
-                         labels = paste0(seq(0, 10, 1), "%")) +
+                         breaks = seq(0, max(current_risk, 10), 1), 
+                         labels = paste0(seq(0, max(current_risk, 10), 1), "%")) +
       
       # Minimal theme with adjusted aesthetics
       theme_minimal() +
@@ -295,51 +353,7 @@ server <- function(input, output, session) {
       # Chart title
       labs(title = "3-year risk of kidney disease progression")
   })
-  
-  
-  # output$risk_plot <- renderPlot({
-  #   if (input$predict == 0 || !input$type2_dm || input$hf || input$chd) {
-  #     return(NULL)
-  #   }
-  #   
-  #   if (is.null(result())) return()
-  #   
-  #   # Extract the necessary values
-  #   df <- result()
-  #   current_risk <- df$ckdpc_50egfr_score[1]
-  #   treated_risk <- 100 * (1 - df$ckdpc_50egfr_survival_sglt2i[1])
-  #   
-  #   # Create a data frame for plotting
-  #   plot_data <- data.frame(
-  #     xmin = c(0, treated_risk),
-  #     xmax = c(treated_risk, current_risk),
-  #     ymin = c(0.4, 0.4),  # Bar thickness
-  #     ymax = c(0.6, 0.6),  # Bar thickness
-  #     fill = c("#0072B2", "#E69F00")  # Blue for treated, yellow for untreated
-  #   )
-  #   
-  #   # Generate the plot
-  #   ggplot() +
-  #     geom_rect(data = plot_data, aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax, fill = fill), 
-  #               color = NA) +  # Remove borders
-  #     scale_fill_identity() +  # Use specified colors
-  #     scale_x_continuous(limits = c(0, max(current_risk, 10)), breaks = seq(0, 10, 1), labels = paste0(seq(0, 10, 1), "%")) +
-  #     theme_minimal() +
-  #     theme(
-  #       axis.title.y = element_blank(),
-  #       axis.text.y = element_blank(),
-  #       axis.ticks.y = element_blank(),
-  #       axis.title.x = element_blank(),
-  #       axis.text.x = element_text(size = 14),
-  #       plot.title = element_text(size = 16, hjust = 0.5),
-  #       panel.grid.major.y = element_blank(),
-  #       panel.grid.minor.y = element_blank(),
-  #       panel.grid.major.x = element_line(color = "grey80"),
-  #       panel.grid.minor.x = element_blank(),
-  #       plot.margin = margin(10, 10, 10, 10) 
-  #     ) +
-  #     labs(title = "Current 3-year risk of kidney disease progression")
-  # })
+
 }
 
 shinyApp(ui = ui, server = server)
