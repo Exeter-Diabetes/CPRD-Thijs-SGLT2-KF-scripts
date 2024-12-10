@@ -672,10 +672,10 @@ for (k in outcomes) {
     ow_microalb_string <- paste0(sprintf("%.2f", round(ow_microalb[1], 2)), " (", sprintf("%.2f", round(ow_microalb[2], 2)), ", ", sprintf("%.2f", round(ow_microalb[3], 2)), ")")
     
     # combine in dataframe that we can tabulate
-    presegfr_noalb_hr <- cbind(outcome=k, count[1,c(2:3)], followup[1,c(2:3)], events[1,c(2:3)],
+    presegfr_noalb_hr <- cbind(outcome=k, count[1,c(2:3)], followup[1,c(2:3)], events[1,c(2:3)], contrast = "uACR <3mg/mmol",
                                unadjusted=unadjusted_noalb_string, adjusted=adjusted_noalb_string, overlapweighted=ow_noalb_string
     )
-    presegfr_microalb_hr <- cbind(outcome=k, count[2,c(2:3)], followup[2,c(2:3)], events[2,c(2:3)],
+    presegfr_microalb_hr <- cbind(outcome=k, count[2,c(2:3)], followup[2,c(2:3)], events[2,c(2:3)], contrast = "uACR 3-30mg/mmol",
                                   unadjusted=unadjusted_microalb_string, adjusted=adjusted_microalb_string, overlapweighted=ow_microalb_string
     )
     
@@ -719,7 +719,7 @@ all_SGLT2ivsDPP4iSU_hrs <- all_SGLT2ivsDPP4iSU_hrs[!all_SGLT2ivsDPP4iSU_hrs$anal
 
 #add event count and total count to hr dataframe
 all_SGLT2ivsDPP4iSU_hrs <- all_SGLT2ivsDPP4iSU_hrs %>% left_join(SGLT2ivsDPP4iSU_hrs %>% select(1:7))
-subgroup_hrs <- subgroup_hrs %>% cbind(subgroup_SGLT2ivsDPP4iSU_hrs %>% select(-c(outcome, adjusted, unadjusted)))
+subgroup_hrs <- subgroup_hrs %>% left_join(subgroup_SGLT2ivsDPP4iSU_hrs %>% select(-c(adjusted, unadjusted)), by = c("outcome", "contrast"))
 
 
 all_hrs <- all_hrs %>%

@@ -104,7 +104,7 @@ cat("Optimal number of knots based on AIC:", optimal_k_aic, "\n")
 cat("Optimal number of knots based on BIC:", optimal_k_bic, "\n")
 
 anova(final_model)
-anova(final_model)[2,3] # p value for non-linear interaction term
+p_value_non_linear <- anova(final_model)[2,3] # p value for non-linear interaction term
 
 # create data frame with range of scores by study drug
 contrast_spline <- contrast(final_model, 
@@ -128,6 +128,9 @@ ggplot(data=contrast_spline_df, aes(x=ckdpc_50egfr_score, y=exp(Contrast))) +
   geom_hline(aes(yintercept = 0.62, linetype = "hr", size="hr"), color="#D55E00")  +
   geom_hline(aes(yintercept = 0.68, linetype = "hr_95", size="hr_95"), color="#D55E00")  +
   geom_hline(aes(yintercept = 0.57, linetype = "hr_95", size="hr_95"), color="#D55E00")  +
+  annotate("text", x = mean(range(contrast_spline_df$ckdpc_50egfr_score)), y = 0.35, 
+           label = paste0("italic(p)~'='~italic(", sprintf("%.2f", p_value_non_linear), "~'for non-linear interaction term')"), 
+           size = 5, hjust = 0.5, parse = T) +
   theme_bw() +
   theme(text = element_text(size = 18),
         axis.line = element_line(colour =  "grey50" ),
@@ -155,10 +158,11 @@ benefit_histogram <- ggplot(cohort %>%
                  binwidth = 0.02, color = "black") +  # Adjust binwidth as necessary
   scale_fill_manual(values = c("TRUE" = "#E69F00", "FALSE" = "grey")) +
   geom_vline(xintercept = cutoff1*100, linetype = "dashed", color = "black", size = 1) +
-  geom_vline(xintercept = cutoff2*100, linetype = "dashed", color = "black", size = 1) +
+#  geom_vline(xintercept = cutoff2*100, linetype = "dashed", color = "black", size = 1) +
 
-  annotate("text", x = cutoff1*100, y = Inf, label = "pARR threshold A", vjust = -0.5, hjust = 1.1, angle = 90, size = 4, color = "black") +
-  annotate("text", x = cutoff2*100, y = Inf, label = "pARR threshold B", vjust = -0.5, hjust = 1.1, angle = 90, size = 4, color = "black") +
+  annotate("text", x = cutoff1*100, y = Inf, label = "pARR threshold", vjust = -0.5, hjust = 1.1, angle = 90, size = 4, color = "black") +
+  #  annotate("text", x = cutoff1*100, y = Inf, label = "pARR threshold A", vjust = -0.5, hjust = 1.1, angle = 90, size = 4, color = "black") +
+  #  annotate("text", x = cutoff2*100, y = Inf, label = "pARR threshold B", vjust = -0.5, hjust = 1.1, angle = 90, size = 4, color = "black") +
 
   labs(x = "Predicted absolute risk reduction with SGLT2i (%)", y = "Frequency") +
   theme_minimal() +
@@ -866,10 +870,10 @@ for (k in outcomes) {
   ow_highparr_string <- paste0(sprintf("%.2f", round(ow_highparr[1], 2)), " (", sprintf("%.2f", round(ow_highparr[2], 2)), ", ", sprintf("%.2f", round(ow_highparr[3], 2)), ")")
   
   # combine in dataframe that we can tabulate
-  presegfr_lowparr_hr <- cbind(outcome=k, count[1,c(2:3)], followup[1,c(2:3)], events[1,c(2:3)],
+  presegfr_lowparr_hr <- cbind(outcome=k, count[1,c(2:3)], followup[1,c(2:3)], events[1,c(2:3)], contrast = "pARR below threshold",
                              unadjusted=unadjusted_lowparr_string, adjusted=adjusted_lowparr_string, ow=ow_lowparr_string
   )
-  presegfr_highparr_hr <- cbind(outcome=k, count[2,c(2:3)], followup[2,c(2:3)], events[2,c(2:3)],
+  presegfr_highparr_hr <- cbind(outcome=k, count[2,c(2:3)], followup[2,c(2:3)], events[2,c(2:3)], contrast = "pARR above threshold",
                                 unadjusted=unadjusted_highparr_string, adjusted=adjusted_highparr_string, ow=ow_highparr_string
   )
   
@@ -892,7 +896,7 @@ for (k in outcomes) {
 }
 
 
-subgroup_parr_hrs <- subgroup_parr_hrs %>% cbind(subgroup_parr_SGLT2ivsDPP4iSU_hrs %>% select(-c(outcome, adjusted, unadjusted)))
+subgroup_parr_hrs <- subgroup_parr_hrs %>% left_join(subgroup_parr_SGLT2ivsDPP4iSU_hrs %>% select(-c(adjusted, unadjusted)), by = c("outcome", "contrast"))
 
 subgroup_parr_hrs <- subgroup_parr_hrs %>%
   separate(`DPP4i/SU_events`, into = c("DPP4i/SU_events_number", "DPP4i/SU_events_percentage"), sep = " \\(", remove = FALSE) %>%
