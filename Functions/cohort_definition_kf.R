@@ -39,6 +39,12 @@ define_cohort <- function(cohort_dataset, all_drug_periods_dataset) {
   
   cohort <- cohort %>% filter(!studydrug == "GLP1")
   
+  # Remove if on SGLT2 (except SGLT2 arm)
+  cohort <- cohort %>%
+    filter((drugclass=="SGLT2" | SGLT2==0))
+  
+  
+  
   # create variables that denote whether this is first/only/last episode
   cohort <- cohort %>%
     group_by(patid) %>%
