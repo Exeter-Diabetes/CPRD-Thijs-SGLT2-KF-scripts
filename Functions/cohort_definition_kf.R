@@ -26,18 +26,16 @@ define_cohort <- function(cohort_dataset, all_drug_periods_dataset) {
   # e)-g) Keep those aged >=18 and within study period
   cohort <- cohort_dataset %>%
     filter(dstartdate_age>=18 &
-             (drugclass=="SGLT2" | drugclass=="GLP1" | drugclass=="DPP4" | drugclass=="SU") &
+             (drugclass=="SGLT2" | drugclass=="DPP4" | drugclass=="SU") &
              dstartdate>=as.Date("2013-01-01")
     ) %>%
-    mutate(studydrug=ifelse(drugclass=="SGLT2", "SGLT2", ifelse(drugclass=="GLP1", "GLP1", 
-                                                                ifelse(drugclass=="DPP4", "DPP4", "SU"))))
+    mutate(studydrug=ifelse(drugclass=="SGLT2", "SGLT2", ifelse(drugclass=="DPP4", "DPP4", "SU")))
   
-  # remove if in GLP1 group
-  q <- cohort %>% filter(studydrug == "GLP1") %>% nrow()
+  # Remove if on SGLT2 (except SGLT2 arm)
+  cohort <- cohort %>%
+    filter((drugclass=="SGLT2" | SGLT2==0))
   
-  print(paste0("Number of drug episodes of starting a GLP1 receptor agonist (not included): ", q))
   
-  cohort <- cohort %>% filter(!studydrug == "GLP1")
   
   # create variables that denote whether this is first/only/last episode
   cohort <- cohort %>%
@@ -116,15 +114,6 @@ define_cohort <- function(cohort_dataset, all_drug_periods_dataset) {
   cohort <- cohort %>%
     filter(uacr < 30)
   
-  
-  # # l) Remove if on insulin at start 
-  # q <- cohort %>% filter(INS==1) %>% nrow()  
-  # 
-  # print(paste0("Number of drug episodes with concurrent insulin treatment (excluded): ", q))
-  # 
-  # cohort <- cohort %>%
-  #   filter(INS==0)
-  
   # l) Remove if on GLP1 agonist at start 
   q <- cohort %>% filter(GLP1==1) %>% nrow()
   
@@ -160,7 +149,7 @@ define_cohort <- function(cohort_dataset, all_drug_periods_dataset) {
   
   rm(q)
   
-  ## Use all SGLT2, GLP1 + TZD starts to code up later censoring
+  ## Use all SGLT2, GLP1 starts to code up later censoring
   
   #
   ### Also get latest GLP1 and SGLT2 stop dates before drug start for DPP4/SU arms 

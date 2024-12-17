@@ -19,7 +19,7 @@ load(paste0(today, "_subgroup_SGLT2ivsDPP4iSU_hrs.Rda"))
 load(paste0(today, "_subgroup_parr_hrs.Rda"))
 load(paste0(today, "_subgroup_parr_SGLT2ivsDPP4iSU_hrs.Rda"))
 
-############################1 FOREST PLOT FOR HRs PER DRUG CLASS (SUPPLEMENTAL FIGURE)################################################################
+############################1 FOREST PLOT FOR HR BY DRUG CLASS (SUPPLEMENTAL FIGURE)################################################################
 
 # create labels
 labels <- data.frame(matrix("", nrow = 1, ncol = length(all_hrs)))
@@ -466,9 +466,9 @@ dev.off()
 ############################3 FOREST PLOT OF HR BY ALBUMINURIA STATUS (FIGURE 1A)################################################################
 
 # if analyses in 02 Calculate weights and hazard ratios.R not run, then object p_value_interaction will not be defined
-# if that is the case, define p-value at 0.34 (as per analyses dd 14/11/2024)
+# if that is the case, define p-value at 0.35 (as per analyses dd 17/12/2024)
 if (!exists("p_value_interaction")) {
-  p_value_interaction <- 0.3446956
+  p_value_interaction <- 0.3502815
 }
 
 # prep data frames with row for overall
@@ -663,7 +663,7 @@ p_counts_subgroup + p_left_subgroup + p_hr_subgroup + p_right_subgroup +
   p_counts_overall + p_left_overall + p_hr_overall + p_right_overall + plot_layout(design = layout)
 dev.off()
 
-############################4 FOREST PLOT FOR HRs OF SECONDARY OUTCOMES (SUPPLEMENTAL FIGURE)################################################################
+############################4 FOREST PLOT FOR HR OF SECONDARY OUTCOMES BY ALBUMINURIA STATUS (SUPPLEMENTAL FIGURE)################################################################
 
 secondary <- subgroup_hrs %>% 
   filter(analysis=="Overlap-weighted") %>%
@@ -819,7 +819,7 @@ tiff(paste0(today, "_HR_secondary_outcomes_by_albuminuria.tiff"), width=18, heig
 eval(str2lang(plot_expression))
 dev.off()
 
-############################5 FOREST PLOT FOR HRs OF SECONDARY OUTCOMES (SUPPLEMENTAL FIGURE)################################################################
+############################5 FOREST PLOT FOR HRs OF SECONDARY OUTCOMES BY pARR (SUPPLEMENTAL FIGURE)################################################################
 
 secondary2 <- subgroup_parr_hrs %>% 
   filter(analysis=="Overlap-weighted") %>%

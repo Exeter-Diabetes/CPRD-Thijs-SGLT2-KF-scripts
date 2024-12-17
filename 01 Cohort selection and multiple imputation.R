@@ -31,8 +31,7 @@ source("cohort_definition_kf.R")
 cohort <- define_cohort(t2d_1stinstance, t2d_all_drug_periods)
 
 table(cohort$studydrug)
-# DPP4 SGLT2    SU 
-# 59840 53674 38389
+
 
 ## B Make variables for survival analysis of all endpoints (see survival_variables_kf function for details)
 
