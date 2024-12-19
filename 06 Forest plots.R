@@ -534,6 +534,9 @@ p_hr_subgroup <-
   geom_point(aes(x=HR), shape=15, size=3) +
   geom_linerange(aes(xmin=LB, xmax=UB)) +
   geom_vline(xintercept = 1, linetype="dashed") +
+  geom_vline(xintercept = 0.62, linetype="twodash", size = 1, colour = "#D55E00") +
+  geom_vline(xintercept = 0.56, linetype="twodash", size = 0.5, colour = "#D55E00") +
+  geom_vline(xintercept = 0.68, linetype="twodash", size = 0.5, colour = "#D55E00") +
   annotate("text", x = .65, 
            y = length(unique(subgroup_hrs[subgroup_hrs$outcome == "ckd_egfr50",]$contrast)) + 1, 
            label = "") +
@@ -597,9 +600,15 @@ p_hr_overall <-
   coord_cartesian(ylim=c(1,length(unique(overall[overall$outcome == "ckd_egfr50",]$contrast)) + 1), 
                   xlim=c(0.25, 2)) +
   theme_classic() +
-  geom_point(aes(x=HR), shape=15, size=3, colour = "#D55E00") +
-  geom_linerange(aes(xmin=LB, xmax=UB), colour = "#D55E00") +
+  geom_point(aes(x=HR), shape=15, size=3, colour = "black") +
+  geom_linerange(aes(xmin=LB, xmax=UB), colour = "black") +
   geom_vline(xintercept = 1, linetype="dashed") +
+  geom_segment(aes(x = 0.62, xend = 0.62, y = 0, yend = length(unique(overall[overall$outcome == "ckd_egfr50",]$contrast))+0.75), 
+                                                             linetype = "twodash", size = 1, colour = "#D55E00") +
+  geom_segment(aes(x = 0.56, xend = 0.56, y = 0, yend = length(unique(overall[overall$outcome == "ckd_egfr50",]$contrast))+0.75), 
+               linetype = "twodash", size = 0.5, colour = "#D55E00") +
+  geom_segment(aes(x = 0.68, xend = 0.68, y = 0, yend = length(unique(overall[overall$outcome == "ckd_egfr50",]$contrast))+0.75), 
+               linetype = "twodash", size = 0.5, colour = "#D55E00") +
   annotate("text", x = .65, 
            y = length(unique(overall[overall$outcome == "ckd_egfr50",]$contrast)) + 1, 
            label = "Favours SGLT2i") +

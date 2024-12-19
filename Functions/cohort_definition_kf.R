@@ -33,7 +33,7 @@ define_cohort <- function(cohort_dataset, all_drug_periods_dataset) {
   
   # Remove if on SGLT2 (except SGLT2 arm)
   cohort <- cohort %>%
-    filter((drugclass=="SGLT2" | SGLT2==0))
+    filter(!(drugclass!="SGLT2" & SGLT2==1))
   
   
   
@@ -88,7 +88,7 @@ define_cohort <- function(cohort_dataset, all_drug_periods_dataset) {
   
   cohort <- cohort %>%
     filter(
-      !(is.na(preckdstage) & is.na(preegfr) | is.na(uacr))
+      !(is.na(preckdstage) | is.na(preegfr) | is.na(uacr))
     )
 
   # k) Remove if CKD before index date
@@ -117,7 +117,7 @@ define_cohort <- function(cohort_dataset, all_drug_periods_dataset) {
   # l) Remove if on GLP1 agonist at start 
   q <- cohort %>% filter(GLP1==1) %>% nrow()
   
-  print(paste0("Number of drug episodes with concurrent treatment with GLP1 receptor agonist (excluded): ", q))
+  print(paste0("Number of drug episodes with concurrent treatment with GLP1 receptor agonist: ", q))
   
   cohort <- cohort %>%
     filter(GLP1==0)

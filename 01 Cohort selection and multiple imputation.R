@@ -392,17 +392,18 @@ temp <- temp %>%
                 ~ifelse(dstartdate_age>=20 & dstartdate_age<=80 &
                           prebmi>=20, .x, NA)))
 
-# retain those with available risk scores only
-temp <- temp %>% filter(!is.na(ckdpc_50egfr_score))
+q <- temp %>% filter(.imp !=0 & (dstartdate_age<20 | dstartdate_age>80 | prebmi < 20))
 
 # those left out:
-ckdpc_outofrange <- ckdpc_outofrange %>% anti_join(temp, by = c("patid", ".imp"))
+q1 <- q %>% .$patid %>% unique() %>% length()
+print(paste0("Number of subjects excluded with missing ckdpc risk scores due to age/BMI/HbA1c/uACR/SBP out of range: ", q1))
 
-q <- ckdpc_outofrange %>% .$patid %>% unique() %>% length()
-print(paste0("Number of subjects excluded with missing ckdpc risk scores due to age/BMI/HbA1c/uACR/SBP out of range: ", q))
+q2 <- q %>% nrow()
+print(paste0("Number of drug episodes excluded with missing ckdpc risk scores due to age/BMI/HbA1c/uACR/SBP out of range: ", q2/n.imp))
 
-q <- ckdpc_outofrange %>% nrow()
-print(paste0("Number of drug episodes excluded with missing ckdpc risk scores due to age/BMI/HbA1c/uACR/SBP out of range: ", q/n.imp))
+
+# retain those with available risk scores only
+temp <- temp %>% filter(!is.na(ckdpc_50egfr_score))
 
 # study cohort:
 
