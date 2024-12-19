@@ -20,6 +20,12 @@ cohort <- cohort %>%
          ckdpc_50egfr_survival_sglt2i=ckdpc_50egfr_survival^trial_hr_kf_sglt2i,
          ckdpc_50egfr_sglt2i_benefit=ckdpc_50egfr_survival_sglt2i - ckdpc_50egfr_survival)
 
+print(paste0("Overall median pARR: ", sprintf("%.2f", median(cohort$ckdpc_50egfr_sglt2i_benefit*100)), "% (IQR ", sprintf("%.2f", quantile(cohort$ckdpc_50egfr_sglt2i_benefit*100, 0.25)), "-", sprintf("%.2f", quantile(cohort$ckdpc_50egfr_sglt2i_benefit*100, 0.75)), ")"))
+
+print(paste0("Albuminuria <3mg/mmol median pARR: ", sprintf("%.2f", median(cohort[cohort$preacr_confirmed == F,]$ckdpc_50egfr_sglt2i_benefit*100)), "% (IQR ", sprintf("%.2f", quantile(cohort[cohort$preacr_confirmed == F,]$ckdpc_50egfr_sglt2i_benefit*100, 0.25)), "-", sprintf("%.2f", quantile(cohort[cohort$preacr_confirmed == F,]$ckdpc_50egfr_sglt2i_benefit*100, 0.75)), ")"))
+
+print(paste0("Albuminuria ≥3mg/mmol median pARR: ", sprintf("%.2f", median(cohort[cohort$preacr_confirmed == T,]$ckdpc_50egfr_sglt2i_benefit*100)), "% (IQR ", sprintf("%.2f", quantile(cohort[cohort$preacr_confirmed == T,]$ckdpc_50egfr_sglt2i_benefit*100, 0.25)), "-", sprintf("%.2f", quantile(cohort[cohort$preacr_confirmed == T,]$ckdpc_50egfr_sglt2i_benefit*100, 0.75)), ")"))
+
 ## consider following methods to define cut-off:
 # 1 Strategy A: choose cut-off that matches treatment proportion of guidelines but improves outcomes through better-targeted treatment
 # 2 Strategy B: take as cut-off the top decile  (10%) of predicted benefit
