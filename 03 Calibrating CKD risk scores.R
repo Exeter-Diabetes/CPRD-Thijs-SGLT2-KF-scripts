@@ -31,7 +31,7 @@ cohort <- cohort %>% group_by(.imp, patid) %>% filter(
 ) %>% ungroup()
 
 # check number of subjects
-table(cohort$studydrug)
+table(cohort$studydrug2)
 # SU  DPP4i SGLT2i 
 
 ############################1 UNCALIBRATED RISK SCORE################################################################
@@ -491,6 +491,8 @@ se_bh_new <- rep(NA, n.imp)
 cal_slope <- rep(NA, n.imp)
 slope_optimism_presegfr <- rep(NA, n.imp)
 var_slope <- rep(NA, n.imp)
+
+options(datadist=NULL)
 
 for (i in 1:n.imp) {
   print(paste0("Calculations in imputation ", i))

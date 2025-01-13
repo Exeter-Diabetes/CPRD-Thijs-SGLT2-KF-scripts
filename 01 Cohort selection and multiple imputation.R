@@ -17,9 +17,9 @@ source("00 Setup.R")
 ## A Cohort selection (see cohort_definition_kf function for details)
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
-load("2024-11-06_t2d_1stinstance_a.Rda")
-load("2024-11-06_t2d_1stinstance_b.Rda")
-load("2024-11-06_t2d_all_drug_periods.Rda")
+load(paste0(today, "_t2d_1stinstance_a.Rda"))
+load(paste0(today, "_t2d_1stinstance_b.Rda"))
+load(paste0(today, "_t2d_all_drug_periods.Rda"))
 
 t2d_1stinstance <- rbind(t2d_1stinstance_a, t2d_1stinstance_b)
 rm(t2d_1stinstance_a)
@@ -32,13 +32,6 @@ cohort <- define_cohort(t2d_1stinstance, t2d_all_drug_periods)
 
 table(cohort$studydrug)
 
-
-## B Make variables for survival analysis of all endpoints (see survival_variables_kf function for details)
-
-source("survival_variables_kf.R")
-
-cohort <- add_surv_vars(cohort, main_only=FALSE) # add per-protocol survival variables as well
-
 ## for some reason the dataset contains dstopdate.x and dstopdate.x which are identical
 # remove these if this is present
 if ("dstopdate.x" %in% names(cohort)) {
@@ -47,7 +40,14 @@ if ("dstopdate.x" %in% names(cohort)) {
   )
 }
 
-rm(list=setdiff(ls(), c("cohort", "today")))
+
+## B Make variables for survival analysis of all endpoints (see survival_variables_kf function for details)
+
+source("survival_variables_kf.R")
+
+cohort <- add_surv_vars(cohort, main_only=FALSE) # add per-protocol survival variables as well
+
+rm(list=setdiff(ls(), c("cohort", "today", "vars", "factors", "nonnormal")))
 
 ## C Just keep variables of interest
 
@@ -55,7 +55,6 @@ rm(list=setdiff(ls(), c("cohort", "today")))
 cohort <- cohort %>% 
   mutate(uacr=ifelse(!is.na(preacr), preacr, ifelse(!is.na(preacr_from_separate), preacr_from_separate, NA)),
          uacr=ifelse(uacr<0.6, 0.6, uacr),
-         
          #and create variable to code whether someone is on oral hyperglycaemic agents
          oha=ifelse(Acarbose+MFN+DPP4+Glinide+GLP1+SGLT2+SU+TZD>add, 1L, 0L),
          statin=!is.na(predrug_latest_statins),
@@ -95,7 +94,7 @@ cohort <- cohort %>%
          predrug_micturition_control, predrug_dementia, hosp_admission_prev_year,
          statin, ACEi, ARB, BB, CCB, ThZD, loopD, MRA, steroids, immunosuppr, 
          osteoporosis, genital_infection,
-         ckd_egfr50_outcome_type, preacr_confirmed
+         ckd_egfr50_outcome_type, preacr_confirmed, preacr_previous, preacr_previous_date, preacr_next, preacr_next_date
   )
 
 # set SU as reference group
@@ -129,7 +128,8 @@ cohort <- cohort %>% mutate(
 
 # variable preacr_confirmed indicates whether a person had their presence of albuminuria (3mg/mmol) confirmed on 2 readings
 # this shows as NA if no second reading available to confirm - replace with NA
-cohort <- cohort %>% mutate(preacr_confirmed = ifelse(is.na(preacr_confirmed), F, preacr_confirmed))
+cohort <- cohort %>% mutate(preacr_confirmed = ifelse(is.na(preacr_confirmed), F, preacr_confirmed),
+                            preacr_confirmed = ifelse(uacr<3, F, preacr_confirmed))
 
 ########################2 MULTIPLE IMPUTATION####################################################################
 # 2 Impute missing data
@@ -176,7 +176,8 @@ meth[c("death_date", "preacr", "last_sglt2_stop", "preckdstage", "predrug_earlie
        "predrug_latest_beta_blockers", "predrug_latest_calcium_channel_blockers",
        "ethnicity_qrisk2", 
        "predrug_latest_thiazide_diuretics",
-       "ckd_egfr50_outcome_type", "preacr_confirmed")] <- ""
+       "ckd_egfr50_outcome_type", "preacr_confirmed", 
+       "preacr_previous", "preacr_previous_date", "preacr_next", "preacr_next_date")] <- ""
 
 meth[c("qrisk2_smoking_cat", "imd2015_10")] <- "polyreg"
 
@@ -201,7 +202,7 @@ outlist1 <- c("patid", "gp_record_end", "drugclass", "drugline_all", "ncurrtx",
               names(cohort)[grep("cens", names(cohort))], 
               "oha", "predrug_angina", "predrug_myocardialinfarction", "predrug_stroke", 
               "predrug_revasc", "predrug_heartfailure", "initiation_year", "ethnicity_5cat",
-              "ckd_egfr50_outcome_type", "preacr_confirmed")
+              "ckd_egfr50_outcome_type", "preacr_confirmed", "preacr_previous", "preacr_previous_date", "preacr_next", "preacr_next_date")
 
 #list variables with outflux <0.5 
 #outflux is an indicator of the potential usefulness for imputing other variables - 
@@ -413,7 +414,7 @@ temp <- temp %>% mutate(
   smoking_hx = ifelse(qrisk2_smoking_cat == 0, F, T),
   smoking_status = ifelse(qrisk2_smoking_cat == 0, "never", ifelse(qrisk2_smoking_cat == 1, "ex", "current")),
   albuminuria_unconfirmed = ifelse(uacr < 3, F, T),
-  albuminuria = preacr_confirmed,
+  albuminuria = preacr_confirmed,        # 
   dyslipidaemia = ifelse(pretotalcholesterol < 5 &
                            preldl < 4 &
                            pretriglyceride < 2.3, F, T),

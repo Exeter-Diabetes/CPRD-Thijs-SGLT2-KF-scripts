@@ -22,6 +22,9 @@ library(riskRegression)
 library(grid)
 library(gridExtra)
 library(dcurves)
+library(mgcv)
+library(ggpattern)
+library(ggsignif)
 
 options(dplyr.summarise.inform = FALSE)
 
@@ -40,7 +43,7 @@ n.quantiles <- 10
 n.bootstrap <- 500
 
 #today <- as.character(Sys.Date(), format="%Y%m%d")
-today <- "2024-11-22"
+today <- "2024-12-21"
 
 
 #write function to pool HRs from multiple imputations later on
@@ -103,24 +106,17 @@ vars <- c("dstartdate_age", "malesex", "ethnicity_5cat", "imd2015_10",          
           "pretriglyceride", "prehba1c",  "preegfr",
           "uacr", "albuminuria_unconfirmed", "albuminuria",
           "dstartdate_dm_dur_all", "smoking_status", "predrug_hypertension",   # comorbidities
-          "predrug_af", "predrug_dka", "genital_infection", "osteoporosis",
-          "predrug_acutepancreatitis", "predrug_falls",
-          "predrug_urinary_frequency", "predrug_volume_depletion",
-          "predrug_micturition_control", "predrug_dementia", "hosp_admission_prev_year",
+          "predrug_af", "predrug_dka", "genital_infection", "hosp_admission_prev_year",
           "initiation_year",
-          "ncurrtx", "statin", "MFN", "INS", "ACEi_or_ARB",                                   # medications
-          "cv_high_risk"                                     # CV risk
+          "ncurrtx", "statin", "INS", "ACEi_or_ARB"
           
 )
 
 #categorical variables
 factors <- c("malesex", "ethnicity_5cat", "imd2015_10", "albuminuria_unconfirmed", "albuminuria", 
              "smoking_status", "predrug_hypertension",
-             "predrug_af", "predrug_dka", "genital_infection", "osteoporosis", "predrug_acutepancreatitis",
-             "predrug_falls", "predrug_urinary_frequency", "predrug_volume_depletion",
-             "predrug_micturition_control", "predrug_dementia", "hosp_admission_prev_year",
+             "predrug_af", "predrug_dka", "genital_infection", "hosp_admission_prev_year",
              "initiation_year",
-             "ncurrtx", "statin", "MFN", "INS", "ACEi_or_ARB",
-             "cv_high_risk")
+             "ncurrtx", "statin", "INS", "ACEi_or_ARB")
 
 nonnormal <- c("uacr", "dstartdate_dm_dur_all")

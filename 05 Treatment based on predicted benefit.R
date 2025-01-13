@@ -22,9 +22,9 @@ cohort <- cohort %>%
 
 print(paste0("Overall median pARR: ", sprintf("%.2f", median(cohort$ckdpc_50egfr_sglt2i_benefit*100)), "% (IQR ", sprintf("%.2f", quantile(cohort$ckdpc_50egfr_sglt2i_benefit*100, 0.25)), "-", sprintf("%.2f", quantile(cohort$ckdpc_50egfr_sglt2i_benefit*100, 0.75)), ")"))
 
-print(paste0("Albuminuria <3mg/mmol median pARR: ", sprintf("%.2f", median(cohort[cohort$preacr_confirmed == F,]$ckdpc_50egfr_sglt2i_benefit*100)), "% (IQR ", sprintf("%.2f", quantile(cohort[cohort$preacr_confirmed == F,]$ckdpc_50egfr_sglt2i_benefit*100, 0.25)), "-", sprintf("%.2f", quantile(cohort[cohort$preacr_confirmed == F,]$ckdpc_50egfr_sglt2i_benefit*100, 0.75)), ")"))
+print(paste0("Albuminuria <3mg/mmol median pARR: ", sprintf("%.2f", median(cohort[cohort$albuminuria == F,]$ckdpc_50egfr_sglt2i_benefit*100)), "% (IQR ", sprintf("%.2f", quantile(cohort[cohort$albuminuria == F,]$ckdpc_50egfr_sglt2i_benefit*100, 0.25)), "-", sprintf("%.2f", quantile(cohort[cohort$albuminuria == F,]$ckdpc_50egfr_sglt2i_benefit*100, 0.75)), ")"))
 
-print(paste0("Albuminuria ≥3mg/mmol median pARR: ", sprintf("%.2f", median(cohort[cohort$preacr_confirmed == T,]$ckdpc_50egfr_sglt2i_benefit*100)), "% (IQR ", sprintf("%.2f", quantile(cohort[cohort$preacr_confirmed == T,]$ckdpc_50egfr_sglt2i_benefit*100, 0.25)), "-", sprintf("%.2f", quantile(cohort[cohort$preacr_confirmed == T,]$ckdpc_50egfr_sglt2i_benefit*100, 0.75)), ")"))
+print(paste0("Albuminuria ≥3mg/mmol median pARR: ", sprintf("%.2f", median(cohort[cohort$albuminuria == T,]$ckdpc_50egfr_sglt2i_benefit*100)), "% (IQR ", sprintf("%.2f", quantile(cohort[cohort$albuminuria == T,]$ckdpc_50egfr_sglt2i_benefit*100, 0.25)), "-", sprintf("%.2f", quantile(cohort[cohort$albuminuria == T,]$ckdpc_50egfr_sglt2i_benefit*100, 0.75)), ")"))
 
 ## consider following methods to define cut-off:
 # 1 Strategy A: choose cut-off that matches treatment proportion of guidelines but improves outcomes through better-targeted treatment
@@ -36,22 +36,20 @@ cutoff1 <- cohort %>% .$ckdpc_50egfr_sglt2i_benefit %>% quantile(
 cutoff1_equivalent_50egfr_score <- cohort  %>% .$ckdpc_50egfr_score %>% quantile( 
   1 - (cohort %>% filter(albuminuria == T) %>% nrow() / cohort  %>% nrow())) %>% as.numeric()
 
-cutoff2 <- cohort %>% .$ckdpc_50egfr_sglt2i_benefit %>% quantile(0.90) %>% as.numeric()
-
-cutoff2_equivalent_50egfr_score <- cohort %>% .$ckdpc_50egfr_score %>% quantile(0.90) %>% as.numeric()
-
 cohort <- cohort %>% mutate(
   treat_guideline = ifelse(albuminuria == F, F, T),                          # everyone current guidelines recommend treating (uACR cutoff)
-  treat_model1 = ifelse(ckdpc_50egfr_sglt2i_benefit > cutoff1, T, F),        # strategy A (matching uACR treatment proportion)
-  treat_model2 = ifelse(ckdpc_50egfr_sglt2i_benefit > cutoff2, T, F),        # strategy B (top 10%)
-)
+  treat_model1 = ifelse(ckdpc_50egfr_sglt2i_benefit > cutoff1, T, F),        # pARR strategy (matching uACR treatment proportion)
+  recommendation_group = ifelse(treat_guideline == F,
+                                ifelse(treat_model1 == F, "GN_MN", "GN_MY"),
+                                ifelse(treat_model1 == F, "GY_MN", "GY_MY"))
+  )
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/output/")
 #my computer is set to continental settings, therefore I am using write.csv2 instead of write.csv
 
 vars <- c(vars, "studydrug2")
 factors <- c(factors, "studydrug2")
-table3 <- CreateTableOne(vars = vars, strata = "treat_model1", data = cohort,
+table3 <- CreateTableOne(vars = vars, strata = "recommendation_group", data = cohort,
                         factorVars = factors, test = F)
 
 tabforprint3 <- print(table3, nonnormal = nonnormal, quote = FALSE, noSpaces = TRUE, printToggle = T)
@@ -121,7 +119,7 @@ contrast_spline <- contrast(final_model,
 contrast_spline_df <- as.data.frame(contrast_spline[c('ckdpc_50egfr_score','Contrast','Lower','Upper')])
 # plot
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Output/")
-tiff(paste0(today, "_HR_by_ckd_egfr50_risk.tiff"), width=10, height=4, units = "in", res=800) 
+tiff(paste0(today, "_HR_by_ckd_egfr50_risk.tiff"), width=14, height=4, units = "in", res=800) 
 ggplot(data=contrast_spline_df, aes(x=ckdpc_50egfr_score, y=exp(Contrast))) +
   geom_line(data=contrast_spline_df,aes(x=ckdpc_50egfr_score, y=exp(Contrast)), size=1) +
   xlab(expression(paste("Predicted 3-year risk of kidney disease progression"))) +
@@ -157,26 +155,68 @@ options(datadist = NULL)
 ############################3 EVALUATE OBSERVED BENEFIT DISTRIBUTION/CALIBRATION################################################################
 
 ## FIGURE 2A: histogram of predicted benefit
-benefit_histogram <- ggplot(cohort %>%
-                      mutate(predicted_benefit_percent = ckdpc_50egfr_sglt2i_benefit * 100), 
-                    aes(x = predicted_benefit_percent)) +
+benefit_histogram_noalb <- ggplot(cohort %>% filter(albuminuria == F) %>%
+                                    mutate(predicted_benefit_percent = ckdpc_50egfr_sglt2i_benefit * 100), 
+                                  aes(x = predicted_benefit_percent)) +
   geom_histogram(aes(y = ..count.. / n.imp, fill = predicted_benefit_percent > cutoff1*100),
                  binwidth = 0.02, color = "black") +  # Adjust binwidth as necessary
   scale_fill_manual(values = c("TRUE" = "#E69F00", "FALSE" = "grey")) +
   geom_vline(xintercept = cutoff1*100, linetype = "dashed", color = "black", size = 1) +
-#  geom_vline(xintercept = cutoff2*100, linetype = "dashed", color = "black", size = 1) +
-
-  annotate("text", x = cutoff1*100, y = Inf, label = "pARR threshold", vjust = -0.5, hjust = 1.1, angle = 90, size = 4, color = "black") +
+  #  geom_vline(xintercept = cutoff2*100, linetype = "dashed", color = "black", size = 1) +
+  annotate("text", x = 2.5, y = 5000, label = paste0("Albuminuria <3mg/mmol\n(n=",nrow(cohort %>% filter(albuminuria == F))/n.imp,")"), vjust = 0, hjust = 1.1, angle = 0, size = 4, color = "black") +
+  annotate("text", x = cutoff1*100, y = Inf, label = "pARR threshold", vjust = 1.3, hjust = 1.0, angle = 90, size = 4, color = "black") +
   #  annotate("text", x = cutoff1*100, y = Inf, label = "pARR threshold A", vjust = -0.5, hjust = 1.1, angle = 90, size = 4, color = "black") +
   #  annotate("text", x = cutoff2*100, y = Inf, label = "pARR threshold B", vjust = -0.5, hjust = 1.1, angle = 90, size = 4, color = "black") +
-
-  labs(x = "Predicted absolute risk reduction with SGLT2i (%)", y = "Frequency") +
-  theme_minimal() +
+  
+  labs(x = "", y = "Frequency") +
+  theme_minimal() +  # Start with a clean base theme
+  theme(
+    # Remove panel border (default borders around the plot area)
+    panel.border = element_blank(),
+    
+    # Add custom axis lines
+    axis.line = element_line(color = "black", size = 0.5), # General axis line style
+    
+    # Remove top and right axes lines
+    axis.line.x.top = element_blank(),    # No line on the top
+    axis.line.y.right = element_blank()   # No line on the right
+  ) +
   theme(legend.position = "none") + 
-  coord_cartesian(xlim=c(0,2.5))
+  coord_cartesian(xlim=c(0,2.5), ylim=c(0,7500), expand = F)
+
+benefit_histogram_microalb <- ggplot(cohort %>% filter(albuminuria == T) %>%
+                                    mutate(predicted_benefit_percent = ckdpc_50egfr_sglt2i_benefit * 100), 
+                                  aes(x = predicted_benefit_percent)) +
+  geom_histogram(aes(y = ..count.. / n.imp, fill = predicted_benefit_percent > cutoff1*100),
+                 binwidth = 0.02, color = "black") +  # Adjust binwidth as necessary
+  scale_fill_manual(values = c("TRUE" = "#E69F00", "FALSE" = "grey")) +
+  geom_vline(xintercept = cutoff1*100, linetype = "dashed", color = "black", size = 1) +
+  #  geom_vline(xintercept = cutoff2*100, linetype = "dashed", color = "black", size = 1) +
+  annotate("text", x = 2.5, y = 500, label = paste0("Albuminuria ≥3mg/mmol\n(n=",nrow(cohort %>% filter(albuminuria == T))/n.imp,")"), vjust = 0, hjust = 1.1, angle = 0, size = 4, color = "black") +
+  annotate("text", x = cutoff1*100, y = Inf, label = "", vjust = 0, hjust = 0, angle = 90, size = 4, color = "black") +
+  #  annotate("text", x = cutoff1*100, y = Inf, label = "pARR threshold A", vjust = -0.5, hjust = 1.1, angle = 90, size = 4, color = "black") +
+  #  annotate("text", x = cutoff2*100, y = Inf, label = "pARR threshold B", vjust = -0.5, hjust = 1.1, angle = 90, size = 4, color = "black") +
+  
+  labs(x = "Predicted absolute risk reduction with SGLT2i (%)", y = "Frequency") +
+  theme_minimal() +  # Start with a clean base theme
+  theme(
+    # Remove panel border (default borders around the plot area)
+    panel.border = element_blank(),
+    
+    # Add custom axis lines
+    axis.line = element_line(color = "black", size = 0.5), # General axis line style
+    
+    # Remove top and right axes lines
+    axis.line.x.top = element_blank(),    # No line on the top
+    axis.line.y.right = element_blank()   # No line on the right
+  ) +
+  theme(legend.position = "none") + 
+  coord_cartesian(xlim=c(0,2.5), ylim = c(0,750), expand = F)
+
+benefit_histogram <- benefit_histogram_noalb / benefit_histogram_microalb
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Output/")
-tiff(paste0(today, "_predicted_benefit_histogram.tiff"), width=6, height=3.75, units = "in", res=800) 
+tiff(paste0(today, "_predicted_benefit_histogram.tiff"), width=6, height=4, units = "in", res=800) 
 benefit_histogram
 dev.off()
 
@@ -326,73 +366,134 @@ options(datadist=NULL)
 
 cohort1 <- rbind(cohort_guideline_N_model_N, cohort_guideline_Y_model_N, cohort_guideline_N_model_Y, cohort_guideline_Y_model_Y)
 
-for (i in levels(as.factor(cohort1$subgp))) {
+# Initialize a list to store pooled results
+pooled_results <- list()
+
+# Loop through imputations
+for (imp in unique(cohort1$.imp)) {
+  cohort_imp <- cohort1 %>% filter(.imp == imp)
   
-  print(i)
-  
-  for (m in levels(as.factor(cohort1$studydrug2))) {
+  for (i in levels(as.factor(cohort_imp$subgp))) {
+    print(i)
     
-    df_name <- paste0("df_", m)
+    for (m in levels(as.factor(cohort_imp$studydrug2))) {
+      df_name <- paste0("df_", m)
+      
+      fit <- survfit(Surv(ckd_egfr50_5y_censtime_yrs, ckd_egfr50_5y_censvar) ~ 1, 
+                     data = cohort_imp %>% filter(subgp == i & studydrug2 == m), 
+                     weights = cohort_imp %>% filter(subgp == i & studydrug2 == m) %>% .$overlap_bygroup)
+      
+      df <- data.frame(time = fit$time, surv = fit$surv, std.err = fit$std.err)
+      df <- rbind(data.frame(time = 0, surv = 1, std.err = 0), df) # Add row for t=0
+      
+      assign(df_name, df)
+    }
     
-    fit <- survfit(Surv(ckd_egfr50_5y_censtime_yrs, ckd_egfr50_5y_censvar) ~ 1, 
-                   data = cohort1 %>% filter(subgp == i & studydrug2 == m), 
-                   weights = cohort1 %>% filter(subgp == i & studydrug2 == m) %>% .$overlap_bygroup)
+    df_diff_name <- paste0("df_diff_", i)
     
-    df <- data.frame(time = fit$time, surv = fit$surv, std.err = fit$std.err)
+    df_diff <- merge(df_SGLT2i, `df_DPP4i/SU`, by = "time", suffixes = c("_SGLT2i", "_DPP4i/SU"))
+    df_diff <- df_diff %>% mutate(
+      difference = ifelse(time == 0, 0, surv_SGLT2i - `surv_DPP4i/SU`),
+      se_difference = sqrt(std.err_SGLT2i^2 + `std.err_DPP4i/SU`^2),
+      lower_ci = ifelse(time == 0, 0, difference - 1.96 * se_difference),
+      upper_ci = ifelse(time == 0, 0, difference + 1.96 * se_difference),
+      subgp = i
+    )
     
-    assign(df_name, df)
+    df_diff$.imp <- imp  # Add imputation identifier
+    pooled_results[[paste0(i, "_", imp)]] <- df_diff
   }
-  
-  df_diff_name <- paste0("df_diff_", i)
-  
-  df_diff <- merge(df_SGLT2i, `df_DPP4i/SU`, by = "time", suffixes = c("_SGLT2i", "_DPP4i/SU"))
-  
-  df_diff <- df_diff %>% mutate(
-    difference = surv_SGLT2i - `surv_DPP4i/SU`,
-    se_difference = sqrt(std.err_SGLT2i^2 + `std.err_DPP4i/SU`^2),
-    lower_ci = difference - 1.96 * se_difference,
-    upper_ci = difference + 1.96 * se_difference,
-    subgp = i,
-    smoothed_diff = loess(difference ~ time, data = df_diff, span = 1)$fitted,
-    smoothed_lower_ci = loess(lower_ci ~ time, data = df_diff, span = 1)$fitted,
-    smoothed_upper_ci = loess(upper_ci ~ time, data = df_diff, span = 1)$fitted
-  )
-  
-  assign(df_diff_name, df_diff)
 }
 
-df_combined <- rbind(df_diff_guideline_N_model_N, df_diff_guideline_Y_model_N, df_diff_guideline_N_model_Y, df_diff_guideline_Y_model_Y) 
-df_combined <- df_combined %>% mutate(
-  subgp_label = ifelse(subgp == "guideline_N_model_N", paste0("Albuminuria <3mg/mmol, model does not recommend (n=", round(nrow(cohort_guideline_N_model_N)/n.imp), ")"), 
-                       ifelse(subgp == "guideline_Y_model_N", paste0("Albuminuria ≥3mg/mmol, model does not recommend (n=", round(nrow(cohort_guideline_Y_model_N)/n.imp), ")"),
-                              ifelse(subgp == "guideline_Y_model_Y", paste0("Model recommends SGLT2i, albuminuria ≥3mg/mmol (n=", round(nrow(cohort_guideline_Y_model_Y)/n.imp), ")"),
-                                     paste0("Model recommends SGLT2i, albuminuria <3mg/mmol (n=", round(nrow(cohort_guideline_N_model_Y)/n.imp), ")")
-                              ))
-  ),
-  subgp_label = factor(subgp_label, levels = c(
-    paste0("Model recommends SGLT2i, albuminuria ≥3mg/mmol (n=", round(nrow(cohort_guideline_Y_model_Y)/n.imp), ")"),
-    paste0("Model recommends SGLT2i, albuminuria <3mg/mmol (n=", round(nrow(cohort_guideline_N_model_Y)/n.imp), ")"),
-    paste0("Albuminuria ≥3mg/mmol, model does not recommend (n=", round(nrow(cohort_guideline_Y_model_N)/n.imp), ")"),    
-    paste0("Albuminuria <3mg/mmol, model does not recommend (n=", round(nrow(cohort_guideline_N_model_N)/n.imp), ")")
-  )))
+# Combine all results across imputations
+pooled_data <- bind_rows(pooled_results)
 
+# Pool the results by averaging across imputations
+pooled_summary <- pooled_data %>%
+  group_by(subgp, time) %>%
+  summarise(
+    pooled_difference = mean(difference, na.rm = TRUE),
+    pooled_se = sqrt(mean(se_difference^2, na.rm = TRUE)),
+    pooled_lower_ci = pooled_difference - 1.96 * pooled_se,
+    pooled_upper_ci = pooled_difference + 1.96 * pooled_se
+  ) %>%
+  mutate(
+    subgp_label = case_when(
+      subgp == "guideline_N_model_N" ~ paste0(
+        "Albuminuria <3mg/mmol, model does not recommend (n=", 
+        if (nrow(cohort_guideline_N_model_N) %% 10 == 5) {round(nrow(cohort_guideline_N_model_N) / n.imp) - 1} 
+        else {round(nrow(cohort_guideline_N_model_N) / n.imp)}, 
+        ")"
+      ),
+      subgp == "guideline_Y_model_N" ~ paste0(
+        "Albuminuria ≥3mg/mmol, model does not recommend (n=", 
+        if (nrow(cohort_guideline_Y_model_N) %% 10 == 5) {round(nrow(cohort_guideline_Y_model_N) / n.imp) - 1} 
+        else {round(nrow(cohort_guideline_Y_model_N) / n.imp)}, 
+        ")"
+      ),
+      subgp == "guideline_Y_model_Y" ~ paste0(
+        "Model recommends SGLT2i, albuminuria ≥3mg/mmol (n=", 
+        round(nrow(cohort_guideline_Y_model_Y) / n.imp), 
+        ")"
+      ),
+      subgp == "guideline_N_model_Y" ~ paste0(
+        "Model recommends SGLT2i, albuminuria <3mg/mmol (n=", 
+        round(nrow(cohort_guideline_N_model_Y) / n.imp), 
+        ")"
+      )
+    ),
+    subgp_label = factor(
+      subgp_label, 
+      levels = c(
+        paste0("Model recommends SGLT2i, albuminuria ≥3mg/mmol (n=", round(nrow(cohort_guideline_Y_model_Y) / n.imp), ")"),
+        paste0("Model recommends SGLT2i, albuminuria <3mg/mmol (n=", round(nrow(cohort_guideline_N_model_Y) / n.imp), ")"),
+        paste0("Albuminuria ≥3mg/mmol, model does not recommend (n=", 
+               if (nrow(cohort_guideline_Y_model_N) %% 10 == 5) {round(nrow(cohort_guideline_Y_model_N) / n.imp) - 1} 
+               else {round(nrow(cohort_guideline_Y_model_N) / n.imp)}, ")"),
+        paste0("Albuminuria <3mg/mmol, model does not recommend (n=", 
+               if (nrow(cohort_guideline_N_model_N) %% 10 == 5) {round(nrow(cohort_guideline_N_model_N) / n.imp) - 1} 
+               else {round(nrow(cohort_guideline_N_model_N) / n.imp)}, ")")
+      )
+    )
+  )
 
+# Split data by subgp
+pooled_summary_split <- pooled_summary %>% group_split(subgp)
+
+# Apply GAM smoothing for each subgroup
+smoothed_results <- lapply(pooled_summary_split, function(data) {
+  loess_diff <- loess(pooled_difference ~ time, data = data, span = 0.1)
+  loess_lower <- loess(pooled_lower_ci ~ time, data = data, span = 0.1)
+  loess_upper <- loess(pooled_upper_ci ~ time, data = data, span = 0.1)
+  
+  data %>%
+    mutate(
+      smoothed_diff = predict(loess_diff, newdata = data),
+      smoothed_lower_ci = predict(loess_lower, newdata = data),
+      smoothed_upper_ci = predict(loess_upper, newdata = data)
+    )
+})
+
+# Combine the smoothed results back into one dataframe
+df_combined <- bind_rows(smoothed_results)
 
 # plot
 ci_plot <- df_combined %>% ggplot(aes(x = time, y = smoothed_diff*100, color = subgp_label)) +
   geom_line(size = 1) +
   geom_ribbon(aes(ymin = smoothed_lower_ci*100, ymax = smoothed_upper_ci*100, fill = subgp_label), alpha = 0.2, color = NA) +
   labs(#title = "Kidney protection benefit by SGLT2i treatment recommendation",
-       x = "Time (years)",
-       y = "Absolute risk reduction in kidney disease progression") +
+    x = "Time (years)",
+    y = "Observed ARR in kidney disease progression") +
   theme_bw(base_size = 16) +
-  scale_color_manual(values = c("#D55E00", "#E69F00", "#56B4E9", "#0072B2")) +
-  scale_fill_manual(values = c("#D55E00", "#E69F00", "#56B4E9", "#0072B2")) +
+  scale_color_manual(values = c("#D55E00", "#E69F00", "grey40", "grey15")) +
+  scale_fill_manual(values = c("#D55E00", "#E69F00", "grey40", "grey15")) +
   scale_y_continuous(labels = scales::percent_format(scale = 1)) +
   theme(legend.position = c(0.44, 0.875), 
         legend.background = element_rect(fill = "white", color = "black"),
         legend.title = element_blank()) +
   coord_cartesian(ylim = c(0,3.5), xlim = c(0, 4.8))
+
+
 
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Output/")
@@ -401,54 +502,75 @@ ci_plot
 dev.off()
 
 arr_data <- data.frame(
-  stratum = c(    
-    "Albuminuria <3mg/mmol, model does not recommend",
-    "Albuminuria ≥3mg/mmol, model does not recommend",
-    "Model recommends SGLT2i, albuminuria <3mg/mmol",
-    "Model recommends SGLT2i, albuminuria ≥3mg/mmol"
-  ),
+  stratum = c(
+    paste0("pARR below threshold (n=", if (nrow(cohort_guideline_N_model_N) %% 10 == 5) {round(nrow(cohort_guideline_N_model_N)/n.imp)-1} else {round(nrow(cohort_guideline_N_model_N)/n.imp)}, ")"),
+    paste0("pARR above threshold (n=", round(nrow(cohort_guideline_N_model_Y)/n.imp), ")"),  
+    paste0("pARR below threshold (n=", if (nrow(cohort_guideline_Y_model_N) %% 10 == 5) {round(nrow(cohort_guideline_Y_model_N)/n.imp)-1} else {round(nrow(cohort_guideline_Y_model_N)/n.imp)}, ")"), 
+    paste0("pARR above threshold (n=", round(nrow(cohort_guideline_Y_model_Y)/n.imp), ")")
+    ),
+  guideline = c(F, F, T, T),
+  model = c(F, T, F, T),
   ARR = c(
-    arr_guideline_N_model_N,
-    arr_guideline_Y_model_N,
-    arr_guideline_N_model_Y,
-    arr_guideline_Y_model_Y
+    df_combined[df_combined$subgp == "guideline_N_model_N" & df_combined$time == 5,]$smoothed_diff * 100,
+    df_combined[df_combined$subgp == "guideline_N_model_Y" & df_combined$time == 5,]$smoothed_diff * 100,
+    df_combined[df_combined$subgp == "guideline_Y_model_N" & df_combined$time == 5,]$smoothed_diff * 100,
+    df_combined[df_combined$subgp == "guideline_Y_model_Y" & df_combined$time == 5,]$smoothed_diff * 100
   ),
-  SE = c(
-    se_guideline_N_model_N_ARR,
-    se_guideline_Y_model_N_ARR,
-    se_guideline_N_model_Y_ARR,
-    se_guideline_Y_model_Y_ARR
+  upper_bound = c(
+    df_combined[df_combined$subgp == "guideline_N_model_N" & df_combined$time == 5,]$smoothed_upper_ci * 100,
+    df_combined[df_combined$subgp == "guideline_N_model_Y" & df_combined$time == 5,]$smoothed_upper_ci * 100,
+    df_combined[df_combined$subgp == "guideline_Y_model_N" & df_combined$time == 5,]$smoothed_upper_ci * 100,
+    df_combined[df_combined$subgp == "guideline_Y_model_Y" & df_combined$time == 5,]$smoothed_upper_ci * 100
+  ),
+  lower_bound = c(
+    df_combined[df_combined$subgp == "guideline_N_model_N" & df_combined$time == 5,]$smoothed_lower_ci * 100,
+    df_combined[df_combined$subgp == "guideline_N_model_Y" & df_combined$time == 5,]$smoothed_lower_ci * 100,
+    df_combined[df_combined$subgp == "guideline_Y_model_N" & df_combined$time == 5,]$smoothed_lower_ci * 100,
+    df_combined[df_combined$subgp == "guideline_Y_model_Y" & df_combined$time == 5,]$smoothed_lower_ci * 100
   )
 )
 
 arr_data <- arr_data %>% mutate(
-  stratum = factor(stratum, levels = c(    
-    "Albuminuria <3mg/mmol, model does not recommend",
-    "Albuminuria ≥3mg/mmol, model does not recommend",
-    "Model recommends SGLT2i, albuminuria <3mg/mmol",
-    "Model recommends SGLT2i, albuminuria ≥3mg/mmol"
-  )),
-  lower_bound = ARR - SE,
-  upper_bound = ARR + SE)
+  stratum = factor(stratum, levels = c(
+    paste0("pARR above threshold (n=", round(nrow(cohort_guideline_Y_model_Y)/n.imp), ")"),
+    
+    paste0("pARR below threshold (n=", if (nrow(cohort_guideline_Y_model_N) %% 10 == 5) {round(nrow(cohort_guideline_Y_model_N)/n.imp)-1} else {round(nrow(cohort_guideline_Y_model_N)/n.imp)}, ")"), 
+    
+    paste0("pARR above threshold (n=", round(nrow(cohort_guideline_N_model_Y)/n.imp), ")"),  
+    
+    paste0("pARR below threshold (n=", if (nrow(cohort_guideline_N_model_N) %% 10 == 5) {round(nrow(cohort_guideline_N_model_N)/n.imp)-1} else {round(nrow(cohort_guideline_N_model_N)/n.imp)}, ")")
+  ))
+)
+# calculate p-value for comparison between two groups with normal albuminuria based on pARR
 
+# calculate difference in (smoothed) estimates
+diff <- (arr_data[1,]$ARR - arr_data[2,]$ARR)
+se_diff <- sqrt(((arr_data[1,]$upper_bound - arr_data[1,]$lower_bound)/(2*1.96))^2 + ((arr_data[2,]$upper_bound - arr_data[2,]$lower_bound)/(2*1.96))^2)
+p_value_comparison <- 2*(1-pnorm(abs(diff/se_diff)))
 
-bar_plot <- ggplot(arr_data, aes(x = stratum, y = ARR, fill = stratum)) +
-  geom_bar(stat = "identity", width = 0.7, color = "black") +  
+bar_plot <- ggplot(arr_data, aes(x = stratum, y = ARR, color = stratum, fill = model, pattern = guideline)) +
+  geom_bar_pattern(stat = "identity", width = 0.7, color = "black",
+                   pattern_fill = "white", pattern_angle = 45, pattern_density = 0.6, pattern_spacing = 0.04, pattern_key_scale_factor = 0.6) +  
   labs(
     #   title = "5-year observed kidney protection benefit",
     x = "",
-    y = "5-year absolute risk reduction in kidney disease progression         "
+    y = "5-year observed ARR in kidney disease progression         "
   ) +
   geom_errorbar(aes(ymin = lower_bound, ymax = upper_bound), width = 0.2, color = "black") +
   scale_x_discrete(labels = function(x) str_wrap(x, width = 20)) +
-  scale_y_continuous(labels = scales::percent_format(scale = 1)) +
+  scale_y_continuous(labels = scales::percent_format(scale = 1), breaks = seq(0,6,1), limits = c(0,5.75)) +
   theme_bw(base_size = 16) +  # Adjust font size
   theme(
     axis.text.x = element_text(hjust = 1), 
     legend.position = "none",
     plot.margin = margin(t = 10, r = 20, b = 10, l = 10)
   ) +
-  scale_fill_manual(values = c("#0072B2", "#56B4E9", "#E69F00", "#D55E00"))  + 
+  scale_fill_manual(values = c("grey", "#E69F00", "grey", "#E69F00"))  + 
+  scale_pattern_manual(values = c("stripe", "none")) +
+  geom_signif(stat="signif",position="identity",
+              comparisons=list(c(paste0("pARR above threshold (n=", round(nrow(cohort_guideline_N_model_Y)/n.imp), ")"),  
+                                 paste0("pARR below threshold (n=", if (nrow(cohort_guideline_N_model_N) %% 10 == 5) {round(nrow(cohort_guideline_N_model_N)/n.imp)-1} else {round(nrow(cohort_guideline_N_model_N)/n.imp)}, ")")
+              )),map_signif_level = TRUE,annotations="*", colour = "black", size = 0.75, textsize = 5, margin_top = 0.075) +
   coord_flip()
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Output/")
@@ -492,64 +614,82 @@ dev.off()
 # 
 # 
 # 
-# options(datadist=NULL)
+ options(datadist=NULL)
 
 ############################5 NUMBERS TREATED AND EVENTS AVOIDED################################################################
 
-### predicted data at 3 years:
-#No treatment
-describe(cohort$ckdpc_50egfr_score) #
-#estimated number of events with no one treated
-ckd.notx <- round(nrow(cohort)*mean(cohort$ckdpc_50egfr_score/100)) 
-
-#Treat all
-describe(1-cohort$ckdpc_50egfr_survival_sglt2i) #
-#estimated number of events with everyone treated
-ckd.tx_all <- round(nrow(cohort)*mean(1-cohort$ckdpc_50egfr_survival_sglt2i)) 
-
-
-#Treat as per guideline recommendations
-describe(cohort$treat_guideline)
-cohort <- cohort %>% mutate(ckdpc_50egfr_score.applied.guideline = 
-                              ifelse(treat_guideline == F ,
-                                     ckdpc_50egfr_score, 100*(1-cohort$ckdpc_50egfr_survival_sglt2i)))
-#estimated number of events with treatment as per guidelines
-ckd.tx.guideline <- round(nrow(cohort)*mean(cohort$ckdpc_50egfr_score.applied.guideline/100)) 
-
-
-#Treat as per strategy A
-describe(cohort$treat_model1)
-cohort <- cohort %>% mutate(ckdpc_50egfr_score.applied.model1 = 
-                              ifelse(treat_model1 == F, 
-                                     ckdpc_50egfr_score, 100*(1-cohort$ckdpc_50egfr_survival_sglt2i)))
-#estimated number of events with treatment as per model 1
-ckd.tx.model1 <- round(nrow(cohort)*mean(cohort$ckdpc_50egfr_score.applied.model1/100)) 
-
-
-
-print(paste0(c("Number of people treated if no one treated: 0 (0%)")))
-print(paste0(c("Number of events if no one treated: ", round(ckd.notx/n.imp), " (", round(100*ckd.notx/nrow(cohort), 1), "%)"), collapse = ""))
-
-print(paste0(c("Number of people treated with treat-everyone strategy: ", round(nrow(cohort)/n.imp), " (", round(nrow(cohort)/nrow(cohort)*100,1), "%)"), collapse = ""))
-print(paste0(c("Number of events with treat-everyone strategy: ", round(ckd.tx_all/n.imp), " (", round(100*(ckd.tx_all/nrow(cohort)),1), "%)"), collapse = ""))
-print(paste0(c("Number of events avoided with treat-everyone strategy: ", round((ckd.notx - ckd.tx_all)/n.imp), " (", round((ckd.tx_all-ckd.notx)/(ckd.tx_all-ckd.notx)*100,1), "%)"), collapse = ""))
-print(paste0(c("NNT with treat-everyone strategy: ", round(1/(mean(cohort$ckdpc_50egfr_score/100)-mean(1-cohort$ckdpc_50egfr_survival_sglt2i)))), collapse = ""))
-
-print(paste0(c("Number of people treated with guideline treatment strategy: ", round(nrow(cohort[cohort$treat_guideline == T,])/n.imp), " (", round(nrow(cohort[cohort$treat_guideline == T,])/nrow(cohort)*100,1), "%)"), collapse = ""))
-print(paste0(c("Number of events with guideline treatment strategy: ", round(ckd.tx.guideline/n.imp), " (", round(100*(ckd.tx.guideline/nrow(cohort)),1), "%)"), collapse = ""))
-print(paste0(c("Number of events avoided with guideline treatment strategy: ", round(abs(ckd.tx.guideline-ckd.notx)/n.imp), " (", round((ckd.tx.guideline-ckd.notx)/(ckd.tx_all-ckd.notx)*100,1), "%)"), collapse = ""))
-print(paste0(c("NNT with guideline treatment strategy: ", 
-               round(1/(mean(cohort[cohort$treat_guideline == T,]$ckdpc_50egfr_score/100) - 
-                          mean(cohort[cohort$treat_guideline == T,]$ckdpc_50egfr_score.applied.guideline/100)))), collapse = ""))
-
-print(paste0(c("Number of people treated with pARR strategy: ", round(nrow(cohort[cohort$treat_model1 == T,])/n.imp), " (", round(nrow(cohort[cohort$treat_model1 == T,])/nrow(cohort)*100,1), "%)"), collapse = ""))
-print(paste0(c("Number of events with pARR strategy: ", round(ckd.tx.model1/n.imp), " (", round(100*(ckd.tx.model1/nrow(cohort)),1), "%)"), collapse = ""))
-print(paste0(c("Number of events avoided with pARR strategy: ", round(abs(ckd.tx.model1-ckd.notx)/n.imp), " (", round((ckd.tx.model1-ckd.notx)/(ckd.tx_all-ckd.notx)*100,1), "%)"), collapse = ""))
-print(paste0(c("NNT with pARR strategy: ", 
-               round(1/(mean(cohort[cohort$treat_model1 == T,]$ckdpc_50egfr_score/100) - 
-                          mean(cohort[cohort$treat_model1 == T,]$ckdpc_50egfr_score.applied.model1/100)))), collapse = ""))
-
-
+ 
+ ### predicted data at 3 years:
+ #No treatment
+ # describe(cohort$ckdpc_50egfr_score) #
+ #estimated number of events with no one treated
+ ckd.notx <- round(nrow(cohort)*mean(cohort$ckdpc_50egfr_score/100)) 
+ 
+ #Treat all
+ # describe(1-cohort$ckdpc_50egfr_survival_sglt2i) #
+ #estimated number of events with everyone treated
+ ckd.tx_all <- round(nrow(cohort)*mean(1-cohort$ckdpc_50egfr_survival_sglt2i)) 
+ 
+ 
+ #Treat as per guideline recommendations
+ # describe(cohort$treat_guideline)
+ cohort <- cohort %>% mutate(ckdpc_50egfr_score.applied.guideline = 
+                               ifelse(treat_guideline == F ,
+                                      ckdpc_50egfr_score, 100*(1-cohort$ckdpc_50egfr_survival_sglt2i)))
+ #estimated number of events with treatment as per guidelines
+ ckd.tx.guideline <- round(nrow(cohort)*mean(cohort$ckdpc_50egfr_score.applied.guideline/100)) 
+ 
+ #Treat as per guideline recommendations
+ # describe(cohort$treat_guideline2)
+ cohort <- cohort %>% mutate(ckdpc_50egfr_score.applied.guideline2 = 
+                               ifelse(treat_guideline2 == F ,
+                                      ckdpc_50egfr_score, 100*(1-cohort$ckdpc_50egfr_survival_sglt2i)))
+ #estimated number of events with treatment as per guidelines
+ ckd.tx.guideline2 <- round(nrow(cohort)*mean(cohort$ckdpc_50egfr_score.applied.guideline2/100)) 
+ 
+ 
+ 
+ #Treat as per pARR strategy
+ # describe(cohort$treat_model1)
+ cohort <- cohort %>% mutate(ckdpc_50egfr_score.applied.model1 = 
+                               ifelse(treat_model1 == F, 
+                                      ckdpc_50egfr_score, 100*(1-cohort$ckdpc_50egfr_survival_sglt2i)))
+ #estimated number of events with treatment as per model 1
+ ckd.tx.model1 <- round(nrow(cohort)*mean(cohort$ckdpc_50egfr_score.applied.model1/100)) 
+ 
+ 
+ 
+ print(paste0(c("Number of people treated if no one treated: 0 (0%)")))
+ print(paste0(c("Number of events if no one treated: ", round(ckd.notx/n.imp), " (", round(100*ckd.notx/nrow(cohort), 1), "%)"), collapse = ""))
+ 
+ print(paste0(c("Number of people treated with treat-everyone strategy: ", round(nrow(cohort)/n.imp), " (", round(nrow(cohort)/nrow(cohort)*100,1), "%)"), collapse = ""))
+ print(paste0(c("Number of events with treat-everyone strategy: ", round(ckd.tx_all/n.imp), " (", round(100*(ckd.tx_all/nrow(cohort)),1), "%)"), collapse = ""))
+ print(paste0(c("Number of events avoided with treat-everyone strategy: ", round((ckd.notx - ckd.tx_all)/n.imp), " (", round((ckd.tx_all-ckd.notx)/(ckd.tx_all-ckd.notx)*100,1), "%)"), collapse = ""))
+ print(paste0(c("NNT with treat-everyone strategy: ", round(1/(mean(cohort$ckdpc_50egfr_score/100)-mean(1-cohort$ckdpc_50egfr_survival_sglt2i)))), collapse = ""))
+ 
+ print(paste0(c("Number of people treated with guideline treatment strategy: ", round(nrow(cohort[cohort$treat_guideline == T,])/n.imp), " (", round(nrow(cohort[cohort$treat_guideline == T,])/nrow(cohort)*100,1), "%)"), collapse = ""))
+ print(paste0(c("Number of events with guideline treatment strategy: ", round(ckd.tx.guideline/n.imp), " (", round(100*(ckd.tx.guideline/nrow(cohort)),1), "%)"), collapse = ""))
+ print(paste0(c("Number of events avoided with guideline treatment strategy: ", round(abs(ckd.tx.guideline-ckd.notx)/n.imp), " (", round((ckd.tx.guideline-ckd.notx)/(ckd.tx_all-ckd.notx)*100,1), "%)"), collapse = ""))
+ print(paste0(c("NNT with guideline treatment strategy: ", 
+                round(1/(mean(cohort[cohort$treat_guideline == T,]$ckdpc_50egfr_score/100) - 
+                           mean(cohort[cohort$treat_guideline == T,]$ckdpc_50egfr_score.applied.guideline/100)))), collapse = ""))
+ 
+ 
+ print(paste0(c("Number of people treated with pARR strategy: ", round(nrow(cohort[cohort$treat_model1 == T,])/n.imp), " (", round(nrow(cohort[cohort$treat_model1 == T,])/nrow(cohort)*100,1), "%)"), collapse = ""))
+ print(paste0(c("Number of events with pARR strategy: ", round(ckd.tx.model1/n.imp), " (", round(100*(ckd.tx.model1/nrow(cohort)),1), "%)"), collapse = ""))
+ print(paste0(c("Number of events avoided with pARR strategy: ", round(abs(ckd.tx.model1-ckd.notx)/n.imp), " (", round((ckd.tx.model1-ckd.notx)/(ckd.tx_all-ckd.notx)*100,1), "%)"), collapse = ""))
+ print(paste0(c("NNT with pARR strategy: ", 
+                round(1/(mean(cohort[cohort$treat_model1 == T,]$ckdpc_50egfr_score/100) - 
+                           mean(cohort[cohort$treat_model1 == T,]$ckdpc_50egfr_score.applied.model1/100)))), collapse = ""))
+ 
+ print(paste0(c("Number of people treated with guideline treatment strategy (if albuminuria confirmed by 2 samples): ", round(nrow(cohort[cohort$treat_guideline2 == T,])/n.imp), " (", round(nrow(cohort[cohort$treat_guideline2 == T,])/nrow(cohort)*100,1), "%)"), collapse = ""))
+ print(paste0(c("Number of events with guideline treatment strategy (if albuminuria confirmed by 2 samples): ", round(ckd.tx.guideline2/n.imp), " (", round(100*(ckd.tx.guideline2/nrow(cohort)),1), "%)"), collapse = ""))
+ print(paste0(c("Number of events avoided with guideline treatment strategy (if albuminuria confirmed by 2 samples): ", round(abs(ckd.tx.guideline2-ckd.notx)/n.imp), " (", round((ckd.tx.guideline2-ckd.notx)/(ckd.tx_all-ckd.notx)*100,1), "%)"), collapse = ""))
+ print(paste0(c("NNT with guideline treatment strategy (if albuminuria confirmed by 2 samples): ", 
+                round(1/(mean(cohort[cohort$treat_guideline2 == T,]$ckdpc_50egfr_score/100) - 
+                           mean(cohort[cohort$treat_guideline2 == T,]$ckdpc_50egfr_score.applied.guideline2/100)))), collapse = ""))
+ 
+ 
 
 ############################6 DECISION CURVE ANALYSIS################################################################
 cohort <- cohort %>% mutate(ckdpc_50egfr_score_risk = ckdpc_50egfr_score/100) 
@@ -594,48 +734,6 @@ as_tibble(dca_data) %>%
   coord_cartesian(xlim = c(0.0012,0.03), ylim = c(0,0.01))
 dev.off()
 
-# #DCA with static thresholds (pARR thresholds A + B used in table)
-# dca_data2 <- dca(Surv(ckd_egfr50_censtime_yrs, ckd_egfr50_censvar) ~ treat_guideline + treat_model1 + treat_model2,
-#                  data = cohort,
-#                  thresholds = seq(0, 0.20, by = 0.01),
-#                  time = 3)
-# 
-# #plot
-# as_tibble(dca_data2) %>%
-#   dplyr::filter(!is.na(net_benefit)) %>%
-#   ggplot(aes(x = threshold, y = net_benefit, color = label, linetype = label)) +
-#   stat_smooth(method = "loess", se = FALSE, formula = "y ~ x", 
-#               span = 0.2, size = 1.25) +
-#   coord_cartesian(ylim = c(-0.00105984276971715, 0.0105984276971715
-#   )) +
-#   scale_x_continuous(labels = scales::percent_format(accuracy = 1)) +
-#   labs(x = "Threshold Probability", y = "Net Utility", color = "") +
-#   theme_bw() +
-#   scale_color_manual(
-#     values = c(
-#       "black", "grey40", "#0072B2", "#E69F00", "#E69F00" 
-#     ),
-#     labels = c("Treat all", 
-#                "Treat none", 
-#                "Treat if uACR ≥3mg/mmol", 
-#                "Treat if pARR above threshold A", 
-#                "Treat if pARR above threshold B")) +
-#   scale_linetype_manual(
-#     values = c(
-#       "solid", 
-#       "solid", 
-#       "longdash", 
-#       "solid", 
-#       "dashed"),
-#     labels = c("Treat all", 
-#                "Treat none", 
-#                "Treat if uACR ≥3mg/mmol", 
-#                "Treat if pARR above threshold A", 
-#                "Treat if pARR above threshold B")) + 
-#   guides(color = guide_legend("Treatment strategy"), 
-#          linetype = guide_legend("Treatment strategy")) +
-#   theme(legend.position = c(0.75, 0.8)) +
-#   coord_cartesian(xlim = c(0.0012,0.03), ylim = c(0,0.01))
 ############################7 HR BY pARR THRESHOLD################################################################
 
 

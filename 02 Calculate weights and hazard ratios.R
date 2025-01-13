@@ -1,4 +1,4 @@
-## In this script our aim is to see whether the average treatment for SGLT2i vs control is similar
+## In this script our aim is to see whether the relative treatment effect of SGLT2i vs control is similar
 ## in the literature and in the CPRD cohort
 ## we will compare hazard ratios for SGLT2i vs SU in CPRD to those from trials.
 
@@ -133,9 +133,8 @@ plot.hist.ps.2drugs(w.overlap2)
 summary(w.overlap, weighted.var = TRUE, metric = "ASD")
 
 # save dataset with weights so this can be used in subsequent scripts
-cohort <- temp
+cohort <- temp %>% filter(!.imp == 0)
 rm(temp)
-cohort <- cohort %>% filter(!.imp == 0)
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
 save(cohort, file=paste0(today, "_t2d_ckdpc_imputed_data_withweights.Rda"))
@@ -609,6 +608,7 @@ for (k in outcomes) {
       # for the overlap-weighted survival models
       COEFS.noalb.ow <- SE.noalb.ow <-
       COEFS.microalb.ow <- SE.microalb.ow <-
+      p_value_interaction <-
       rep(NA,n.imp)
     
     for (i in 1:n.imp) {
@@ -643,13 +643,12 @@ for (k in outcomes) {
       SE.microalb.ow[i] <- sqrt(abs(fit.ow$var[1]) + abs(fit.ow$var[nrow(fit.ow$var),nrow(fit.ow$var)]) + 2 * vcov(fit.ow)[1,nrow(fit.ow$var)])
       
       if (k == "ckd_egfr50") {
-        if (i == n.imp) {
-          f_adjusted3 <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2 + albuminuria + ", paste(covariates, collapse=" + ")))
-          fit.no_interaction <- coxph(f_adjusted3, cohort[cohort$.imp == i,])
+          f3 <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2 + ", paste(covariates, collapse = " + ")))
+          fit.no_interaction <- coxph(f3, cohort[cohort$.imp == i,], weights = overlap2)
           
-          loglikelihood_test <- anova(fit.no_interaction, fit.adj, test = "Chisq")
-          p_value_interaction <- loglikelihood_test$`Pr(>|Chi|)`[2]      
-        }}
+          chi <- 2 * fit.ow$loglik[2] - 2 * fit.no_interaction$loglik[2]
+          p_value_interaction[i] <- 1 - pchisq(chi, df = 2)
+        }
       
     }
     

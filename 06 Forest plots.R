@@ -466,21 +466,21 @@ dev.off()
 ############################3 FOREST PLOT OF HR BY ALBUMINURIA STATUS (FIGURE 1A)################################################################
 
 # if analyses in 02 Calculate weights and hazard ratios.R not run, then object p_value_interaction will not be defined
-# if that is the case, define p-value at 0.35 (as per analyses dd 17/12/2024)
+# if that is the case, define p-value at 0.99 (as per analyses dd 17/12/2024)
 if (!exists("p_value_interaction")) {
-  p_value_interaction <- 0.3502815
+  p_value_interaction <- 0.99
 }
 
 # prep data frames with row for overall
 overall <- all_SGLT2ivsDPP4iSU_hrs[all_SGLT2ivsDPP4iSU_hrs$analysis == "Overlap-weighted",]
-overall$contrast <- "Overall"
+overall$contrast <- " "
 
 labels_plot5 <- overall
 
 labels5 <- data.frame(matrix("", nrow = 1, ncol = length(overall)))
 names(labels5) <- names(overall)
 labels5 <- labels5 %>% mutate(contrast = " All subjects", 
-                              analysis = "Overall", 
+                              analysis = " ", 
                               string = "Hazard Ratio (95% CI)",
                               SGLT2i_nN = "Events/subjects (SGLT2i)",
                               `DPP4i/SU_nN` = "(DPP4i/SU)")
@@ -630,7 +630,7 @@ p_hr_overall <-
 p_left_overall <-
   labels_plot5 %>%
   filter(outcome == "ckd_egfr50") %>%
-  ggplot(aes(y = (unique((contrast))))) + 
+  ggplot(aes(y = rev(unique((contrast))))) + 
   geom_text(
     aes(x = 1, label = contrast),
     hjust = 0,
