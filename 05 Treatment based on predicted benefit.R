@@ -125,9 +125,9 @@ ggplot(data=contrast_spline_df, aes(x=ckdpc_50egfr_score, y=exp(Contrast))) +
   xlab(expression(paste("Predicted 3-year risk of kidney disease progression"))) +
   ylab("Hazard ratio") +
   coord_trans(y = "log10") +
-  scale_x_continuous(breaks = seq(0,20,.5)) +
+  scale_x_continuous(breaks = seq(0,4,.5)) +
   scale_y_continuous(breaks = c(seq(0, 0.8, 0.1), seq(0.8, 1.6, 0.2))) +
-  geom_ribbon(data=contrast_spline_df, aes(x=ckdpc_50egfr_score, ymin=exp(Lower), ymax=exp(Upper)), alpha=0.5) +
+  geom_ribbon(data=contrast_spline_df, aes(x=ckdpc_50egfr_score, ymin=exp(Lower), ymax=exp(Upper)), alpha=0.2) +
   geom_hline(yintercept = 1, linetype = "dashed")  +
   geom_hline(aes(yintercept = 0.62, linetype = "hr", size="hr"), color="#D55E00")  +
   geom_hline(aes(yintercept = 0.68, linetype = "hr_95", size="hr_95"), color="#D55E00")  +
@@ -146,7 +146,8 @@ ggplot(data=contrast_spline_df, aes(x=ckdpc_50egfr_score, y=exp(Contrast))) +
         legend.title = element_text(size=14, face = "italic"),
         legend.text = element_text(face="italic")) +
   scale_linetype_manual(values = c(hr = "twodash", hr_95 = "twodash"), labels = c(hr = "0.62", hr_95 = "95% CI 0.56-0.68"), name="Trial meta-analysis hazard ratio") +
-  scale_size_manual(values = c(hr = 1, hr_95 = 0.5), labels = c(hr = "0.62", hr_95 = "95% CI 0.56-0.68"), name="Trial meta-analysis hazard ratio")
+  scale_size_manual(values = c(hr = 1, hr_95 = 0.5), labels = c(hr = "0.62", hr_95 = "95% CI 0.56-0.68"), name="Trial meta-analysis hazard ratio") +
+  coord_cartesian(xlim = c(0.35, 4.5), expand = F)
 dev.off()
 
 options(datadist = NULL)
@@ -169,7 +170,7 @@ benefit_histogram_noalb <- ggplot(cohort %>% filter(albuminuria == F) %>%
   #  annotate("text", x = cutoff2*100, y = Inf, label = "pARR threshold B", vjust = -0.5, hjust = 1.1, angle = 90, size = 4, color = "black") +
   
   labs(x = "", y = "Frequency") +
-  theme_minimal() +  # Start with a clean base theme
+  theme_bw() +  # Start with a clean base theme
   theme(
     # Remove panel border (default borders around the plot area)
     panel.border = element_blank(),
@@ -179,7 +180,8 @@ benefit_histogram_noalb <- ggplot(cohort %>% filter(albuminuria == F) %>%
     
     # Remove top and right axes lines
     axis.line.x.top = element_blank(),    # No line on the top
-    axis.line.y.right = element_blank()   # No line on the right
+    axis.line.y.right = element_blank(),   # No line on the right
+    panel.grid = element_blank()
   ) +
   theme(legend.position = "none") + 
   coord_cartesian(xlim=c(0,2.5), ylim=c(0,7500), expand = F)
@@ -192,13 +194,14 @@ benefit_histogram_microalb <- ggplot(cohort %>% filter(albuminuria == T) %>%
   scale_fill_manual(values = c("TRUE" = "#E69F00", "FALSE" = "grey")) +
   geom_vline(xintercept = cutoff1*100, linetype = "dashed", color = "black", size = 1) +
   #  geom_vline(xintercept = cutoff2*100, linetype = "dashed", color = "black", size = 1) +
-  annotate("text", x = 2.5, y = 500, label = paste0("Albuminuria ≥3mg/mmol\n(n=",nrow(cohort %>% filter(albuminuria == T))/n.imp,")"), vjust = 0, hjust = 1.1, angle = 0, size = 4, color = "black") +
+  annotate("text", x = 2.5, y = 200, label = paste0("Albuminuria ≥3mg/mmol\n(n=",nrow(cohort %>% filter(albuminuria == T))/n.imp,")"), vjust = 0, hjust = 1.1, angle = 0, size = 4, color = "black") +
   annotate("text", x = cutoff1*100, y = Inf, label = "", vjust = 0, hjust = 0, angle = 90, size = 4, color = "black") +
   #  annotate("text", x = cutoff1*100, y = Inf, label = "pARR threshold A", vjust = -0.5, hjust = 1.1, angle = 90, size = 4, color = "black") +
   #  annotate("text", x = cutoff2*100, y = Inf, label = "pARR threshold B", vjust = -0.5, hjust = 1.1, angle = 90, size = 4, color = "black") +
   
-  labs(x = "Predicted absolute risk reduction with SGLT2i (%)", y = "Frequency") +
-  theme_minimal() +  # Start with a clean base theme
+  labs(x = "Predicted absolute risk reduction with SGLT2i (%)", y = "") +
+  scale_y_continuous(breaks = seq(0,1000, 500)) +
+  theme_bw() +  # Start with a clean base theme
   theme(
     # Remove panel border (default borders around the plot area)
     panel.border = element_blank(),
@@ -208,12 +211,13 @@ benefit_histogram_microalb <- ggplot(cohort %>% filter(albuminuria == T) %>%
     
     # Remove top and right axes lines
     axis.line.x.top = element_blank(),    # No line on the top
-    axis.line.y.right = element_blank()   # No line on the right
+    axis.line.y.right = element_blank(),   # No line on the right
+    panel.grid = element_blank()
   ) +
   theme(legend.position = "none") + 
-  coord_cartesian(xlim=c(0,2.5), ylim = c(0,750), expand = F)
+  coord_cartesian(xlim=c(0,2.5), ylim = c(0,1000), expand = F, clip = "off")
 
-benefit_histogram <- benefit_histogram_noalb / benefit_histogram_microalb
+benefit_histogram <- benefit_histogram_noalb / benefit_histogram_microalb + plot_layout(heights = c(7.5, 1)) 
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Output/")
 tiff(paste0(today, "_predicted_benefit_histogram.tiff"), width=6, height=4, units = "in", res=800) 
@@ -558,12 +562,13 @@ bar_plot <- ggplot(arr_data, aes(x = stratum, y = ARR, color = stratum, fill = m
   ) +
   geom_errorbar(aes(ymin = lower_bound, ymax = upper_bound), width = 0.2, color = "black") +
   scale_x_discrete(labels = function(x) str_wrap(x, width = 20)) +
-  scale_y_continuous(labels = scales::percent_format(scale = 1), breaks = seq(0,6,1), limits = c(0,5.75)) +
+  scale_y_continuous(labels = scales::percent_format(scale = 1), breaks = seq(0,6,1), limits = c(-0.055,5.75)) +
   theme_bw(base_size = 16) +  # Adjust font size
   theme(
     axis.text.x = element_text(hjust = 1), 
     legend.position = "none",
-    plot.margin = margin(t = 10, r = 20, b = 10, l = 10)
+    plot.margin = margin(t = 10, r = 20, b = 10, l = 10),
+    panel.grid = element_blank()
   ) +
   scale_fill_manual(values = c("grey", "#E69F00", "grey", "#E69F00"))  + 
   scale_pattern_manual(values = c("stripe", "none")) +

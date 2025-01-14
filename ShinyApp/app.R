@@ -103,7 +103,7 @@ ui <- fluidPage(
         font-weight: normal;
         color: black;
         text-align: center;
-        margin-top: 20px;
+        margin-top: 0px;
         margin-bottom: 10px;
       }
       .references-title {
@@ -119,6 +119,7 @@ ui <- fluidPage(
          div(style = "max-width: 700px; min-width: 650px", # these values set the min and max width for the elements inside
              uiOutput("result_text"),  # Result displayed here
              plotOutput("risk_plot", height = "120px"),  # Add the bar chart
+             uiOutput("interpretive_text"),
          )
   ),
   fluidRow(
@@ -129,14 +130,21 @@ ui <- fluidPage(
                                   choices = as.list(seq(20, 80, 1)), selected = 50),
                       selectInput("hba1c", "HbA1c (mmol/mol):", 
                                   choices = as.list(seq(42, 97, 1)), selected = 58),
-                      selectInput("egfr", "eGFR (ml/min per 1.73m2):", 
-                                  choices = as.list(seq(60, 140, 1)), selected = 90),
-                      selectInput("acr", "ACR (mg/mmol):", 
-                                  choices = as.list(c(0.6, seq(1, 29.5, 0.5))), selected = 1),
                       selectInput("bmi", "BMI (kg/m2):", 
                                   choices = as.list(seq(20, 40, 1)), selected = 30),
-                      selectInput("sbp", "SBP (mmHg):", 
-                                  choices = as.list(seq(90, 180, 1)), selected = 130)
+                      selectInput("egfr", "eGFR (ml/min per 1.73m2):", 
+                                  choices = as.list(seq(60, 140, 1)), selected = 90),
+                      selectInput(
+                        inputId = "acr",
+                        label = "ACR (mg/mmol)",
+                        choices = as.list(c("≤0.6 or incalculable", seq(1, 29.5, 0.5))),  # Default choices
+                        selected = 1
+                      ),
+                      actionLink(
+                        inputId = "toggle_units",
+                        label = "Change to conventional units:",  # Dynamic label
+                        style = "display: block; margin-top: 1px; margin-bottom: 15px; color: #007BFF; text-decoration: underline; cursor: pointer;"  # Styling for hyperlink
+                      )
                ),
                column(6, 
                       selectInput("sex", "Sex:", 
@@ -149,11 +157,13 @@ ui <- fluidPage(
                                   choices = list("Never smoker" = "Never Smoker", 
                                                  "Ex smoker" = "Ex Smoker", 
                                                  "Current smoker" = "Current Smoker")),
-               #      checkboxInput("type2_dm", "Type 2 diabetes", value = TRUE),
-                      checkboxInput("bp_meds", "On BP medications", value = FALSE),
-                      checkboxInput("hf", "History of heart failure (HF)", value = FALSE),
+                      #      checkboxInput("type2_dm", "Type 2 diabetes", value = TRUE),
+                      selectInput("sbp", "SBP (mmHg):", 
+                                  choices = as.list(seq(90, 180, 1)), selected = 130),
+                      checkboxInput("bp_meds", "On antihypertensive medications", value = FALSE),
+                      checkboxInput("hf", "History of heart failure", value = FALSE),
                       checkboxInput("chd", "History of ischaemic heart disease, stroke, or peripheral vascular disease", value = FALSE),
-                      checkboxInput("af", "History of atrial fibrillation (AF)", value = FALSE)
+                      checkboxInput("af", "History of atrial fibrillation", value = FALSE)
                )
            )
     ),
@@ -163,7 +173,7 @@ ui <- fluidPage(
   ),
   column(width = 12, align = "center",
          div(style = "text-align:center; margin-top:50px; max-width: 700px; min-width: 650px",
-             p("This prediction model integrates the relative risk reduction estimate from SGLT2-inhibitor trial meta-analysis with an existing prediction model for risk of a composite of ≥50% decline in eGFR or kidney failure over 3 years. It was validated using UK routine general practice data of 120,315 participants with type 2 diabetes, preserved eGFR (≥60mL/min/1.73m2), normal or low-level albuminuria (<30mg/mmol), and without a history of atherosclerotic vascular disease or heart failure."),
+             p("This prediction model is based on the CKD Prognosis Consortium risk score for ≥50% decline in eGFR or kidney failure over 3 years integrated with the relative risk reduction estimate from SGLT2-inhibitor trial meta-analysis. The model was independently validated using UK routine general practice data of 141,500 participants with type 2 diabetes, preserved eGFR (≥60mL/min/1.73m2), normal or low-level albuminuria (<30mg/mmol), and without a history of atherosclerotic vascular disease or heart failure. In this population, a predicted benefit threshold of 0.65% (corresponding to an NNT 154) would prevent over 10% more kidney disease progression events than using an albuminuria threshold ≥3mg/mmol, while targeting a comparable proportion of the population."),
              p(class = "references-title", "References:"),
              p("Nuffield Department of Population Health Renal Studies Group, SGLT2 inhibitor Meta-Analysis Cardio-Renal Trialists' Consortium. Impact of diabetes on the effects of sodium glucose co-transporter-2 inhibitors on kidney outcomes: collaborative meta-analysis of large placebo-controlled trials. Lancet 2022; 400(10365): 1788-801."),
              p("Grams ME, Brunskill NJ, Ballew SH, et al. Development and Validation of Prediction Models of Adverse Kidney Outcomes in the Population With and Without Diabetes. Diabetes Care 2022; 45(9): 2055-63.")
@@ -176,14 +186,65 @@ server <- function(input, output, session) {
   # Ensure decimal separator uses a period
   Sys.setlocale("LC_NUMERIC", "C")
   
+  # Track the current units (default: SI)
+  unit <- reactiveVal("SI")
+  
+  # Toggle unit state when the action link is clicked
+  observeEvent(input$toggle_units, {
+    if (unit() == "SI") {
+      unit("Conventional")
+    } else {
+      unit("SI")
+    }
+  })
+  
+  # Dynamically update ACR choices based on the unit
+  observe({
+    if (unit() == "SI") {
+      updateSelectInput(session, "acr", label = "ACR (mg/mmol):",
+                        choices = as.list(c("≤0.6 or incalculable", seq(1, 29.5, 0.5))), selected = 1)
+      updateSelectInput(session, "hba1c", label = "HbA1c (mmol/mol):", 
+                        choices = as.list(seq(42, 97, 1)), selected = 58)
+      updateActionButton(session, "toggle_units", label = "Change to conventional units")
+    } else {
+      updateSelectInput(session, "acr", label = "ACR (mg/g):",
+                        choices = as.list(c("≤5.3 or incalculable", seq(10, 260, 5))), selected = 10)
+      updateSelectInput(session, "hba1c", label = "HbA1c (%):", 
+                        choices = as.list(seq(6, 11, 0.1)), selected = 7.5)
+      updateActionButton(session, "toggle_units", label = "Change to SI units")
+      
+    }
+  })
+  
+  # EventReactive for input processing
   patient <- eventReactive(input$predict, {
+    # Convert ACR back to mg/mmol if needed
+    acr_value <- if (unit() == "Conventional") {
+      if (input$acr == "≤5.3 or incalculable") {
+        0.6  # Corresponding value in mg/mmol
+      } else {
+        as.numeric(input$acr) / 8.84  # Convert mg/g to mg/mmol
+      }
+    } else {
+      if (input$acr == "≤0.6 or incalculable") {
+        0.6
+      } else {
+        as.numeric(input$acr)
+      }
+    }
     
-    # combine everything into a data.frame first
+    hba1c_value <- if (unit() == "Conventional") {
+      (as.numeric(input$hba1c) - 2.15) * 10.929 # Convert % to mmol/mol
+    } else {
+      as.numeric(input$hba1c)
+    }
+    
+    # Combine everything into a data.frame
     data.frame(
       age = input$age,
       sex = input$sex,
       egfr = input$egfr,
-      acr = input$acr,
+      acr = acr_value,  # Use the converted ACR value
       sbp = input$sbp,
       bp_meds = as.numeric(input$bp_meds),
       hf = as.numeric(input$hf),
@@ -192,16 +253,14 @@ server <- function(input, output, session) {
       smoking_status = input$smoking_status,
       diabetes_med = input$diabetes_med,
       bmi = input$bmi,
-      hba1c = input$hba1c#,
-    #  type2_dm = input$type2_dm
+      hba1c = hba1c_value
     )
   })
-  
   
   result <- eventReactive(input$predict, {
     patient <- patient()
     if (patient$hf | patient$chd #| !patient$type2_dm
-        ) {
+    ) {
       return(NULL)
     }
     calculate_parr(
@@ -240,9 +299,9 @@ server <- function(input, output, session) {
     patient <- patient()
     if (input$predict == 0) {
       NULL
-    # } else if (!patient$type2_dm) {
-    #   div(class = "validation-message", 
-    #       "This prediction model is validated for individuals with type 2 diabetes only.")
+      # } else if (!patient$type2_dm) {
+      #   div(class = "validation-message", 
+      #       "This prediction model is validated for individuals with type 2 diabetes only.")
     } else if (patient$hf || patient$chd) {
       div(class = "validation-message", 
           "This prediction model is validated for individuals without a history of atherosclerotic vascular disease or heart failure.")
@@ -258,29 +317,31 @@ server <- function(input, output, session) {
         nnt <- ifelse(df$parr[1] > 0, round(1 / (df$parr[1]/100), 0), NA)
         
         
+        result_colour <- ifelse(parr <0.65059, "#E69F00", "#D55E00")
+        
         div(
           div(style = "display: flex; justify-content: space-between; text-align: center;",
               div(class = "result-text", style = "width: 33%;",
                   h4("Current risk"),
               ),
               div(class = "result-text", style = "width: 33%;",
-                  h4("Reduction with treatment"),
+                  h4("Risk with treatment"),
               ),
               div(class = "result-text", style = "width: 33%;",
-                  h4("3-year NNT"),
+                  h4("3-year NNT*"),
               ),
           ),
-          div(style = "display: flex; justify-content: space-between; text-align: center;",
+          div(style = "display: flex; justify-content: space-between; text-align: center; margin-top: 0px;",
               div(class = "result-text", style = "width: 33%;",
                   span(style = "color: #0072B2; text-shadow: 1px 1px 2px black;",
                        sprintf("%.1f%%", current_risk))
               ),
               div(class = "result-text", style = "width: 33%;",
-                  span(style = "color: #E69F00; text-shadow: 1px 1px 2px black;",
-                       sprintf("%.1f%%", parr))
+                  span(style = paste("color: ", result_colour, "; text-shadow: 1px 1px 2px black;"),
+                       sprintf("%.1f%%", risk_with_treatment))
               ),
               div(class = "result-text", style = "width: 33%;",
-                  span(style = "color: #E69F00; text-shadow: 1px 1px 2px black;",
+                  span(style = paste("color: ", result_colour, "; text-shadow: 1px 1px 2px black;"),
                        ifelse(!is.na(nnt), sprintf("%d", nnt), "N/A"))
               ),
           ),
@@ -306,25 +367,32 @@ server <- function(input, output, session) {
     df <- result()
     current_risk <- df$ckdpc_50egfr_score[1]
     treated_risk <- 100 * (1 - df$ckdpc_50egfr_survival_sglt2i[1])
+    parr <- df$parr[1]
+    
+    bar_colour <- ifelse(parr <0.65059, "#E69F00", "#D55E00")
     
     # Create a data frame for the two bars
     plot_data <- data.frame(
-      xmin = c(0, treated_risk),  # Add a small gap for yellow bar inset
-      xmax = c(current_risk, current_risk),
-      ymin = c(0.4, 0.4),  # Blue bar slightly taller
-      ymax = c(0.6, 0.6),  # Yellow bar slightly shorter
-      fill = c("#0072B2", "#E69F00")  # Blue for untreated, yellow for treated
+      xmin = c(0, 0),  # Add a small gap for yellow bar inset
+      xmax = c(treated_risk, current_risk),
+      ymin = c(0.2, 0.45),  # 
+      ymax = c(0.4, 0.65),  # 
+      fill = c(bar_colour, "#0072B2")  # Blue for untreated, yellow for treated
     )
     
     # Generate the plot
     ggplot() +
+      
       # Full-width blue bar (untreated risk)
       geom_rect(data = plot_data[1, ], aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax, fill = fill), 
-                color = "#0072B2", size = 1.2) +  # No border for blue bar
+                color = "black", 
+                size = 0.2) +  # No border for blue bar
       
-      # Narrower yellow bar (treated risk) with blue border
+      
+      # Narrower yellow bar (treated risk)
       geom_rect(data = plot_data[2, ], aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax, fill = fill), 
-                color = "#0072B2", size = 1.2) +  # Blue border
+                color = "black", 
+                size = 0.2) +  # 
       
       # Use specified colors for the bars
       scale_fill_identity() +
@@ -353,7 +421,17 @@ server <- function(input, output, session) {
       # Chart title
       labs(title = "3-year risk of kidney disease progression")
   })
-
+  
+  output$interpretive_text <- renderUI({
+    # Check if the "Predict" button has been clicked and if there are valid results
+    if (input$predict > 0 && !is.null(result())) {
+      div(style = "text-align: center; font-size: 14px; font-style: italic; margin-top: 0px; margin-bottom: 15px",
+          "*Consider treatment if NNT below 154")
+    } else {
+      NULL  # Do not display anything
+    }
+  })
+  
 }
 
 shinyApp(ui = ui, server = server)

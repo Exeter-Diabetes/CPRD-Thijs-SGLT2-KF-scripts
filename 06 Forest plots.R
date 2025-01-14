@@ -502,7 +502,10 @@ labels3 <- labels3 %>% mutate(contrast = paste0("By albuminuria status (p = ", s
                               SGLT2i_nN = "Events/subjects",
                               `DPP4i/SU_nN` = "")
 
-labels_plot3 <- subgroup_hrs %>% filter(analysis == "Overlap-weighted")
+labels_plot3 <- subgroup_hrs %>% filter(analysis == "Overlap-weighted") %>%
+  mutate(contrast = case_when(
+  contrast == "uACR <3mg/mmol" ~ "Albuminuria <3mg/mmol",
+  contrast == "uACR 3-30mg/mmol" ~ "Albuminuria ≥3mg/mmol"))
 
 for (k in unique(subgroup_hrs$outcome)) {
   labels_temp <- labels3
@@ -511,8 +514,8 @@ for (k in unique(subgroup_hrs$outcome)) {
 }
 
 labels_plot3$contrast <- factor(labels_plot3$contrast, levels = c(labels3$contrast,
-                                                                  "uACR <3mg/mmol", 
-                                                                  "uACR 3-30mg/mmol"))
+                                                                  "Albuminuria <3mg/mmol", 
+                                                                  "Albuminuria ≥3mg/mmol"))
 
 # plot by risk group
 p_counts_subgroup <- labels_plot3 %>% filter(outcome=="ckd_egfr50") %>%
@@ -678,8 +681,8 @@ secondary <- subgroup_hrs %>%
   filter(analysis=="Overlap-weighted") %>%
   filter(!outcome %in% c("ckd_egfr50", "death")) %>%
   mutate(albuminuria_status = case_when(
-    contrast == "uACR <3mg/mmol" ~ "uACR <3 mg/mmol",
-    contrast == "uACR 3-30mg/mmol" ~ "uACR 3-30 mg/mmol"
+    contrast == "uACR <3mg/mmol" ~ "Albuminuria <3mg/mmol",
+    contrast == "uACR 3-30mg/mmol" ~ "Albuminuria ≥3mg/mmol"
   ))
 
 # Prepare labels for each outcome by albuminuria status
