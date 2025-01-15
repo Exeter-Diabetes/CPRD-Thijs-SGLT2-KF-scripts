@@ -124,27 +124,31 @@ ggplot(data=contrast_spline_df, aes(x=ckdpc_50egfr_score, y=exp(Contrast))) +
   geom_line(data=contrast_spline_df,aes(x=ckdpc_50egfr_score, y=exp(Contrast)), size=1) +
   xlab(expression(paste("Predicted 3-year risk of kidney disease progression"))) +
   ylab("Hazard ratio") +
-  coord_trans(y = "log10") +
   scale_x_continuous(breaks = seq(0,4,.5)) +
-  scale_y_continuous(breaks = c(seq(0, 0.8, 0.1), seq(0.8, 1.6, 0.2))) +
+  scale_y_log10(breaks = c(seq(0.1, 0.8, 0.1), seq(0.8, 1.6, 0.2))) +
   geom_ribbon(data=contrast_spline_df, aes(x=ckdpc_50egfr_score, ymin=exp(Lower), ymax=exp(Upper)), alpha=0.2) +
   geom_hline(yintercept = 1, linetype = "dashed")  +
   geom_hline(aes(yintercept = 0.62, linetype = "hr", size="hr"), color="#D55E00")  +
   geom_hline(aes(yintercept = 0.68, linetype = "hr_95", size="hr_95"), color="#D55E00")  +
   geom_hline(aes(yintercept = 0.57, linetype = "hr_95", size="hr_95"), color="#D55E00")  +
-  annotate("text", x = mean(range(contrast_spline_df$ckdpc_50egfr_score)), y = 0.35, 
-           label = paste0("italic(p)~'='~italic(", sprintf("%.2f", p_value_non_linear), "~'for non-linear interaction term')"), 
-           size = 5, hjust = 0.5, parse = T) +
+  # annotate("text", x = mean(range(contrast_spline_df$ckdpc_50egfr_score)), y = 0.35, 
+  #          label = paste0("italic(p)~'='~italic(", sprintf("%.2f", p_value_non_linear), "~'for non-linear interaction term')"), 
+  #          size = 5, hjust = 0.5, parse = T) +
   theme_bw() +
   theme(text = element_text(size = 18),
-        axis.line = element_line(colour =  "grey50" ),
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(),
         panel.border = element_blank(),
         panel.background = element_blank(),
         legend.position="bottom",
         legend.title = element_text(size=14, face = "italic"),
-        legend.text = element_text(face="italic")) +
+        legend.text = element_text(face="italic"),
+        # Add custom axis lines
+        axis.line = element_line(color = "black", size = 0.5), # General axis line style
+        
+        # Remove top and right axes lines
+        axis.line.x.top = element_blank(),    # No line on the top
+        axis.line.y.right = element_blank(),) +
   scale_linetype_manual(values = c(hr = "twodash", hr_95 = "twodash"), labels = c(hr = "0.62", hr_95 = "95% CI 0.56-0.68"), name="Trial meta-analysis hazard ratio") +
   scale_size_manual(values = c(hr = 1, hr_95 = 0.5), labels = c(hr = "0.62", hr_95 = "95% CI 0.56-0.68"), name="Trial meta-analysis hazard ratio") +
   coord_cartesian(xlim = c(0.35, 4.5), expand = F)
@@ -484,7 +488,7 @@ df_combined <- bind_rows(smoothed_results)
 # plot
 ci_plot <- df_combined %>% ggplot(aes(x = time, y = smoothed_diff*100, color = subgp_label)) +
   geom_line(size = 1) +
-  geom_ribbon(aes(ymin = smoothed_lower_ci*100, ymax = smoothed_upper_ci*100, fill = subgp_label), alpha = 0.2, color = NA) +
+  # geom_ribbon(aes(ymin = smoothed_lower_ci*100, ymax = smoothed_upper_ci*100, fill = subgp_label), alpha = 0.2, color = NA) +
   labs(#title = "Kidney protection benefit by SGLT2i treatment recommendation",
     x = "Time (years)",
     y = "Observed ARR in kidney disease progression") +
@@ -494,7 +498,16 @@ ci_plot <- df_combined %>% ggplot(aes(x = time, y = smoothed_diff*100, color = s
   scale_y_continuous(labels = scales::percent_format(scale = 1)) +
   theme(legend.position = c(0.44, 0.875), 
         legend.background = element_rect(fill = "white", color = "black"),
-        legend.title = element_blank()) +
+        legend.title = element_blank(),
+        panel.border = element_blank(),
+        
+        # Add custom axis lines
+        axis.line = element_line(color = "black", size = 0.5), # General axis line style
+        
+        # Remove top and right axes lines
+        axis.line.x.top = element_blank(),    # No line on the top
+        axis.line.y.right = element_blank(),
+        panel.grid = element_blank()) +
   coord_cartesian(ylim = c(0,3.5), xlim = c(0, 4.8))
 
 
@@ -547,10 +560,15 @@ arr_data <- arr_data %>% mutate(
 )
 # calculate p-value for comparison between two groups with normal albuminuria based on pARR
 
-# calculate difference in (smoothed) estimates
+# calculate difference in (smoothed) estimates between 
 diff <- (arr_data[1,]$ARR - arr_data[2,]$ARR)
 se_diff <- sqrt(((arr_data[1,]$upper_bound - arr_data[1,]$lower_bound)/(2*1.96))^2 + ((arr_data[2,]$upper_bound - arr_data[2,]$lower_bound)/(2*1.96))^2)
 p_value_comparison <- 2*(1-pnorm(abs(diff/se_diff)))
+
+diff <- (arr_data[3,]$ARR - arr_data[2,]$ARR)
+se_diff <- sqrt(((arr_data[3,]$upper_bound - arr_data[3,]$lower_bound)/(2*1.96))^2 + ((arr_data[2,]$upper_bound - arr_data[2,]$lower_bound)/(2*1.96))^2)
+p_value_comparison2 <- 2*(1-pnorm(abs(diff/se_diff)))
+
 
 bar_plot <- ggplot(arr_data, aes(x = stratum, y = ARR, color = stratum, fill = model, pattern = guideline)) +
   geom_bar_pattern(stat = "identity", width = 0.7, color = "black",
@@ -568,6 +586,14 @@ bar_plot <- ggplot(arr_data, aes(x = stratum, y = ARR, color = stratum, fill = m
     axis.text.x = element_text(hjust = 1), 
     legend.position = "none",
     plot.margin = margin(t = 10, r = 20, b = 10, l = 10),
+    panel.border = element_blank(),
+    
+    # Add custom axis lines
+    axis.line = element_line(color = "black", size = 0.5), # General axis line style
+    
+    # Remove top and right axes lines
+    axis.line.x.top = element_blank(),    # No line on the top
+    axis.line.y.right = element_blank(),
     panel.grid = element_blank()
   ) +
   scale_fill_manual(values = c("grey", "#E69F00", "grey", "#E69F00"))  + 
@@ -644,15 +670,6 @@ dev.off()
  #estimated number of events with treatment as per guidelines
  ckd.tx.guideline <- round(nrow(cohort)*mean(cohort$ckdpc_50egfr_score.applied.guideline/100)) 
  
- #Treat as per guideline recommendations
- # describe(cohort$treat_guideline2)
- cohort <- cohort %>% mutate(ckdpc_50egfr_score.applied.guideline2 = 
-                               ifelse(treat_guideline2 == F ,
-                                      ckdpc_50egfr_score, 100*(1-cohort$ckdpc_50egfr_survival_sglt2i)))
- #estimated number of events with treatment as per guidelines
- ckd.tx.guideline2 <- round(nrow(cohort)*mean(cohort$ckdpc_50egfr_score.applied.guideline2/100)) 
- 
- 
  
  #Treat as per pARR strategy
  # describe(cohort$treat_model1)
@@ -669,12 +686,12 @@ dev.off()
  
  print(paste0(c("Number of people treated with treat-everyone strategy: ", round(nrow(cohort)/n.imp), " (", round(nrow(cohort)/nrow(cohort)*100,1), "%)"), collapse = ""))
  print(paste0(c("Number of events with treat-everyone strategy: ", round(ckd.tx_all/n.imp), " (", round(100*(ckd.tx_all/nrow(cohort)),1), "%)"), collapse = ""))
- print(paste0(c("Number of events avoided with treat-everyone strategy: ", round((ckd.notx - ckd.tx_all)/n.imp), " (", round((ckd.tx_all-ckd.notx)/(ckd.tx_all-ckd.notx)*100,1), "%)"), collapse = ""))
+ print(paste0(c("Number of events avoided with treat-everyone strategy: ", round(abs(if ((ckd.tx_all - ckd.notx) %% 5) {(ckd.notx - ckd.tx_all -1)/n.imp} else {(ckd.notx - ckd.tx_all)/n.imp})), " (", round((ckd.tx_all-ckd.notx)/(ckd.tx_all-ckd.notx)*100,1), "%)"), collapse = ""))
  print(paste0(c("NNT with treat-everyone strategy: ", round(1/(mean(cohort$ckdpc_50egfr_score/100)-mean(1-cohort$ckdpc_50egfr_survival_sglt2i)))), collapse = ""))
  
  print(paste0(c("Number of people treated with guideline treatment strategy: ", round(nrow(cohort[cohort$treat_guideline == T,])/n.imp), " (", round(nrow(cohort[cohort$treat_guideline == T,])/nrow(cohort)*100,1), "%)"), collapse = ""))
  print(paste0(c("Number of events with guideline treatment strategy: ", round(ckd.tx.guideline/n.imp), " (", round(100*(ckd.tx.guideline/nrow(cohort)),1), "%)"), collapse = ""))
- print(paste0(c("Number of events avoided with guideline treatment strategy: ", round(abs(ckd.tx.guideline-ckd.notx)/n.imp), " (", round((ckd.tx.guideline-ckd.notx)/(ckd.tx_all-ckd.notx)*100,1), "%)"), collapse = ""))
+ print(paste0(c("Number of events avoided with guideline treatment strategy: ", round(abs(if ((ckd.tx.guideline-ckd.notx) %% 5) {(ckd.tx.guideline-ckd.notx-1)/n.imp} else {(ckd.tx.guideline-ckd.notx)/n.imp})), " (", round((ckd.tx.guideline-ckd.notx)/(ckd.tx_all-ckd.notx)*100,1), "%)"), collapse = ""))
  print(paste0(c("NNT with guideline treatment strategy: ", 
                 round(1/(mean(cohort[cohort$treat_guideline == T,]$ckdpc_50egfr_score/100) - 
                            mean(cohort[cohort$treat_guideline == T,]$ckdpc_50egfr_score.applied.guideline/100)))), collapse = ""))
@@ -686,14 +703,6 @@ dev.off()
  print(paste0(c("NNT with pARR strategy: ", 
                 round(1/(mean(cohort[cohort$treat_model1 == T,]$ckdpc_50egfr_score/100) - 
                            mean(cohort[cohort$treat_model1 == T,]$ckdpc_50egfr_score.applied.model1/100)))), collapse = ""))
- 
- print(paste0(c("Number of people treated with guideline treatment strategy (if albuminuria confirmed by 2 samples): ", round(nrow(cohort[cohort$treat_guideline2 == T,])/n.imp), " (", round(nrow(cohort[cohort$treat_guideline2 == T,])/nrow(cohort)*100,1), "%)"), collapse = ""))
- print(paste0(c("Number of events with guideline treatment strategy (if albuminuria confirmed by 2 samples): ", round(ckd.tx.guideline2/n.imp), " (", round(100*(ckd.tx.guideline2/nrow(cohort)),1), "%)"), collapse = ""))
- print(paste0(c("Number of events avoided with guideline treatment strategy (if albuminuria confirmed by 2 samples): ", round(abs(ckd.tx.guideline2-ckd.notx)/n.imp), " (", round((ckd.tx.guideline2-ckd.notx)/(ckd.tx_all-ckd.notx)*100,1), "%)"), collapse = ""))
- print(paste0(c("NNT with guideline treatment strategy (if albuminuria confirmed by 2 samples): ", 
-                round(1/(mean(cohort[cohort$treat_guideline2 == T,]$ckdpc_50egfr_score/100) - 
-                           mean(cohort[cohort$treat_guideline2 == T,]$ckdpc_50egfr_score.applied.guideline2/100)))), collapse = ""))
- 
  
 
 ############################6 DECISION CURVE ANALYSIS################################################################
@@ -735,7 +744,16 @@ as_tibble(dca_data) %>%
                "Treat according to pARR")) + 
   guides(color = guide_legend("Treatment strategy"), 
          linetype = guide_legend("Treatment strategy")) +
-  theme(legend.position = c(0.75, 0.8)) +
+  theme(legend.position = c(0.75, 0.8),
+        panel.border = element_blank(),
+        
+        # Add custom axis lines
+        axis.line = element_line(color = "black", size = 0.5), # General axis line style
+        
+        # Remove top and right axes lines
+        axis.line.x.top = element_blank(),    # No line on the top
+        axis.line.y.right = element_blank(),
+        panel.grid = element_blank()) +
   coord_cartesian(xlim = c(0.0012,0.03), ylim = c(0,0.01))
 dev.off()
 
