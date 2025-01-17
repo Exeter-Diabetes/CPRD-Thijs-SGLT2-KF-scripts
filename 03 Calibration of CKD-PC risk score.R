@@ -1,13 +1,13 @@
-## In this script our aim is to predict baseline risk using the CKD-PC risk scores.
+## In this script our aim is to predict baseline risk using the CKD-PC risk score.
 ## we will be looking at the risk score for 50% decline in eGFR/ESKD (50egfr).
 ## which we will recalibrate in the CPRD cohort for endpoint 50% decline in eGFR/ESKD.
 
 ## Contents
 # 0 setup
-# 1 uncalibrated risk score
-# 2 baseline hazard update
-# 3 calibration slope update
-# 4 store dataset with recalibrated risk score
+# 1 calibration of risk score `as is`
+# 2 baseline hazard update (redundant)
+# 3 calibration slope
+# 4 store dataset with recalibrated risk score as required
 
 ############################0 SETUP################################################################
 
@@ -32,9 +32,8 @@ cohort <- cohort %>% group_by(.imp, patid) %>% filter(
 
 # check number of subjects
 table(cohort$studydrug2)
-# SU  DPP4i SGLT2i 
 
-############################1 UNCALIBRATED RISK SCORE################################################################
+############################1 CALIBRATION OF RISK SCORE `AS IS`################################################################
 
 
 
@@ -230,7 +229,7 @@ for (i in 1:n.imp) {
   temp <- temp %>% # error if times = 3, therefore adding extra row with time beyond t=3
     rbind(    # adds rows below your dataset
       temp %>%
-        slice(1) %>% # this selects the first patients in your dataset
+        slice(1) %>% # this selects the first patients in dataset
         mutate(ckd_egfr50_censtime_yrs = 3.5)   # changes censored time to 3.5
     )
   raw_mod <- coxph(Surv(ckd_egfr50_censtime_yrs, ckd_egfr50_censvar) ~ ckdpc_50egfr_survival, 
@@ -259,7 +258,10 @@ brier_raw_se_pooled <- sqrt(mean(brier_raw_se^2) + (1+1/n.imp)*var(brier_raw))
 print(paste0("Brier score for raw risk score ", mean(brier_raw), ", 95% CI ", mean(brier_raw)-1.96*brier_raw_se_pooled, "-", mean(brier_raw)+1.96*brier_raw_se_pooled))
 
 
-# check whether recalibration is necessary by fitting a calibration slope
+# as can be seen from the figure above, the uncalibrated risk score (`as is`) predicts the outcome well.
+# further down, we will calculate a formal calibration slope. 
+# the next bit of code would be the first step if needing to recalibrate the risk score, ie. updating the baseline hazard.
+# as this is not required in this case, this code is redundant.
 
 # ############################2 RECALIBRATION - BASELINE HAZARD UPDATE ################################################################
 # 
@@ -484,8 +486,16 @@ print(paste0("Brier score for raw risk score ", mean(brier_raw), ", 95% CI ", me
 # print(paste0("Brier score for risk score after baseline hazard updated ", mean(brier_recal_bh), ", 95% CI ", mean(brier_recal_bh)-1.96*brier_recal_bh_se_pooled, "-", mean(brier_recal_bh)+1.96*brier_recal_bh_se_pooled))
 # 
 
-############################3 RECALIBRATION - OVERALL SLOPE RECALIBRATION################################################################
+############################3 CALIBRATION SLOPE################################################################
 
+# in order to calculate an overall calibration slope, we are going to fit a cox model with the linear predictor as the only variable.
+# this would be the same step we would take if needing to recalibrate the model beyond just updating the baseline hazard, as this would only require 
+# recalculation of 2 variables (baseline hazard + overall calibration slope)
+# this is why bootstrap internal validation is being used, to correct for optimism (this is a more efficient alternative to k-fold cross-validation or split-sample validation)
+# in this case we will not need to use the recalibrated risk score, but rather will use the calibration slope estimated here
+# to formally evidence calibration accuracy of the risk score `as is`.
+
+# create empty vectors to store values of each calculation in multiple imputations:
 bh_new <- rep(NA, n.imp)
 se_bh_new <- rep(NA, n.imp)
 cal_slope <- rep(NA, n.imp)
@@ -496,6 +506,7 @@ options(datadist=NULL)
 
 for (i in 1:n.imp) {
   print(paste0("Calculations in imputation ", i))
+  # fit model with linear predictor as only variable
   recal_mod2 <- cph(Surv(ckd_egfr50_censtime_yrs, ckd_egfr50_censvar) ~ (ckdpc_50egfr_lin_predictor), 
                     data = cohort %>% filter(.imp == i & studydrug2 == "DPP4i/SU"), x = TRUE, y = TRUE, surv = TRUE)
   
@@ -513,16 +524,20 @@ for (i in 1:n.imp) {
   var_slope[i] <- recal_mod2$var
 }
 
+# pool baseline hazard results
 bh_recal <- mean(bh_new)
 bh_recal_se <- sqrt(mean(se_bh_new)^2 + (1+1/n.imp)*var(bh_new))
 # print baseline hazard with 95% CI
 print(paste0("Baseline hazard ", bh_recal, ", 95% CI ", bh_recal-1.96*bh_recal_se, "-", bh_recal+1.96*bh_recal_se))
 
+# pool calibration slope results
 coef_recal <- mean(cal_slope)
 coef_recal_se <- sqrt(mean(var_slope) + (1+1/n.imp)*var(cal_slope))
 # print calibration slope with 95% CI
 print(paste0("Calibration slope ", coef_recal, ", 95% CI ", coef_recal-1.96*coef_recal_se, "-", coef_recal+1.96*coef_recal_se))
 
+
+# store "recalibrated" score as needed (will not need to be used in this case)
 cohort <- cohort %>% mutate(
   ckdpc_50egfr_lin_predictor_cal=coef_recal*ckdpc_50egfr_lin_predictor,
   ckdpc_50egfr_survival_cal=bh_recal^exp(ckdpc_50egfr_lin_predictor_cal-mean(ckdpc_50egfr_lin_predictor_cal)), # baseline hazard ^ e ^ centred linear predictor
@@ -744,10 +759,10 @@ print(paste0("Brier score for risk score after calibration slope applied ", mean
 auc(ROC_raw)
 ci.auc(ROC_raw)
 paste0("C statistic: ", round(cstat_est, 4), ", 95% CI ", round(cstat_est_ll, 4), "-", round(cstat_est_ul,4))
-print(paste0("Brier score for raw risk score ", mean(brier_raw), ", 95% CI ", mean(brier_raw)-1.96*brier_raw_se_pooled, "-", mean(brier_raw)+1.96*brier_raw_se_pooled))
+print(paste0("Brier score for risk score `as is`", mean(brier_raw), ", 95% CI ", mean(brier_raw)-1.96*brier_raw_se_pooled, "-", mean(brier_raw)+1.96*brier_raw_se_pooled))
 # print(paste0("Brier score for risk score after baseline hazard updated ", mean(brier_recal_bh), ", 95% CI ", mean(brier_recal_bh)-1.96*brier_recal_bh_se_pooled, "-", mean(brier_recal_bh)+1.96*brier_recal_bh_se_pooled))
 # print(paste0("Baseline hazard ", bh_update_presegfr, ", 95% CI ", bh_update_presegfr-1.96*bh_update_se, "-", bh_update_presegfr+1.96*bh_update_se))
-print(paste0("Brier score for risk score after calibration slope applied ", mean(brier_recal), ", 95% CI ", mean(brier_recal)-1.96*brier_recal_se_pooled, "-", mean(brier_recal)+1.96*brier_recal_se_pooled))
+# print(paste0("Brier score for risk score after calibration slope applied ", mean(brier_recal), ", 95% CI ", mean(brier_recal)-1.96*brier_recal_se_pooled, "-", mean(brier_recal)+1.96*brier_recal_se_pooled))
 print(paste0("Baseline hazard ", bh_recal, ", 95% CI ", bh_recal-1.96*bh_recal_se, "-", bh_recal+1.96*bh_recal_se))
 print(paste0("Calibration slope ", coef_recal, ", 95% CI ", coef_recal-1.96*coef_recal_se, "-", coef_recal+1.96*coef_recal_se))
 print(paste0("Slope optimism ", mean(slope_optimism_presegfr)))

@@ -523,7 +523,7 @@ p_counts_subgroup <- labels_plot3 %>% filter(outcome=="ckd_egfr50") %>%
   geom_text(aes(x = 1, label = SGLT2i_nN), hjust = 1, 
             colour = ifelse(labels_plot3[labels_plot3$outcome == "ckd_egfr50",]$SGLT2i_nN == labels3$SGLT2i_nN, "white", "black")) +
   geom_text(aes(x = 3, label = `DPP4i/SU_nN`), hjust = 1, fontface = "plain") +
-  theme_void() +
+  theme_void(base_size = 14) +
   coord_cartesian(xlim = c(-2, 5))
 
 p_hr_subgroup <- 
@@ -533,7 +533,7 @@ p_hr_subgroup <-
   scale_x_continuous(trans = "log10", breaks = c(0.25, 0.5, 0.75, 1.0, 1.5, 2.0)) +
   coord_cartesian(ylim=c(1,length(unique(subgroup_hrs[subgroup_hrs$outcome == "ckd_egfr50",]$contrast)) + 1), 
                   xlim=c(0.25, 2)) +
-  theme_classic() +
+  theme_classic(base_size = 14) +
   geom_point(aes(x=HR), shape=15, size=3) +
   geom_linerange(aes(xmin=LB, xmax=UB)) +
   geom_vline(xintercept = 1, linetype="dashed") +
@@ -568,8 +568,8 @@ p_left_subgroup <-
     fontface = ifelse(labels_plot3[labels_plot3$outcome == "ckd_egfr50",]$
                         contrast == labels3$contrast, "bold", "plain")
   ) +
-  theme_void() +
-  coord_cartesian(xlim = c(0, 4))
+  theme_void(base_size = 14) +
+  coord_cartesian(xlim = c(0, 4), clip = "off")
 
 p_right_subgroup <-
   labels_plot3 %>%
@@ -581,7 +581,7 @@ p_right_subgroup <-
     aes(x = 0, label = string),
     hjust = 0,
     colour = ifelse(labels_plot3[labels_plot3$outcome == "ckd_egfr50",]$string == "Hazard Ratio (95% CI)", "white", "black")) +
-  theme_void() +
+  theme_void(base_size = 14) +
   coord_cartesian(xlim = c(0, 4))
 
 
@@ -592,8 +592,8 @@ p_counts_overall <- labels_plot5 %>% filter(outcome=="ckd_egfr50") %>%
             fontface = ifelse(labels_plot5[labels_plot5$outcome == "ckd_egfr50",]$SGLT2i_nN == labels5$SGLT2i_nN, "bold", "plain")) +
   geom_text(aes(x = 3, label = `DPP4i/SU_nN`), hjust = 1, 
             fontface = ifelse(labels_plot5[labels_plot5$outcome == "ckd_egfr50",]$`DPP4i/SU_nN` == labels5$`DPP4i/SU_nN`, "bold", "plain")) +
-  theme_void() +
-  coord_cartesian(xlim = c(-2, 5))
+  theme_void(base_size = 14) +
+  coord_cartesian(xlim = c(-2, 5), clip="off")
 
 p_hr_overall <- 
   overall %>%
@@ -602,7 +602,7 @@ p_hr_overall <-
   scale_x_continuous(trans = "log10", breaks = c(0.25, 0.5, 0.75, 1.0, 1.5)) +
   coord_cartesian(ylim=c(1,length(unique(overall[overall$outcome == "ckd_egfr50",]$contrast)) + 1), 
                   xlim=c(0.25, 2)) +
-  theme_classic() +
+  theme_classic(base_size = 14) +
   geom_point(aes(x=HR), shape=15, size=3, colour = "black") +
   geom_linerange(aes(xmin=LB, xmax=UB), colour = "black") +
   geom_vline(xintercept = 1, linetype="dashed") +
@@ -612,10 +612,10 @@ p_hr_overall <-
                linetype = "twodash", size = 0.5, colour = "#D55E00") +
   geom_segment(aes(x = 0.68, xend = 0.68, y = 0, yend = length(unique(overall[overall$outcome == "ckd_egfr50",]$contrast))+0.75), 
                linetype = "twodash", size = 0.5, colour = "#D55E00") +
-  annotate("text", x = .65, 
+  annotate("text", x = .6, 
            y = length(unique(overall[overall$outcome == "ckd_egfr50",]$contrast)) + 1, 
            label = "Favours SGLT2i") +
-  annotate("text", x = 1.25,
+  annotate("text", x = 1.5,
            y = length(unique(overall[overall$outcome == "ckd_egfr50",]$contrast)) + 1, 
            label = "Favours\nDPP4i/SU") +
   labs(x="Hazard Ratio", y="") +
@@ -651,26 +651,38 @@ p_right_overall <-
     aes(x = 0, label = string),
     hjust = 0,
     fontface = ifelse(labels_plot5[labels_plot5$outcome == "ckd_egfr50",]$string == "Hazard Ratio (95% CI)", "bold", "plain")) +
-  theme_void() +
+  theme_void(base_size = 14) +
   coord_cartesian(xlim = c(0, 4))
 
 
-# layout for plots below
+# # layout for plots below
+# layout <- c(
+#   area(t = 13, l = 7, b = 30, r = 13),
+#   area(t = 13, l = 0, b = 30, r = 7), 
+#   area(t = 13, l = 12, b = 30, r = 18),
+#   area(t = 13, l = 19, b = 30, r = 24),
+#   area(t = 0, l = 7, b = 13, r = 13), 
+#   area(t = 0, l = 0, b = 13, r = 7),
+#   area(t = 0, l = 12, b = 13, r = 18),
+#   area(t = 0, l = 19, b = 13, r = 24)
+#   
+# )
+
 layout <- c(
-  area(t = 13, l = 7, b = 30, r = 13),
-  area(t = 13, l = 0, b = 30, r = 7), 
-  area(t = 13, l = 12, b = 30, r = 18),
-  area(t = 13, l = 19, b = 30, r = 24),
-  area(t = 0, l = 7, b = 13, r = 13), 
-  area(t = 0, l = 0, b = 13, r = 7),
-  area(t = 0, l = 12, b = 13, r = 18),
-  area(t = 0, l = 19, b = 13, r = 24)
-  
+  area(t = 8, l = 2, b = 18, r = 5), 
+  area(t = 8, l = 0, b = 18, r = 2), 
+  area(t = 8, l = 5.5, b = 18, r = 6),
+  area(t = 8, l = 7, b = 18, r = 8),
+  area(t = 0, l = 2, b = 8, r = 5), 
+  area(t = 0, l = 0, b = 8, r = 2),
+  area(t = 0, l = 5.5, b = 8, r = 6),
+  area(t = 0, l = 7, b = 8, r = 8)
 )
+
 
 # Final plot arrangement
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Output/")
-tiff(paste0(today, "_HR_by_subgroup.tiff"), width=15, height=4, units = "in", res=800) 
+tiff(paste0(today, "_HR_by_subgroup.tiff"), width=11, height=3.5, units = "in", res=800) 
 p_counts_subgroup + p_left_subgroup + p_hr_subgroup + p_right_subgroup + 
   p_counts_overall + p_left_overall + p_hr_overall + p_right_overall + plot_layout(design = layout)
 dev.off()

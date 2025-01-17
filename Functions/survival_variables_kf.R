@@ -1,22 +1,23 @@
 
-# Produce survival variables for all endpoints (including for sensitivity analysis)
-## All censored at 5 years post drug start (3 years for 'ckd_egfr40') / end of GP records / death / starting a different diabetes med which affects CV risk (TZD/GLP1/SGLT2), and also drug stop date + 6 months for per-protocol analysis
+# Produce survival variables for all endpoints 
+## All censored at 3 years post drug start / end of GP records / death / starting a SGLT2/GLP1 if not taking one
+## Additional variables where maximal censoring time is lengthened to 5 years
 
 # Main analysis:
-## 'mace': stroke, MI, CV death
-## 'expanded_mace': stroke, MI, CV death, revasc, HES unstable angina
-## 'hf'
-## 'ckd_egfr40': decline in eGFR of <=40% from baseline or onset of CKD stage 5 OR death from renal causes
-## 'hosp': all-cause hospitalisation
+## 'ckd_egfr40': decline in eGFR of >=40% from baseline or onset of CKD stage 5 OR death from renal causes
+## 'ckd_egfr50': decline in eGFR of >=50% from baseline or onset of CKD stage 5 OR death from renal causes
 ## 'death': all-cause mortality
+## 'macroalb': progression to albuminuria >=30mg/mmol
+## 'dka': occurrence of diabetic ketoacidosis
+## 'amputation': major limb amputation
+## 'side_effect': mycotic genital infection
 
 # Sensitivity analysis:
-## 'narrow_mace': hospitalisation for incident MI (subset of HES codes), incident stroke (subset of HES codes, includes ischaemic only), CV death - all as primary cause for hospitalisation/death only
-## 'narrow_hf': hospitalisation or death with HF as primary cause
-## '{outcome}_pp': all of main analysis but per-protocol rather than intention to treat
+## '{outcome}_pp': all of main analysis but per-protocol rather than intention to treat (see below)
 ## intention to treat: censoring if starting an SGLT2 inhibitor (if in DPP4 or SU arm) or GLP1 agonist.
 ## per-protocol: censoring if starting any other treatment arm or GLP1 agonist.
-## not using per-protocol analyses other than to compare DPP4i with SU arm - therefore removing censoring 185 days after starting
+## the per-protocol analyses are only used to compare treatment effects of DPP4i vs SU.
+## no censoring is undertaken if patients do not continue their prescription.
 
 
 add_surv_vars <- function(cohort_dataset, main_only=FALSE) {
@@ -138,13 +139,8 @@ add_surv_vars <- function(cohort_dataset, main_only=FALSE) {
       
       outcome_var=paste0(substr(i, 1,  nchar(i)-3), "_outcome")
       
-      if (i=="ckd_egfr40_pp") {
         cohort <- cohort %>%
           mutate({{censdate_var}}:=pmin(!!sym(outcome_var), cens_pp_3_yrs, na.rm=TRUE))
-      } else {
-        cohort <- cohort %>%
-          mutate({{censdate_var}}:=pmin(!!sym(outcome_var), cens_pp, na.rm=TRUE))
-      }
       
       
       

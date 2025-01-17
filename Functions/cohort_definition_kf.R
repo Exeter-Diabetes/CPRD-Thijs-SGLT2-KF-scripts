@@ -274,7 +274,7 @@ define_cohort <- function(cohort_dataset, all_drug_periods_dataset) {
     
     mutate(malesex=ifelse(gender==1, 1, 0),
            
-           ncurrtx=DPP4+GLP1+MFN+SU+SGLT2+TZD+INS,          #INS, GLP1 and TZD should be 0 but include anyway; ignore Acarbose and Glinide
+           ncurrtx=DPP4+GLP1+MFN+SU+SGLT2+TZD+INS,          #ignore Acarbose and Glinide
            
            drugline_all=as.factor(ifelse(drugline_all>=5, 5, drugline_all)),
            

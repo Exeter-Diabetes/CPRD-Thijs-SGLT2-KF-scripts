@@ -1,3 +1,10 @@
+# in this script we aim to derive the causal absolute risk differences between SGLT2i and DPP4i/SU.
+# these are essentially the observed absolute risk differences that we want to validate the predictions against.
+# in order to do this, we will fit a marginal structural model - a weighted cox model. 
+# we will then apply this marginal structural model to two counterfactual datasets - two copies of the dataset with treatment for all individuals set as "SGLT2i" and "DPP4i/SU" respectively.
+# the causal absolute risk differences will then be stored for use later.
+# given the computational power required, the script is designed to minimise the use of working memory by only loading one dataset at a time with minimal columns.
+
 
 ############################0 SETUP################################################################
 
@@ -11,13 +18,8 @@ load(paste0(today, "_t2d_ckdpc_recalibrated.Rda"))
 
 cohort$studydrug2 <- as.factor(cohort$studydrug2)
 
-cohort <- cohort %>% filter(!.imp > n.imp)
-
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
-save(cohort, file=paste0(today, "_t2d_ckdpc_recalibrated_with_riskgroup.Rda"))
-
-## prep data for estimating absolute benefit:
-# centre predictors and save dataset (performing analysis in entire dataset exceeds memory limit)
+## prep data:
+# centre predictors and retain relevant columns only (performing analysis in entire dataset exceeds memory limit)
 
 centre_and_reference <- function(df, covariates) {
   df %>%
@@ -58,47 +60,42 @@ setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/"
 save(cohort, file=paste0(today, "_recalibrated_data_centred_predictors.Rda"))
 save(cohort_5y, file=paste0(today, "_recalibrated_data_centred_predictors_5y.Rda"))
 
-############################2 CALCULATE ADJUSTED OBSERVED BENEFITS################################################################
+############################2 FIT WEIGHTED COX MODEL AND ESTIMATE CAUSAL OBSERVED SURVIVAL################################################################
 
-rm(list = setdiff(ls(), c("n.imp", "covariates", "today", "outcomes")))
+# clear R memory to ensure memory limit not exceeded
+rm(list = setdiff(ls(), c("n.imp", "covariates", "today")))
 
-outcomes <- "ckd_egfr50"
+# if evaluating other risk scores, other relevant outcomes may be added
+outcomes_msm <- "ckd_egfr50"
 
-## estimate absolute benefit
-for (k in outcomes) {
+for (k in outcomes_msm) {
   
   for (i in 1:n.imp) {
+    # load minimal dataset
     setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
     load(paste0(today, "_recalibrated_data_centred_predictors.Rda"))
     
-    if (k == "macroalb") {
-      # remove subjects with established macroalbuminuria from these analyses
-      cohort <- cohort %>% filter(.imp == i & macroalb_censtime_yrs >= 0)
-    } else if (k == "ckd_egfr50_5y") {
-      load(paste0(today, "_recalibrated_data_centred_predictors_5y.Rda"))
-      cohort <- cohort_5y %>% filter(.imp == i)
-      rm(cohort_5y)
-    } else {
-      cohort <- cohort %>% filter(.imp == i)
-    }
-    
+    cohort <- cohort %>% filter(.imp == i)
+
+    # clear R memory
     gc()
     
     censvar_var=paste0(k, "_censvar")
     censtime_var=paste0(k, "_censtime_yrs")
     
-    # fit overlap-weighted model
+    # fit overlap-weighted cox model
     f_adjusted <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2 + ", paste(covariates, collapse=" + "))) 
     model <- cph(f_adjusted, data=cohort, x=TRUE, y=TRUE, surv=TRUE, weights=overlap2)
     
-    # create dataframe with similar covariate distribution as our cohort but with everyone treated with SGLT2i
+    # create counterfactual dataset where everyone is treated with SGLT2i
     obs_SGLT2 <- cohort %>%
+      # create variable for factual study arm for reference later
       mutate(studydrug_original=studydrug2,
              studydrug2="SGLT2i",
              rowno=row_number())
     print(paste0("Survival estimates for SGLT2i in imputation ", i, "  (outcome ", k, ")"))
     
-    # get multivariable-adjusted survival estimates
+    # get causal (observed weighted) survival
     observed_sglt2 <- survfit(model, newdata=as.data.frame(obs_SGLT2)) %>%
       tidy() %>%
       filter(time == if (k == "ckd_egfr50_5y") 5 else 3) %>%
@@ -108,34 +105,25 @@ for (k in outcomes) {
       inner_join(obs_SGLT2, by=c("group"="rowno"))
     
     setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
-    # save estimates
+    # save results
     save(observed_sglt2, file=paste0(today, "_adjusted_surv_",k,"_SGLT2i_imp.", i, ".Rda"))
     
-    rm(list = setdiff(ls(), c("n.imp", "covariates", "k", "today", "outcomes")))
+    # clear environment
+    rm(list = setdiff(ls(), c("n.imp", "covariates", "k", "today", "outcomes_msm")))
   }
   
-  # similar for DPP4i/SU:
+  # repeat for DPP4i/SU:
   
   for (i in 1:n.imp) {
     setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
     load(paste0(today, "_recalibrated_data_centred_predictors.Rda"))
     
-    if (k == "macroalb") {
-      cohort <- cohort %>% filter(.imp == i & macroalb_censtime_yrs >= 0)
-    } else if (k == "ckd_egfr50_5y") {
-      load(paste0(today, "_recalibrated_data_centred_predictors_5y.Rda"))
-      cohort <- cohort_5y %>% filter(.imp == i)
-      rm(cohort_5y)
-    } else {
-      cohort <- cohort %>% filter(.imp == i)
-    }
-    
+    cohort <- cohort %>% filter(.imp == i)
     gc()
     
     censvar_var=paste0(k, "_censvar")
     censtime_var=paste0(k, "_censtime_yrs")  
     f_adjusted <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2 + ", paste(covariates, collapse=" + ")))
-    
     model <- cph(f_adjusted, data=cohort, x=TRUE, y=TRUE, surv=TRUE, weights = overlap2)
     
     obs_DPP4SU <- cohort %>%
@@ -156,12 +144,14 @@ for (k in outcomes) {
     setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
     save(observed_dpp4su, file=paste0(today, "_adjusted_surv_",k,"_DPP4iSU_imp.", i, ".Rda"))
     
-    rm(list = setdiff(ls(), c("n.imp", "covariates", "k", "today", "outcomes")))
+    rm(list = setdiff(ls(), c("n.imp", "covariates", "k", "today", "outcomes_msm")))
   }
   
+  # after separately estimating causal survival probabilities in each imputation, we will now combine these in the main dataset
+  # create empty dataframes to append each imputed dataset to
   temp_sglt2 <- temp_dpp4su <- data.frame()
   
-  #for every outcome, join survival estimates from each imputation in one dataframe
+  #for every outcome, join estimates from each imputation in one dataframe
   for (i in 1:n.imp) {
     setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
     load(paste0(today, "_adjusted_surv_",k,"_SGLT2i_imp.", i, ".Rda"))
@@ -172,16 +162,19 @@ for (k in outcomes) {
     rm(observed_dpp4su)
   }
   
+  # combine causal observed survival probabilities
   benefits <- temp_sglt2 %>%
     select(group, .imp, estimate_sglt2, se_sglt2) %>%
     inner_join(temp_dpp4su, by=c("group", ".imp")) %>%
+    # remove counterfactual studydrug annotations and replace with original study arm
     select(-studydrug2) %>%
+    # calculate causal observed absolute risk difference
     mutate(survdiff=estimate_sglt2-estimate_dpp4su,
            se_survdiff=sqrt(se_sglt2^2 + se_dpp4su^2),
            studydrug2=studydrug_original) %>%
     select(-studydrug_original) 
   
-  #rename variables
+  #rename variables by outcome name
   benefits <- benefits %>% rename_with(
     ~ paste0(.x, "_", k),
     contains("survdiff")
@@ -192,13 +185,13 @@ for (k in outcomes) {
   rm(benefits)
 }
 
-rm(list = setdiff(ls(), c("n.imp", "covariates", "k", "today", "outcomes")))
+rm(list = setdiff(ls(), c("n.imp", "covariates", "k", "today", "outcomes_msm")))
 
-### add adjusted (observed) survival estimates to main dataset
+### add causal observed absolute risk reductions to main dataset
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
-load(paste0(today, "_t2d_ckdpc_recalibrated_with_riskgroup.Rda"))
+load(paste0(today, "_t2d_ckdpc_recalibrated.Rda"))
 
-for (k in outcomes) {
+for (k in outcomes_msm) {
   
   setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
   load(paste0(today, "_adjusted_surv_", k, ".Rda"))
@@ -210,7 +203,7 @@ for (k in outcomes) {
 
 cohort$studydrug2 <- as.factor(cohort$studydrug2)
 
-# save dataset with adjusted survival probabilities
+# save dataset
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
 save(cohort, file=paste0(today, "_t2d_ckdpc_recalibrated_with_adjsurv.Rda"))

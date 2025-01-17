@@ -122,7 +122,7 @@ ui <- fluidPage(
     "))
   ),
   column(width = 12, align = "center", div(class="title", titlePanel("Predicted kidney protection benefit from SGLT2-inhibitors in people with type 2 diabetes"))),
-  column(width = 12, align = "center", div(class="explanation", h5("This calculator can predict kidney protection benefit from SGLT2-inhibitor treatment for people with type 2 diabetes, preserved eGFR (<60mL/min/1.73m2), normal or low-level albuminuria (uACR <30mg/mmol or <265mg/g), and without a history of atherosclerotic vascular disease or heart failure."))),
+  column(width = 12, align = "center", div(class="explanation", h5("This calculator predicts kidney protection benefit from SGLT2-inhibitor treatment for people with type 2 diabetes, preserved eGFR (<60mL/min/1.73m2), normal or low-level albuminuria (uACR <30mg/mmol or <265mg/g), and without a history of atherosclerotic vascular disease or heart failure."))),
   column(width = 12, align = "center", div(class="subtitle", h4("3-year risk of kidney disease progression (≥50% decline in eGFR or kidney failure):"))),
   column(width = 12, align="center",
          div(style = "max-width: 700px; min-width: 650px", # these values set the min and max width for the elements inside
@@ -489,7 +489,7 @@ server <- function(input, output, session) {
           if (is_above_threshold) {
             div(style = "display: flex; align-items: center; margin-bottom: 15px;",
                 div(style = "font-size: 20px; font-weight: bold; margin-right: 5px; color: black;", "→"),  # Unicode arrow
-                div(style = "font-size: 14px;", "SGLT2-inhibitor treatment not suggested for kidney protection. This indicates a predicted benefit below the threshold (0.65%) where a comparable proportion of the population would be treated as currently recommended by NICE and international guidelines (KDIGO/ADA/EASD).")
+                div(style = "font-size: 14px;", "SGLT2-inhibitor treatment not suggested for kidney protection. This patient's predicted benefit is below the threshold (0.65%) where a comparable proportion of the population would be treated as currently recommended by NICE and international guidelines (KDIGO/ADA/EASD).")
             )
           },
           
@@ -500,7 +500,7 @@ server <- function(input, output, session) {
           if (!is_above_threshold) {
             div(style = "display: flex; align-items: center; margin-top: 15px;",
                 div(style = "font-size: 20px; font-weight: bold;margin-right: 5px; color: black;", "→"),  # Unicode arrow
-                div(style = "font-size: 14px;", "Consider SGLT2-inhibitor treatment for kidney protection. This indicates a predicted benefit above the threshold (0.65%) where a comparable proportion of the population would be treated as currently recommended by NICE and international guidelines (KDIGO/ADA/EASD).")
+                div(style = "font-size: 14px;", "Consider SGLT2-inhibitor treatment for kidney protection. This patient's predicted benefit is above the threshold (0.65%) where a comparable proportion of the population would be treated as currently recommended by NICE and international guidelines (KDIGO/ADA/EASD).")
             )
           }
         )
