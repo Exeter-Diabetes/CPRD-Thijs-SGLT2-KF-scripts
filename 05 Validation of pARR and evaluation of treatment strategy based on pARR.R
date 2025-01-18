@@ -330,8 +330,8 @@ B <- var(slope)            # Between-imputation variance
 W <- mean(slope_se^2)      # Within-imputation variance
 TV <- W + (1 + 1 / n.imp) * B  # Total variance
 # Confidence interval for pooled slope
-slope_lc <- mean_slope - 1.96 * sqrt(TV)
-slope_uc <- mean_slope + 1.96 * sqrt(TV)
+slope_lc <- slope - 1.96 * sqrt(TV)
+slope_uc <- slope + 1.96 * sqrt(TV)
 print(paste0("Calibration slope for mean pARR and observed ARR by decile: ", round(slope, 3), ", 95% CI ", round(slope_lc, 3), "-", round(slope_uc,3)))
 
 #pool and print brier score

@@ -31,7 +31,10 @@ labels <- labels %>% mutate(contrast = "Overall (by analytic approach)",
                             DPP4i_nN = "Events/subjects (DPP4i)",
                             SGLT2i_nN = "Events/subjects (SGLT2i)")
 
-labels_plot <- all_hrs
+labels_plot <- all_hrs %>% mutate(
+  string = ifelse(outcome == "ckd_egfr50_pp" & contrast == "SGLT2i vs SU" & analysis == "IPTW", paste(string, " "), string),
+  string = as.factor(string)
+)
 
 for (k in unique(all_hrs$contrast)) {
   for (m in unique(all_hrs$outcome)) {

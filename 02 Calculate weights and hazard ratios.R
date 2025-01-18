@@ -1,12 +1,12 @@
-## In this script our aim is to see whether the relative treatment effect of SGLT2i vs control is similar
+## In this script we aim to see whether the relative treatment effect of SGLT2i vs control is similar
 ## in the literature and in the CPRD cohort
-## we will compare hazard ratios for SGLT2i vs SU in CPRD to those from trials.
+## we will compare hazard ratios for SGLT2i vs DPP4i/SU in CPRD to those from trials.
 
 ## for reference, the trial meta-analysis RR reported in Lancet (Nuffield Group 2022) is:
 # HR 0.62 (0.56 - 0.68)
 
 ## Here we will be calculating HRs for SGLT2i and DPP4i vs SU for:
-## primary outcome kidney disease progression: fall in eGFR of ≥50% from baseline or onset of CKD stage 5
+## primary outcome kidney disease progression: eGFR decline of ≥50% from baseline or onset of CKD stage 5
 ## secondary outcomes: progression to macroalbuminuria, all-cause mortality, dka, amputation, and mycotic genital infections
 
 ## Contents:
