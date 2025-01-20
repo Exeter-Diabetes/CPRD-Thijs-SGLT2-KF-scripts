@@ -181,7 +181,7 @@ p_uncal_bydeciles_dpp4isu <- ggplot(data=bind_rows(empty_tick,obs_v_pred), aes(x
   geom_point(aes(y = observed_dpp4isu*100, group=studydrug2, color=studydrug2), shape=18, size=3) +
   geom_abline(intercept = 0, slope = 1, lty = 2) +
   theme_bw() +
-  xlab("CKD-PC risk score (%)") + ylab("Observed risk (%)")+
+  xlab("Predicted 3-year risk of kidney disease progression (%)") + ylab("Observed risk (%)")+
   scale_x_continuous(limits=c(0,100), breaks = seq(0, 5, 1))+
   scale_y_continuous(limits=c(-1,100)) +
   scale_colour_manual(values = cols) +
@@ -193,7 +193,7 @@ p_uncal_bydeciles_dpp4isu <- ggplot(data=bind_rows(empty_tick,obs_v_pred), aes(x
         plot.title=element_text(hjust = 0.5),
         plot.subtitle=element_text(hjust = 0.5,size=rel(1.2)),
         legend.position = "none") +
-  ggtitle("Predicted risk of kidney disease progression") +
+  #ggtitle("Predicted risk of kidney disease progression") +
   coord_cartesian(xlim = c(0,5), ylim = c(0,5))
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Output/")
