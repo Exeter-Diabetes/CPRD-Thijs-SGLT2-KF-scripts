@@ -81,6 +81,13 @@ ui <- fluidPage(
       margin-top: 20px;
       max-width: 700px; 
       min-width: 650px
+      }
+    .beta-notice {
+      text-align: center;
+      font-size: 12px;
+      font-style: italic;
+      color: red;
+      margin-top: 20px;
     }
     .explanation {
       text-align: center;
@@ -122,7 +129,9 @@ ui <- fluidPage(
     "))
   ),
   column(width = 12, align = "center", div(class="title", titlePanel("Predicted kidney protection benefit from SGLT2-inhibitors in people with type 2 diabetes"))),
-  column(width = 12, align = "center", div(class="explanation", h5("This calculator predicts kidney protection benefit from SGLT2-inhibitor treatment for people with type 2 diabetes, preserved eGFR (<60mL/min/1.73m2), normal or low-level albuminuria (uACR <30mg/mmol or <265mg/g), and without a history of atherosclerotic vascular disease or heart failure."))),
+  column(width = 12, align = "center", div(class="beta-notice", 
+                                           HTML("This calculator is in beta and is for research purposes only. Please leave any feedback <a href='https://forms.gle/ewYM9jmQfNb2fD2U8' target='_blank'>here</a>."))),
+  column(width = 12, align = "center", div(class="explanation", uiOutput("dynamic_explanation"))),
   column(width = 12, align = "center", div(class="subtitle", h4("3-year risk of kidney disease progression (≥50% decline in eGFR or kidney failure):"))),
   column(width = 12, align="center",
          div(style = "max-width: 700px; min-width: 650px", # these values set the min and max width for the elements inside
@@ -188,6 +197,7 @@ ui <- fluidPage(
              p("Grams ME, Brunskill NJ, Ballew SH, et al. Development and Validation of Prediction Models of Adverse Kidney Outcomes in the Population With and Without Diabetes. Diabetes Care 2022; 45(9): 2055-63.")
          )
   ),
+
 )
 
 # Server logic for the Shiny app
@@ -205,6 +215,11 @@ server <- function(input, output, session) {
     } else {
       unit("SI")
     }
+  })
+  
+  output$dynamic_explanation <- renderUI({
+    acr_limit_value <- if (unit() == "SI") "<30mg/mmol" else "<265mg/g"
+    HTML(paste0("This calculator predicts kidney protection benefit from SGLT2-inhibitor treatment for people with type 2 diabetes, preserved eGFR (<60mL/min/1.73m2), normal or low-level albuminuria (uACR", acr_limit_value, "), and without a history of atherosclerotic vascular disease or heart failure."))
   })
   
   # Dynamically update ACR choices based on the unit
@@ -489,7 +504,7 @@ server <- function(input, output, session) {
           if (is_above_threshold) {
             div(style = "display: flex; align-items: center; margin-bottom: 15px;",
                 div(style = "font-size: 20px; font-weight: bold; margin-right: 5px; color: black;", "→"),  # Unicode arrow
-                div(style = "font-size: 14px;", "SGLT2-inhibitor treatment not suggested for kidney protection. This patient's predicted benefit is below the threshold (0.65%) where a comparable proportion of the population would be treated as currently recommended by NICE and international guidelines (KDIGO/ADA/EASD).")
+                div(style = "font-size: 14px;", "SGLT2-inhibitor treatment not suggested for kidney protection in this patient. This patient's predicted benefit is below the threshold of 0.65%, which corresponds to the proportion of the population recommended for treatment based on albuminuria ≥3mg/mmol in NICE, KDIGO, ADA, and EASD guidelines).")
             )
           },
           
@@ -500,7 +515,7 @@ server <- function(input, output, session) {
           if (!is_above_threshold) {
             div(style = "display: flex; align-items: center; margin-top: 15px;",
                 div(style = "font-size: 20px; font-weight: bold;margin-right: 5px; color: black;", "→"),  # Unicode arrow
-                div(style = "font-size: 14px;", "Consider SGLT2-inhibitor treatment for kidney protection. This patient's predicted benefit is above the threshold (0.65%) where a comparable proportion of the population would be treated as currently recommended by NICE and international guidelines (KDIGO/ADA/EASD).")
+                div(style = "font-size: 14px;", "Consider SGLT2-inhibitor treatment for kidney protection in this patient. This patient's predicted benefit is above the threshold of 0.65%, which corresponds to the proportion of the population recommended for treatment based on albuminuria ≥3mg/mmol in NICE, KDIGO, ADA, and EASD guidelines).")
             )
           }
         )
