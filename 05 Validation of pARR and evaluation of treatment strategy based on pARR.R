@@ -1,5 +1,5 @@
 # in this script we will compare predicted with observed absolute risk reductions and create main figures
-# we will also compare treatment strategies based on predicted absolute risk reductions with the current albuminuria treshold
+# we will also compare treatment strategies based on Predicted 3-year absolute risk reductions with the current albuminuria treshold
 
 ############################0 SETUP################################################################
 
@@ -26,7 +26,7 @@ print(paste0("Overall median pARR: ", sprintf("%.2f", median(cohort$ckdpc_50egfr
 
 print(paste0("Albuminuria <3mg/mmol median pARR: ", sprintf("%.2f", median(cohort[cohort$albuminuria == F,]$ckdpc_50egfr_sglt2i_benefit*100)), "% (IQR ", sprintf("%.2f", quantile(cohort[cohort$albuminuria == F,]$ckdpc_50egfr_sglt2i_benefit*100, 0.25)), "-", sprintf("%.2f", quantile(cohort[cohort$albuminuria == F,]$ckdpc_50egfr_sglt2i_benefit*100, 0.75)), ")"))
 
-print(paste0("Albuminuria ≥3mg/mmol median pARR: ", sprintf("%.2f", median(cohort[cohort$albuminuria == T,]$ckdpc_50egfr_sglt2i_benefit*100)), "% (IQR ", sprintf("%.2f", quantile(cohort[cohort$albuminuria == T,]$ckdpc_50egfr_sglt2i_benefit*100, 0.25)), "-", sprintf("%.2f", quantile(cohort[cohort$albuminuria == T,]$ckdpc_50egfr_sglt2i_benefit*100, 0.75)), ")"))
+print(paste0("Albuminuria 3-30mg/mmol median pARR: ", sprintf("%.2f", median(cohort[cohort$albuminuria == T,]$ckdpc_50egfr_sglt2i_benefit*100)), "% (IQR ", sprintf("%.2f", quantile(cohort[cohort$albuminuria == T,]$ckdpc_50egfr_sglt2i_benefit*100, 0.25)), "-", sprintf("%.2f", quantile(cohort[cohort$albuminuria == T,]$ckdpc_50egfr_sglt2i_benefit*100, 0.75)), ")"))
 
 # in order to compare a treatment strategy based on pARR to the albuminuria threshold, we will need to choose a pARR threshold
 # the most straightforward threshold (which avoids any health economics discussion) is to choose a threshold where a comparable proportion of the population would be treated
@@ -126,15 +126,18 @@ ggplot(data=contrast_spline_df, aes(x=ckdpc_50egfr_score, y=exp(Contrast))) +
   xlab(expression(paste("Predicted 3-year risk of kidney disease progression"))) +
   ylab("Hazard ratio") +
   scale_x_continuous(breaks = seq(0,4,.5)) +
-  scale_y_log10(breaks = c(seq(0.1, 0.8, 0.1), seq(0.8, 1.6, 0.2))) +
+  scale_y_log10(breaks = c(0.25, 0.50, 0.75, 1.0, 1.50, 2.0)) +
   geom_ribbon(data=contrast_spline_df, aes(x=ckdpc_50egfr_score, ymin=exp(Lower), ymax=exp(Upper)), alpha=0.2) +
   geom_hline(yintercept = 1, linetype = "dashed")  +
   geom_hline(aes(yintercept = 0.62, linetype = "hr", size="hr"), color="#D55E00")  +
   geom_hline(aes(yintercept = 0.68, linetype = "hr_95", size="hr_95"), color="#D55E00")  +
   geom_hline(aes(yintercept = 0.57, linetype = "hr_95", size="hr_95"), color="#D55E00")  +
-  # annotate("text", x = mean(range(contrast_spline_df$ckdpc_50egfr_score)), y = 0.35, 
-  #          label = paste0("italic(p)~'='~italic(", sprintf("%.2f", p_value_non_linear), "~'for non-linear interaction term')"), 
-  #          size = 5, hjust = 0.5, parse = T) +
+   annotate("text", x = mean(range(contrast_spline_df$ckdpc_50egfr_score)), y = 0.35, 
+            label = "Favours SGLT2i", 
+            size = 5, hjust = 0.5, parse = F) +
+  annotate("text", x = mean(range(contrast_spline_df$ckdpc_50egfr_score)), y = 1.5, 
+           label = "Favours DPP4i/SU", 
+           size = 5, hjust = 0.5, parse = F) +
   theme_bw() +
   theme(text = element_text(size = 18),
         panel.grid.major = element_blank(),
@@ -152,7 +155,7 @@ ggplot(data=contrast_spline_df, aes(x=ckdpc_50egfr_score, y=exp(Contrast))) +
         axis.line.y.right = element_blank(),) +
   scale_linetype_manual(values = c(hr = "twodash", hr_95 = "twodash"), labels = c(hr = "0.62", hr_95 = "95% CI 0.56-0.68"), name="Trial meta-analysis hazard ratio") +
   scale_size_manual(values = c(hr = 1, hr_95 = 0.5), labels = c(hr = "0.62", hr_95 = "95% CI 0.56-0.68"), name="Trial meta-analysis hazard ratio") +
-  coord_cartesian(xlim = c(0.35, 4.5), expand = F)
+  coord_cartesian(xlim = c(0.35, 4.5), ylim = c(0.25, 2.0), expand = F)
 dev.off()
 
 options(datadist = NULL)
@@ -170,10 +173,13 @@ benefit_histogram_noalb <- ggplot(cohort %>% filter(albuminuria == F) %>%
                                   aes(x = predicted_benefit_percent)) +
   geom_histogram(aes(y = ..count.. / n.imp, fill = predicted_benefit_percent > cutoff1*100),
                  binwidth = 0.02, color = "black") +  
-  scale_fill_manual(values = c("TRUE" = "#E69F00", "FALSE" = "grey")) +
+  scale_fill_manual(values = c("TRUE" = "#E69F00", "FALSE" = "grey"),
+                    labels = c("TRUE" = "Predicted absolute risk reduction ≥0.65%\n(targeting 17.9% of overall population)", 
+                               "FALSE" = "Predicted absolute risk reduction <0.65%")) +
   geom_vline(xintercept = cutoff1*100, linetype = "dashed", color = "black", size = 1) +
-  annotate("text", x = 2.5, y = 5000, label = paste0("Albuminuria <3mg/mmol\n(n=",nrow(cohort %>% filter(albuminuria == F))/n.imp,")"), vjust = 0, hjust = 1.1, angle = 0, size = 4, color = "black") +
-  annotate("text", x = cutoff1*100, y = Inf, label = "pARR threshold", vjust = 1.3, hjust = 1.0, angle = 90, size = 4, color = "black") +
+  annotate("text", x = 2.5, y = 6500, label = paste0("Albuminuria <3mg/mmol (", round(100*nrow(cohort %>% filter(albuminuria == F))/nrow(cohort), 1), "%, n=",nrow(cohort %>% filter(albuminuria == F))/n.imp,")"), vjust = 0, hjust = 1, angle = 0, size = 4, color = "black") +
+  annotate("text", x = 2.5, y = 5900, label = expression(italic("Guidelines do not recommend SGLT2i")), parse = T, vjust = 0, hjust = 1, angle = 0, size = 4) +
+  # annotate("text", x = cutoff1*100, y = Inf, label = "pARR threshold", vjust = 1.3, hjust = 1.0, angle = 90, size = 4, color = "black") +
   labs(x = "", y = "Frequency") +
   theme_bw() +
   theme(
@@ -188,7 +194,9 @@ benefit_histogram_noalb <- ggplot(cohort %>% filter(albuminuria == F) %>%
     axis.line.y.right = element_blank(),   # No line on the right
     panel.grid = element_blank()
   ) +
-  theme(legend.position = "none") + 
+  guides(fill = guide_legend(reverse = TRUE)) +
+  theme(legend.position = c(0.725, 0.25),
+        legend.title = element_blank()) + 
   coord_cartesian(xlim=c(0,2.5), ylim=c(0,7500), expand = F)
 
 # low-level albuminuria:
@@ -199,11 +207,12 @@ benefit_histogram_microalb <- ggplot(cohort %>% filter(albuminuria == T) %>%
                  binwidth = 0.02, color = "black") +  
   scale_fill_manual(values = c("TRUE" = "#E69F00", "FALSE" = "grey")) +
   geom_vline(xintercept = cutoff1*100, linetype = "dashed", color = "black", size = 1) +
-  annotate("text", x = 2.5, y = 200, label = paste0("Albuminuria ≥3mg/mmol\n(n=",nrow(cohort %>% filter(albuminuria == T))/n.imp,")"), vjust = 0, hjust = 1.1, angle = 0, size = 4, color = "black") +
+  annotate("text", x = 2.5, y = 1200, label = paste0("Albuminuria 3-30mg/mmol (", round(100*nrow(cohort %>% filter(albuminuria == T))/nrow(cohort), 1), "%, n=",nrow(cohort %>% filter(albuminuria == T))/n.imp,")"), vjust = 0, hjust = 1, angle = 0, size = 4, color = "black") +
+  annotate("text", x = 2.5, y = 600, label = expression(italic("Guidelines recommend SGLT2i")), parse = T, vjust = 0, hjust = 1, angle = 0, size = 4) +
   #no text at dashed line to avoid duplication of text in plot 
   annotate("text", x = cutoff1*100, y = Inf, label = "", vjust = 0, hjust = 0, angle = 90, size = 4, color = "black") +
 
-  labs(x = "Predicted absolute risk reduction with SGLT2i (%)", y = "") +
+  labs(x = "Predicted 3-year absolute risk reduction with SGLT2i (%)", y = "") +
   scale_y_continuous(breaks = seq(0,1000, 500)) +
   theme_bw() +
   theme(
@@ -478,13 +487,13 @@ pooled_summary <- pooled_data %>%
         ")"
       ),
       subgp == "guideline_Y_model_N" ~ paste0(
-        "Albuminuria ≥3mg/mmol, model does not recommend (n=", 
+        "Albuminuria 3-30mg/mmol, model does not recommend (n=", 
         if (nrow(cohort_guideline_Y_model_N) %% 10 == 5) {round(nrow(cohort_guideline_Y_model_N) / n.imp) - 1} 
         else {round(nrow(cohort_guideline_Y_model_N) / n.imp)}, 
         ")"
       ),
       subgp == "guideline_Y_model_Y" ~ paste0(
-        "Model recommends SGLT2i, albuminuria ≥3mg/mmol (n=", 
+        "Model recommends SGLT2i, albuminuria 3-30mg/mmol (n=", 
         round(nrow(cohort_guideline_Y_model_Y) / n.imp), 
         ")"
       ),
@@ -497,9 +506,9 @@ pooled_summary <- pooled_data %>%
     subgp_label = factor(
       subgp_label, 
       levels = c(
-        paste0("Model recommends SGLT2i, albuminuria ≥3mg/mmol (n=", round(nrow(cohort_guideline_Y_model_Y) / n.imp), ")"),
+        paste0("Model recommends SGLT2i, albuminuria 3-30mg/mmol (n=", round(nrow(cohort_guideline_Y_model_Y) / n.imp), ")"),
         paste0("Model recommends SGLT2i, albuminuria <3mg/mmol (n=", round(nrow(cohort_guideline_N_model_Y) / n.imp), ")"),
-        paste0("Albuminuria ≥3mg/mmol, model does not recommend (n=", 
+        paste0("Albuminuria 3-30mg/mmol, model does not recommend (n=", 
                if (nrow(cohort_guideline_Y_model_N) %% 10 == 5) {round(nrow(cohort_guideline_Y_model_N) / n.imp) - 1} 
                else {round(nrow(cohort_guideline_Y_model_N) / n.imp)}, ")"),
         paste0("Albuminuria <3mg/mmol, model does not recommend (n=", 
@@ -563,10 +572,10 @@ dev.off()
 # prep data
 arr_data <- data.frame(
   stratum = c(
-    paste0("pARR below threshold (n=", if (nrow(cohort_guideline_N_model_N) %% 10 == 5) {round(nrow(cohort_guideline_N_model_N)/n.imp)-1} else {round(nrow(cohort_guideline_N_model_N)/n.imp)}, ")"),
-    paste0("pARR above threshold (n=", round(nrow(cohort_guideline_N_model_Y)/n.imp), ")"),  
-    paste0("pARR below threshold (n=", if (nrow(cohort_guideline_Y_model_N) %% 10 == 5) {round(nrow(cohort_guideline_Y_model_N)/n.imp)-1} else {round(nrow(cohort_guideline_Y_model_N)/n.imp)}, ")"), 
-    paste0("pARR above threshold (n=", round(nrow(cohort_guideline_Y_model_Y)/n.imp), ")")
+    paste0("Predicted absolute risk reduction <0.65% (n=", if (nrow(cohort_guideline_N_model_N) %% 10 == 5) {round(nrow(cohort_guideline_N_model_N)/n.imp)-1} else {round(nrow(cohort_guideline_N_model_N)/n.imp)}, ")"),
+    paste0("Predicted absolute risk reduction ≥0.65% (n=", round(nrow(cohort_guideline_N_model_Y)/n.imp), ")"),  
+    paste0("Predicted absolute risk reduction <0.65% (n=", if (nrow(cohort_guideline_Y_model_N) %% 10 == 5) {round(nrow(cohort_guideline_Y_model_N)/n.imp)-1} else {round(nrow(cohort_guideline_Y_model_N)/n.imp)}, ")"), 
+    paste0("Predicted absolute risk reduction ≥0.65% (n=", round(nrow(cohort_guideline_Y_model_Y)/n.imp), ")")
     ),
   guideline = c(F, F, T, T),
   model = c(F, T, F, T),
@@ -592,13 +601,13 @@ arr_data <- data.frame(
 
 arr_data <- arr_data %>% mutate(
   stratum = factor(stratum, levels = c(
-    paste0("pARR above threshold (n=", round(nrow(cohort_guideline_Y_model_Y)/n.imp), ")"),
+    paste0("Predicted 3-year absolute risk reduction ≥0.65% (n=", round(nrow(cohort_guideline_Y_model_Y)/n.imp), ")"),
     
-    paste0("pARR below threshold (n=", if (nrow(cohort_guideline_Y_model_N) %% 10 == 5) {round(nrow(cohort_guideline_Y_model_N)/n.imp)-1} else {round(nrow(cohort_guideline_Y_model_N)/n.imp)}, ")"), 
+    paste0("Predicted 3-year absolute risk reduction <0.65% (n=", if (nrow(cohort_guideline_Y_model_N) %% 10 == 5) {round(nrow(cohort_guideline_Y_model_N)/n.imp)-1} else {round(nrow(cohort_guideline_Y_model_N)/n.imp)}, ")"), 
     
-    paste0("pARR above threshold (n=", round(nrow(cohort_guideline_N_model_Y)/n.imp), ")"),  
+    paste0("Predicted 3-year absolute risk reduction ≥0.65% (n=", round(nrow(cohort_guideline_N_model_Y)/n.imp), ")"),  
     
-    paste0("pARR below threshold (n=", if (nrow(cohort_guideline_N_model_N) %% 10 == 5) {round(nrow(cohort_guideline_N_model_N)/n.imp)-1} else {round(nrow(cohort_guideline_N_model_N)/n.imp)}, ")")
+    paste0("Predicted 3-year absolute risk reduction <0.65% (n=", if (nrow(cohort_guideline_N_model_N) %% 10 == 5) {round(nrow(cohort_guideline_N_model_N)/n.imp)-1} else {round(nrow(cohort_guideline_N_model_N)/n.imp)}, ")")
   ))
 )
 # calculate p-value for comparison between two groups with normal albuminuria based on pARR
@@ -612,13 +621,17 @@ diff <- (arr_data[3,]$ARR - arr_data[2,]$ARR)
 se_diff <- sqrt(((arr_data[3,]$upper_bound - arr_data[3,]$lower_bound)/(2*1.96))^2 + ((arr_data[2,]$upper_bound - arr_data[2,]$lower_bound)/(2*1.96))^2)
 p_value_comparison2 <- 2*(1-pnorm(abs(diff/se_diff)))
 
+diff <- (arr_data[3,]$ARR - arr_data[4,]$ARR)
+se_diff <- sqrt(((arr_data[3,]$upper_bound - arr_data[3,]$lower_bound)/(2*1.96))^2 + ((arr_data[4,]$upper_bound - arr_data[4,]$lower_bound)/(2*1.96))^2)
+p_value_comparison3 <- 2*(1-pnorm(abs(diff/se_diff)))
+
 ## bar plot:
 bar_plot <- ggplot(arr_data, aes(x = stratum, y = ARR, color = stratum, fill = model, pattern = guideline)) +
   geom_bar_pattern(stat = "identity", width = 0.7, color = "black",
                    pattern_fill = "white", pattern_angle = 45, pattern_density = 0.6, pattern_spacing = 0.04, pattern_key_scale_factor = 0.6) +  
   labs(
     x = "",
-    y = "5-year observed ARR in kidney disease progression         "
+    y = "5-year observed absolute risk reduction\nin kidney disease progression"
   ) +
   geom_errorbar(aes(ymin = lower_bound, ymax = upper_bound), width = 0.2, color = "black") +
   scale_x_discrete(labels = function(x) str_wrap(x, width = 20)) +
@@ -641,8 +654,8 @@ bar_plot <- ggplot(arr_data, aes(x = stratum, y = ARR, color = stratum, fill = m
   scale_fill_manual(values = c("grey", "#E69F00", "grey", "#E69F00"))  + 
   scale_pattern_manual(values = c("stripe", "none")) +
   geom_signif(stat="signif",position="identity",
-              comparisons=list(c(paste0("pARR above threshold (n=", round(nrow(cohort_guideline_N_model_Y)/n.imp), ")"),  
-                                 paste0("pARR below threshold (n=", if (nrow(cohort_guideline_N_model_N) %% 10 == 5) {round(nrow(cohort_guideline_N_model_N)/n.imp)-1} else {round(nrow(cohort_guideline_N_model_N)/n.imp)}, ")")
+              comparisons=list(c(paste0("Predicted 3-year absolute risk reduction ≥0.65% (n=", round(nrow(cohort_guideline_N_model_Y)/n.imp), ")"),  
+                                 paste0("Predicted 3-year absolute risk reduction <0.65% (n=", if (nrow(cohort_guideline_N_model_N) %% 10 == 5) {round(nrow(cohort_guideline_N_model_N)/n.imp)-1} else {round(nrow(cohort_guideline_N_model_N)/n.imp)}, ")")
               )),map_signif_level = TRUE,annotations="*", colour = "black", size = 0.75, textsize = 5, margin_top = 0.075) +
   coord_flip()
 
@@ -744,7 +757,7 @@ as_tibble(dca_data) %>%
     labels = c("Treat all", 
                "Treat none", 
                "Treat if albuminuria ≥3mg/mmol", 
-               "Treat if pARR above threshold\n(comparable treatment proportion to albuminuria strategy)",
+               "Treat if pARR ≥0.65%\n(comparable treatment proportion to albuminuria strategy)",
                "Treat according to pARR (threshold varying by risk tolerance)")) + 
   scale_linetype_manual(
     values = c(
@@ -756,7 +769,7 @@ as_tibble(dca_data) %>%
     labels = c("Treat all", 
                "Treat none", 
                "Treat if albuminuria ≥3mg/mmol", 
-               "Treat if pARR above threshold\n(comparable treatment proportion to albuminuria strategy)",
+               "Treat if pARR ≥0.65%\n(comparable treatment proportion to albuminuria strategy)",
                "Treat according to pARR (threshold varying by risk tolerance)")) + 
   guides(color = guide_legend("Treatment strategy"), 
          linetype = guide_legend("Treatment strategy")) +
@@ -902,23 +915,23 @@ for (k in outcomes) {
   ow_highparr_string <- paste0(sprintf("%.2f", round(ow_highparr[1], 2)), " (", sprintf("%.2f", round(ow_highparr[2], 2)), ", ", sprintf("%.2f", round(ow_highparr[3], 2)), ")")
   
   # combine in dataframe that we can tabulate
-  presegfr_lowparr_hr <- cbind(outcome=k, count[1,c(2:3)], followup[1,c(2:3)], events[1,c(2:3)], contrast = "pARR below threshold",
+  presegfr_lowparr_hr <- cbind(outcome=k, count[1,c(2:3)], followup[1,c(2:3)], events[1,c(2:3)], contrast = "pARR <0.65%",
                              unadjusted=unadjusted_lowparr_string, adjusted=adjusted_lowparr_string, ow=ow_lowparr_string
   )
-  presegfr_highparr_hr <- cbind(outcome=k, count[2,c(2:3)], followup[2,c(2:3)], events[2,c(2:3)], contrast = "pARR above threshold",
+  presegfr_highparr_hr <- cbind(outcome=k, count[2,c(2:3)], followup[2,c(2:3)], events[2,c(2:3)], contrast = "pARR ≥0.65%",
                                 unadjusted=unadjusted_highparr_string, adjusted=adjusted_highparr_string, ow=ow_highparr_string
   )
   
   outcome_subgroup_parr_SGLT2ivsDPP4iSU_hrs <- rbind(presegfr_lowparr_hr, presegfr_highparr_hr)
   
   temp <- rbind(
-    cbind(outcome = k, contrast = "pARR below threshold", analysis = "Adjusted",
+    cbind(outcome = k, contrast = "pARR <0.65%", analysis = "Adjusted",
           HR = adjusted_lowparr[1], LB = adjusted_lowparr[2], UB = adjusted_lowparr[3], string = adjusted_lowparr_string),
-    cbind(outcome = k, contrast = "pARR above threshold", analysis = "Adjusted",
+    cbind(outcome = k, contrast = "pARR ≥0.65%", analysis = "Adjusted",
           HR = adjusted_highparr[1], LB = adjusted_highparr[2], UB = adjusted_highparr[3], string = adjusted_highparr_string),
-    cbind(outcome = k, contrast = "pARR below threshold", analysis = "Overlap-weighted",
+    cbind(outcome = k, contrast = "pARR <0.65%", analysis = "Overlap-weighted",
           HR = ow_lowparr[1], LB = ow_lowparr[2], UB = ow_lowparr[3], string = ow_lowparr_string),
-    cbind(outcome = k, contrast = "pARR above threshold", analysis = "Overlap-weighted",
+    cbind(outcome = k, contrast = "pARR ≥0.65%", analysis = "Overlap-weighted",
           HR = ow_highparr[1], LB = ow_highparr[2], UB = ow_highparr[3], string = ow_highparr_string)
   )
   

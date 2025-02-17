@@ -458,10 +458,10 @@ server <- function(input, output, session) {
         panel.grid.major.x = element_line(color = "grey80"),
         panel.grid.minor.x = element_blank(),
         plot.margin = margin(10, 10, 10, 10)
-      ) +
+      ) # +
       
       # Chart title
-      labs(title = "3-year risk of kidney disease progression")
+      #labs(title = "3-year risk of kidney disease progression")
   })
   
   output$traffic_light <- renderUI({

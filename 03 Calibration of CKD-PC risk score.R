@@ -211,6 +211,14 @@ cstat_est_ll <- summary(raw_mod)$concordance[1]-(1.96*summary(raw_mod)$concordan
 cstat_est_ul <- summary(raw_mod)$concordance[1]+(1.96*summary(raw_mod)$concordance[2])
 paste0("C statistic: ", round(cstat_est, 4), ", 95% CI ", round(cstat_est_ll, 4), "-", round(cstat_est_ul,4))
 
+## compare this to c-stat for albuminuria 3mg/mmol threshold:
+mod_alb <- coxph(Surv(ckd_egfr50_censtime_yrs, ckd_egfr50_censvar) ~ uacr, data=cohort[!cohort$studydrug2 == "SGLT2i",], method="breslow")
+cstat_est_alb <- summary(mod_alb)$concordance[1]
+cstat_est_alb_ll <- summary(mod_alb)$concordance[1]-(1.96*summary(mod_alb)$concordance[2])
+cstat_est_alb_ul <- summary(mod_alb)$concordance[1]+(1.96*summary(mod_alb)$concordance[2])
+paste0("C statistic for albuminuria 3mg/mmol threshold: ", round(cstat_est_alb, 4), ", 95% CI ", round(cstat_est_alb_ll, 4), "-", round(cstat_est_alb_ul,4))
+
+
 ## AUC
 ROC_raw <- roc(cohort, ckd_egfr50_censvar, ckdpc_50egfr_score)
 auc(ROC_raw)

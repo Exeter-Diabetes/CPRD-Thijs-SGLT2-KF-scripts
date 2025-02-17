@@ -508,7 +508,7 @@ labels3 <- labels3 %>% mutate(contrast = paste0("By albuminuria status (p = ", s
 labels_plot3 <- subgroup_hrs %>% filter(analysis == "Overlap-weighted") %>%
   mutate(contrast = case_when(
   contrast == "uACR <3mg/mmol" ~ "Albuminuria <3mg/mmol",
-  contrast == "uACR 3-30mg/mmol" ~ "Albuminuria ≥3mg/mmol"))
+  contrast == "uACR 3-30mg/mmol" ~ "Albuminuria 3-30mg/mmol"))
 
 for (k in unique(subgroup_hrs$outcome)) {
   labels_temp <- labels3
@@ -518,7 +518,7 @@ for (k in unique(subgroup_hrs$outcome)) {
 
 labels_plot3$contrast <- factor(labels_plot3$contrast, levels = c(labels3$contrast,
                                                                   "Albuminuria <3mg/mmol", 
-                                                                  "Albuminuria ≥3mg/mmol"))
+                                                                  "Albuminuria 3-30mg/mmol"))
 
 # plot by risk group
 p_counts_subgroup <- labels_plot3 %>% filter(outcome=="ckd_egfr50") %>%
@@ -697,7 +697,7 @@ secondary <- subgroup_hrs %>%
   filter(!outcome %in% c("ckd_egfr50", "death")) %>%
   mutate(albuminuria_status = case_when(
     contrast == "uACR <3mg/mmol" ~ "Albuminuria <3mg/mmol",
-    contrast == "uACR 3-30mg/mmol" ~ "Albuminuria ≥3mg/mmol"
+    contrast == "uACR 3-30mg/mmol" ~ "Albuminuria 3-30mg/mmol"
   ))
 
 # Prepare labels for each outcome by albuminuria status
@@ -852,8 +852,8 @@ secondary2 <- subgroup_parr_hrs %>%
   filter(analysis=="Overlap-weighted") %>%
   filter(!outcome %in% c("ckd_egfr50", "death")) %>%
   mutate(parr_status = case_when(
-    contrast == "pARR below threshold" ~ "pARR below threshold",
-    contrast == "pARR above threshold" ~ "pARR above threshold"
+    contrast == "pARR below threshold" ~ "pARR <0.65%",
+    contrast == "pARR above threshold" ~ "pARR ≥0.65%"
   ))
 
 # Prepare labels for each outcome by pARR status
@@ -893,8 +893,8 @@ labels_plot6 <- labels_plot6 %>%
                                            " Diabetic keto-acidosis",
                                            " Amputation",
                                            " Mycotic genital infection",
-                                           "pARR below threshold",
-                                           "pARR above threshold"))
+                                           "pARR <0.65%",
+                                           "pARR ≥0.65%"))
   )
 
 
