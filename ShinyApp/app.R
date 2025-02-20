@@ -504,7 +504,7 @@ server <- function(input, output, session) {
           if (is_above_threshold) {
             div(style = "display: flex; align-items: center; margin-bottom: 15px;",
                 div(style = "font-size: 20px; font-weight: bold; margin-right: 5px; color: black;", "→"),  # Unicode arrow
-                div(style = "font-size: 14px;", "SGLT2-inhibitor treatment not suggested for kidney protection in this patient. This patient's predicted benefit is below the threshold of 0.65%, which corresponds to the proportion of the population recommended for treatment based on albuminuria ≥3mg/mmol in NICE, KDIGO, ADA, and EASD guidelines).")
+                div(style = "font-size: 14px;", "SGLT2-inhibitor treatment not suggested for kidney protection in this patient. This patient's predicted benefit is below the threshold of 0.65%. Targeting treatment using this threshold would result in the same number of individuals treated, but over 10% more kidney disease progression events prevented over 3 years than when using a ≥3mg/mmol albuminuria threshold (currently recommended in NICE, KDIGO, ADA, and EASD guidelines).")
             )
           },
           
@@ -515,7 +515,7 @@ server <- function(input, output, session) {
           if (!is_above_threshold) {
             div(style = "display: flex; align-items: center; margin-top: 15px;",
                 div(style = "font-size: 20px; font-weight: bold;margin-right: 5px; color: black;", "→"),  # Unicode arrow
-                div(style = "font-size: 14px;", "Consider SGLT2-inhibitor treatment for kidney protection in this patient. This patient's predicted benefit is above the threshold of 0.65%, which corresponds to the proportion of the population recommended for treatment based on albuminuria ≥3mg/mmol in NICE, KDIGO, ADA, and EASD guidelines).")
+                div(style = "font-size: 14px;", "Consider SGLT2-inhibitor treatment for kidney protection in this patient. This patient's predicted benefit is above the threshold of 0.65%. Targeting treatment using this threshold would result in the same number of individuals treated, but over 10% more kidney disease progression events prevented over 3 years than when using a ≥3mg/mmol albuminuria threshold (currently recommended in NICE, KDIGO, ADA, and EASD guidelines).")
             )
           }
         )

@@ -400,15 +400,15 @@ p_hr_trial <-
   coord_cartesian(ylim=c(1,length(unique(trial_hr[trial_hr$outcome == "ckd_egfr50",]$analysis)) + 1), 
                   xlim=c(0.45, 1.5)) +
   theme_classic() +
-  geom_point(aes(x=HR), shape=15, size=3, colour = "#0072B2") +
-  geom_linerange(aes(xmin=LB, xmax=UB), colour = "#0072B2") +
+  geom_point(aes(x=HR), shape=15, size=3, colour = "#D55E00") +
+  geom_linerange(aes(xmin=LB, xmax=UB), colour = "#D55E00") +
   geom_vline(xintercept = 1, linetype="dashed") +
   annotate("text", x = .65, 
            y = length(unique(trial_hr[trial_hr$outcome == "ckd_egfr50",]$analysis)) + 1, 
            label = "Favours SGLT2i") +
   annotate("text", x = 1.25,
            y = length(unique(trial_hr[trial_hr$outcome == "ckd_egfr50",]$analysis)) + 1, 
-           label = "Favours\nDPP4i/SU") +
+           label = "Favours\ncomparator") +
   labs(x="", y="") +
   theme(axis.line.y = element_blank(),
         axis.ticks.y= element_blank(),

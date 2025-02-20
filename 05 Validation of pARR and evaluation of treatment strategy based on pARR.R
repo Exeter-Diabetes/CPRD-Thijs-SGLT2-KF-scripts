@@ -481,24 +481,24 @@ pooled_summary <- pooled_data %>%
   mutate(
     subgp_label = case_when(
       subgp == "guideline_N_model_N" ~ paste0(
-        "Albuminuria <3mg/mmol, model does not recommend (n=", 
+        "Albuminuria <3mg/mmol, pARR <0.65% (n=", 
         if (nrow(cohort_guideline_N_model_N) %% 10 == 5) {round(nrow(cohort_guideline_N_model_N) / n.imp) - 1} 
         else {round(nrow(cohort_guideline_N_model_N) / n.imp)}, 
         ")"
       ),
       subgp == "guideline_Y_model_N" ~ paste0(
-        "Albuminuria 3-30mg/mmol, model does not recommend (n=", 
+        "Albuminuria 3-30mg/mmol, pARR <0.65% (n=", 
         if (nrow(cohort_guideline_Y_model_N) %% 10 == 5) {round(nrow(cohort_guideline_Y_model_N) / n.imp) - 1} 
         else {round(nrow(cohort_guideline_Y_model_N) / n.imp)}, 
         ")"
       ),
       subgp == "guideline_Y_model_Y" ~ paste0(
-        "Model recommends SGLT2i, albuminuria 3-30mg/mmol (n=", 
+        "pARR ≥0.65%, albuminuria 3-30mg/mmol (n=", 
         round(nrow(cohort_guideline_Y_model_Y) / n.imp), 
         ")"
       ),
       subgp == "guideline_N_model_Y" ~ paste0(
-        "Model recommends SGLT2i, albuminuria <3mg/mmol (n=", 
+        "pARR ≥0.65%, albuminuria <3mg/mmol (n=", 
         round(nrow(cohort_guideline_N_model_Y) / n.imp), 
         ")"
       )
@@ -506,12 +506,12 @@ pooled_summary <- pooled_data %>%
     subgp_label = factor(
       subgp_label, 
       levels = c(
-        paste0("Model recommends SGLT2i, albuminuria 3-30mg/mmol (n=", round(nrow(cohort_guideline_Y_model_Y) / n.imp), ")"),
-        paste0("Model recommends SGLT2i, albuminuria <3mg/mmol (n=", round(nrow(cohort_guideline_N_model_Y) / n.imp), ")"),
-        paste0("Albuminuria 3-30mg/mmol, model does not recommend (n=", 
+        paste0("pARR ≥0.65%, albuminuria 3-30mg/mmol (n=", round(nrow(cohort_guideline_Y_model_Y) / n.imp), ")"),
+        paste0("pARR ≥0.65%, albuminuria <3mg/mmol (n=", round(nrow(cohort_guideline_N_model_Y) / n.imp), ")"),
+        paste0("Albuminuria 3-30mg/mmol, pARR <0.65% (n=", 
                if (nrow(cohort_guideline_Y_model_N) %% 10 == 5) {round(nrow(cohort_guideline_Y_model_N) / n.imp) - 1} 
                else {round(nrow(cohort_guideline_Y_model_N) / n.imp)}, ")"),
-        paste0("Albuminuria <3mg/mmol, model does not recommend (n=", 
+        paste0("Albuminuria <3mg/mmol, pARR <0.65% (n=", 
                if (nrow(cohort_guideline_N_model_N) %% 10 == 5) {round(nrow(cohort_guideline_N_model_N) / n.imp) - 1} 
                else {round(nrow(cohort_guideline_N_model_N) / n.imp)}, ")")
       )
@@ -572,10 +572,10 @@ dev.off()
 # prep data
 arr_data <- data.frame(
   stratum = c(
-    paste0("Predicted absolute risk reduction <0.65% (n=", if (nrow(cohort_guideline_N_model_N) %% 10 == 5) {round(nrow(cohort_guideline_N_model_N)/n.imp)-1} else {round(nrow(cohort_guideline_N_model_N)/n.imp)}, ")"),
-    paste0("Predicted absolute risk reduction ≥0.65% (n=", round(nrow(cohort_guideline_N_model_Y)/n.imp), ")"),  
-    paste0("Predicted absolute risk reduction <0.65% (n=", if (nrow(cohort_guideline_Y_model_N) %% 10 == 5) {round(nrow(cohort_guideline_Y_model_N)/n.imp)-1} else {round(nrow(cohort_guideline_Y_model_N)/n.imp)}, ")"), 
-    paste0("Predicted absolute risk reduction ≥0.65% (n=", round(nrow(cohort_guideline_Y_model_Y)/n.imp), ")")
+    paste0("Predicted 3-year absolute risk reduction <0.65% (n=", if (nrow(cohort_guideline_N_model_N) %% 10 == 5) {round(nrow(cohort_guideline_N_model_N)/n.imp)-1} else {round(nrow(cohort_guideline_N_model_N)/n.imp)}, ")"),
+    paste0("Predicted 3-year absolute risk reduction ≥0.65% (n=", round(nrow(cohort_guideline_N_model_Y)/n.imp), ")"),  
+    paste0("Predicted 3-year absolute risk reduction <0.65% (n=", if (nrow(cohort_guideline_Y_model_N) %% 10 == 5) {round(nrow(cohort_guideline_Y_model_N)/n.imp)-1} else {round(nrow(cohort_guideline_Y_model_N)/n.imp)}, ")"), 
+    paste0("Predicted 3-year absolute risk reduction ≥0.65% (n=", round(nrow(cohort_guideline_Y_model_Y)/n.imp), ")")
     ),
   guideline = c(F, F, T, T),
   model = c(F, T, F, T),
@@ -734,9 +734,19 @@ dev.off()
  cohort <- cohort %>% mutate(ckdpc_50egfr_score_risk = ckdpc_50egfr_score/100) 
  
 dca_data <- dca(Surv(ckd_egfr50_censtime_yrs, ckd_egfr50_censvar) ~ treat_guideline + treat_model1 + ckdpc_50egfr_score_risk,
-      thresholds = seq(0, 0.20, by = 0.005),
+      thresholds = seq(0, 0.20, by = 0.001),
       time = 3,
       data=cohort)
+
+# get true positive / negative rate for example
+threshold_data <- dca_data$dca %>%
+  filter(threshold == round(cutoff1_equivalent_50egfr_score,1)/100)
+
+# difference in true positive rate for pARR 0.65% and albuminuria 3mg/mmol per 100,000
+(threshold_data$tp_rate[4] - threshold_data$tp_rate[3])*100000
+
+# difference in true negative rate for pARR 0.65% and albuminuria 3mg/mmol per 100,000
+((1-threshold_data$fp_rate[4]) - (1-threshold_data$fp_rate[3]))*100000
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Output/")
 tiff(paste0(today, "_decision_curve_analysis.tiff"), width=6, height=5, units = "in", res=800) 
@@ -748,7 +758,7 @@ as_tibble(dca_data) %>%
   coord_cartesian(ylim = c(-0.00105984276971715, 0.0105984276971715
   )) +
   scale_x_continuous(labels = scales::percent_format(accuracy = 1)) +
-  labs(x = "Risk Tolerance", y = "Net Utility", color = "") +
+  labs(x = "Risk tolerance\n(of 3-year absolute risk of kidney disease progression)", y = "Net utility", color = "") +
   theme_minimal() +
   scale_color_manual(
     values = c(
@@ -763,7 +773,7 @@ as_tibble(dca_data) %>%
     values = c(
       "solid", 
       "solid", 
-      "longdash", 
+      "solid", 
       "longdash",
       "solid"),
     labels = c("Treat all", 

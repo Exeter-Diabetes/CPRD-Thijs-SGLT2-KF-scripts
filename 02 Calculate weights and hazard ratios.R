@@ -428,11 +428,11 @@ for (k in outcomes) {
   censvar_var=paste0(k, "_censvar")
   censtime_var=paste0(k, "_censtime_yrs")
   
-  if (k == "macroalb") {
-    temp <- cohort[cohort$uacr < 30,]
-  } else {
-    temp <- cohort
-  }
+  # if (k == "macroalb") {
+  #   temp <- cohort[cohort$uacr < 30,]
+  # } else {
+  #   temp <- cohort
+  # }
   
   # calculate number of subjects in each group
   count <- temp[temp$.imp > 0,] %>%
