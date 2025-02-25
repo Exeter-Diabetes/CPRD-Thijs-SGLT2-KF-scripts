@@ -174,7 +174,7 @@ benefit_histogram_noalb <- ggplot(cohort %>% filter(albuminuria == F) %>%
   geom_histogram(aes(y = ..count.. / n.imp, fill = predicted_benefit_percent > cutoff1*100),
                  binwidth = 0.02, color = "black") +  
   scale_fill_manual(values = c("TRUE" = "#E69F00", "FALSE" = "grey"),
-                    labels = c("TRUE" = "Predicted absolute risk reduction ≥0.65%\n(targeting 17.9% of overall population)", 
+                    labels = c("TRUE" = "Predicted absolute risk reduction ≥0.65%\n(17.9% of overall population)", 
                                "FALSE" = "Predicted absolute risk reduction <0.65%")) +
   geom_vline(xintercept = cutoff1*100, linetype = "dashed", color = "black", size = 1) +
   annotate("text", x = 2.5, y = 6500, label = paste0("Albuminuria <3mg/mmol (", round(100*nrow(cohort %>% filter(albuminuria == F))/nrow(cohort), 1), "%, n=",nrow(cohort %>% filter(albuminuria == F))/n.imp,")"), vjust = 0, hjust = 1, angle = 0, size = 4, color = "black") +
