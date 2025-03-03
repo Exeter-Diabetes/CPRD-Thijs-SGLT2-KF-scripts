@@ -147,9 +147,9 @@ ui <- fluidPage(
                       selectInput("age", "Age (years):",
                                   choices = as.list(seq(20, 80, 1)), selected = 50),
                       selectInput("hba1c", "HbA1c (mmol/mol):", 
-                                  choices = as.list(seq(42, 97, 1)), selected = 58),
+                                  choices = as.list(c(seq(42, 96, 1), "≥97 (model will use 97 as input)")), selected = 58),
                       selectInput("bmi", "BMI (kg/m2):", 
-                                  choices = as.list(seq(20, 40, 1)), selected = 30),
+                                  choices = as.list(c(seq(20, 40, 1), "≥40 (model will use 40 as input)")), selected = 30),
                       selectInput("egfr", "eGFR (ml/min per 1.73m2):", 
                                   choices = as.list(c("<60", seq(60, 140, 1))), selected = 90),
                       selectInput(
@@ -177,7 +177,7 @@ ui <- fluidPage(
                                                  "Current smoker" = "Current Smoker")),
                       #      checkboxInput("type2_dm", "Type 2 diabetes", value = TRUE),
                       selectInput("sbp", "SBP (mmHg):", 
-                                  choices = as.list(seq(90, 180, 1)), selected = 130),
+                                  choices = as.list(c(seq(90, 179, 1), "≥180 (model will use 180 as input)")), selected = 130),
                       checkboxInput("bp_meds", "On antihypertensive medications", value = FALSE),
                       checkboxInput("hf", "History of heart failure", value = FALSE),
                       checkboxInput("chd", "History of ischaemic heart disease, stroke, or peripheral vascular disease", value = FALSE),
@@ -228,13 +228,13 @@ server <- function(input, output, session) {
       updateSelectInput(session, "acr", label = "ACR (mg/mmol):",
                         choices = as.list(c("≤0.6 or incalculable", seq(1, 29.5, 0.5), "≥30")), selected = 1)
       updateSelectInput(session, "hba1c", label = "HbA1c (mmol/mol):", 
-                        choices = as.list(seq(42, 97, 1)), selected = 58)
+                        choices = as.list(c(seq(42, 96, 1), "≥97 (model will use 97 as input)")), selected = 58)
       updateActionButton(session, "toggle_units", label = "Change to conventional units")
     } else {
       updateSelectInput(session, "acr", label = "ACR (mg/g):",
                         choices = as.list(c("≤5.3 or incalculable", seq(10, 260, 5), "≥265")), selected = 10)
       updateSelectInput(session, "hba1c", label = "HbA1c (%):", 
-                        choices = as.list(seq(6, 11, 0.1)), selected = 7.5)
+                        choices = as.list(c(seq(6, 10.9, 0.1), "≥11 (model will use 11 as input)")), selected = 7.5)
       updateActionButton(session, "toggle_units", label = "Change to SI units")
       
     }
@@ -262,13 +262,32 @@ server <- function(input, output, session) {
     }
     
     hba1c_value <- if (unit() == "Conventional") {
+      if (input$hba1c == "≥11 (model will use 11 as input)") {
+        97
+      } else 
+        {
       (as.numeric(input$hba1c) - 2.15) * 10.929 # Convert % to mmol/mol
-    } else {
+      }
+    } else 
+      {
+      if (input$hba1c == "≥97 (model will use 97 as input)") {
+        97
+      } else 
+        {
       as.numeric(input$hba1c)
+      }
     }
     
     egfr_value <- if (input$egfr == "<60") {
       59 } else { as.numeric(input$egfr) } 
+    
+    sbp_value <- if (input$sbp == "≥180 (model will use 180 as input)") {
+      180
+    } else { as.numeric(input$sbp) }
+    
+    bmi_value <- if (input$bmi == "≥40 (model will use 40 as input)") {
+      40
+    } else { as.numeric(input$bmi) }
     
     # Combine everything into a data.frame
     data.frame(
@@ -276,14 +295,14 @@ server <- function(input, output, session) {
       sex = input$sex,
       egfr = egfr_value,
       acr = acr_value,  # Use the converted ACR value
-      sbp = input$sbp,
+      sbp = sbp_value,
       bp_meds = as.numeric(input$bp_meds),
       hf = as.numeric(input$hf),
       chd = as.numeric(input$chd),
       af = as.numeric(input$af),
       smoking_status = input$smoking_status,
       diabetes_med = input$diabetes_med,
-      bmi = input$bmi,
+      bmi = bmi_value,
       hba1c = hba1c_value
     )
   })
