@@ -14,7 +14,7 @@ source("00 Setup.R")
 
 ############################1 PREPARE DATASET################################################################
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
-load(paste0(today, "_t2d_ckdpc_recalibrated.Rda"))
+load(paste0(today, "_t2d_ckdpc_imputed_data_withweights.Rda"))
 
 cohort$studydrug2 <- as.factor(cohort$studydrug2)
 
@@ -57,8 +57,8 @@ cohort <- cohort %>%
   centre_and_reference(covariates)
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
-save(cohort, file=paste0(today, "_recalibrated_data_centred_predictors.Rda"))
-save(cohort_5y, file=paste0(today, "_recalibrated_data_centred_predictors_5y.Rda"))
+save(cohort, file=paste0(today, "_data_centred_predictors.Rda"))
+save(cohort_5y, file=paste0(today, "_data_centred_predictors_5y.Rda"))
 
 ############################2 FIT WEIGHTED COX MODEL AND ESTIMATE CAUSAL OBSERVED SURVIVAL################################################################
 
@@ -73,7 +73,7 @@ for (k in outcomes_msm) {
   for (i in 1:n.imp) {
     # load minimal dataset
     setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
-    load(paste0(today, "_recalibrated_data_centred_predictors.Rda"))
+    load(paste0(today, "_data_centred_predictors.Rda"))
     
     cohort <- cohort %>% filter(.imp == i)
 
@@ -116,7 +116,7 @@ for (k in outcomes_msm) {
   
   for (i in 1:n.imp) {
     setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
-    load(paste0(today, "_recalibrated_data_centred_predictors.Rda"))
+    load(paste0(today, "_data_centred_predictors.Rda"))
     
     cohort <- cohort %>% filter(.imp == i)
     gc()
@@ -189,7 +189,7 @@ rm(list = setdiff(ls(), c("n.imp", "covariates", "k", "today", "outcomes_msm")))
 
 ### add causal observed absolute risk reductions to main dataset
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
-load(paste0(today, "_t2d_ckdpc_recalibrated.Rda"))
+load(paste0(today, "_t2d_ckdpc_imputed_data_withweights.Rda"))
 
 for (k in outcomes_msm) {
   
@@ -206,6 +206,6 @@ cohort$studydrug2 <- as.factor(cohort$studydrug2)
 # save dataset
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
-save(cohort, file=paste0(today, "_t2d_ckdpc_recalibrated_with_adjsurv.Rda"))
+save(cohort, file=paste0(today, "_t2d_ckdpc_data_with_adjsurv.Rda"))
 
 

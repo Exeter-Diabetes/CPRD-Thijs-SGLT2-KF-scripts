@@ -8,7 +8,7 @@ setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/scripts/CPRD-Thi
 source("00 Setup.R")
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
-load(paste0(today, "_t2d_ckdpc_recalibrated_with_adjsurv.Rda"))
+load(paste0(today, "_t2d_ckdpc_data_with_adjsurv.Rda"))
 
 
 ############################1 DEFINE CUTOFFS################################################################
@@ -334,14 +334,14 @@ for (i in 1:n.imp) {
   rm(data)
 }
 
-slope <- mean(slope)
+slope_mean <- mean(slope)
 B <- var(slope)            # Between-imputation variance
 W <- mean(slope_se^2)      # Within-imputation variance
 TV <- W + (1 + 1 / n.imp) * B  # Total variance
 # Confidence interval for pooled slope
-slope_lc <- slope - 1.96 * sqrt(TV)
-slope_uc <- slope + 1.96 * sqrt(TV)
-print(paste0("Calibration slope for mean pARR and observed ARR by decile: ", round(slope, 3), ", 95% CI ", round(slope_lc, 3), "-", round(slope_uc,3)))
+slope_lc <- slope_mean - 1.96 * sqrt(TV)
+slope_uc <- slope_mean + 1.96 * sqrt(TV)
+print(paste0("Calibration slope for mean pARR and observed ARR by decile: ", round(slope_mean, 3), ", 95% CI ", round(slope_lc, 3), "-", round(slope_uc,3)))
 
 #pool and print brier score
 brier_se_pooled <- sqrt(mean(brier_se^2) + (1+1/n.imp)*var(brier))
@@ -361,17 +361,7 @@ cohort_guideline_N_model_N <- cohort %>% filter(treat_guideline == F & treat_mod
 # calculate weights
 overlap <- SumStat(ps.formula=ps.formula2, data=as.data.frame(cohort_guideline_N_model_N), weight="overlap") # calculate overlap weights by subgroup
 cohort_guideline_N_model_N$overlap_bygroup <- overlap$ps.weights$overlap
-# fit weighted model
-ddist <- datadist(cohort_guideline_N_model_N);options(datadist='ddist')
-model <- cph(Surv(ckd_egfr50_5y_censtime_yrs, ckd_egfr50_5y_censvar) ~ studydrug2, weights=overlap_bygroup, data=cohort_guideline_N_model_N, x=TRUE, y=TRUE, surv=TRUE)
-# estimate observed survival difference
-obs_guideline_N_model_N_SGLT2 <- survest(model, newdata=expand.grid(studydrug2="SGLT2i"), times=5)$surv
-obs_guideline_N_model_N_DPP4 <- survest(model, newdata=expand.grid(studydrug2="DPP4i/SU"), times=5)$surv         
-arr_guideline_N_model_N <- (obs_guideline_N_model_N_SGLT2-obs_guideline_N_model_N_DPP4)*100
 
-se_guideline_N_model_N_SGLT2 <- survest(model, newdata=expand.grid(studydrug2="SGLT2i"), times=5)$std.err
-se_guideline_N_model_N_DPP4 <- survest(model, newdata=expand.grid(studydrug2="DPP4i/SU"), times=5)$std.err
-se_guideline_N_model_N_ARR <- sqrt(se_guideline_N_model_N_SGLT2^2 + se_guideline_N_model_N_DPP4^2)
 
 
 ## same for stratum: recommended based on albuminuria but not recommended by model
@@ -379,15 +369,6 @@ cohort_guideline_Y_model_N <- cohort %>% filter(treat_guideline == T & treat_mod
 overlap <- SumStat(ps.formula=ps.formula2, data=as.data.frame(cohort_guideline_Y_model_N), weight="overlap")
 cohort_guideline_Y_model_N$overlap_bygroup <- overlap$ps.weights$overlap
 
-ddist <- datadist(cohort_guideline_Y_model_N);options(datadist='ddist')
-model <- cph(Surv(ckd_egfr50_5y_censtime_yrs, ckd_egfr50_5y_censvar) ~ studydrug2, weights=overlap_bygroup, data=cohort_guideline_Y_model_N, x=TRUE, y=TRUE, surv=TRUE)
-obs_guideline_Y_model_N_SGLT2 <- survest(model, newdata=expand.grid(studydrug2="SGLT2i"), times=5)$surv
-obs_guideline_Y_model_N_DPP4 <- survest(model, newdata=expand.grid(studydrug2="DPP4i/SU"), times=5)$surv         
-arr_guideline_Y_model_N <- (obs_guideline_Y_model_N_SGLT2-obs_guideline_Y_model_N_DPP4)*100
-
-se_guideline_Y_model_N_SGLT2 <- survest(model, newdata=expand.grid(studydrug2="SGLT2i"), times=5)$std.err
-se_guideline_Y_model_N_DPP4 <- survest(model, newdata=expand.grid(studydrug2="DPP4i/SU"), times=5)$std.err
-se_guideline_Y_model_N_ARR <- sqrt(se_guideline_Y_model_N_SGLT2^2 + se_guideline_Y_model_N_DPP4^2)
 
 
 ## stratum: not recommended based on albuminuria, recommended by model
@@ -395,31 +376,12 @@ cohort_guideline_N_model_Y <- cohort %>% filter(treat_guideline == F & treat_mod
 overlap <- SumStat(ps.formula=ps.formula2, data=as.data.frame(cohort_guideline_N_model_Y), weight="overlap") # calculate overlap weights by subgroup
 cohort_guideline_N_model_Y$overlap_bygroup <- overlap$ps.weights$overlap
 
-ddist <- datadist(cohort_guideline_N_model_Y);options(datadist='ddist')
-model <- cph(Surv(ckd_egfr50_5y_censtime_yrs, ckd_egfr50_5y_censvar) ~ studydrug2, weights=overlap_bygroup, data=cohort_guideline_N_model_Y, x=TRUE, y=TRUE, surv=TRUE)
-obs_guideline_N_model_Y_SGLT2 <- survest(model, newdata=expand.grid(studydrug2="SGLT2i"), times=5)$surv
-obs_guideline_N_model_Y_DPP4 <- survest(model, newdata=expand.grid(studydrug2="DPP4i/SU"), times=5)$surv         
-arr_guideline_N_model_Y <- (obs_guideline_N_model_Y_SGLT2-obs_guideline_N_model_Y_DPP4)*100
-
-se_guideline_N_model_Y_SGLT2 <- survest(model, newdata=expand.grid(studydrug2="SGLT2i"), times=5)$std.err
-se_guideline_N_model_Y_DPP4 <- survest(model, newdata=expand.grid(studydrug2="DPP4i/SU"), times=5)$std.err
-se_guideline_N_model_Y_ARR <- sqrt(se_guideline_N_model_Y_SGLT2^2 + se_guideline_N_model_Y_DPP4^2)
 
 
 ## stratum: recommended by both model and based on albuminuria
 cohort_guideline_Y_model_Y <- cohort %>% filter(treat_guideline == T & treat_model1 == T) %>% mutate(subgp="guideline_Y_model_Y")
 overlap <- SumStat(ps.formula=ps.formula2, data=as.data.frame(cohort_guideline_Y_model_Y), weight="overlap")
 cohort_guideline_Y_model_Y$overlap_bygroup <- overlap$ps.weights$overlap
-
-ddist <- datadist(cohort_guideline_Y_model_Y);options(datadist='ddist')
-model <- cph(Surv(ckd_egfr50_5y_censtime_yrs, ckd_egfr50_5y_censvar) ~ studydrug2, weights=overlap_bygroup, data=cohort_guideline_Y_model_Y, x=TRUE, y=TRUE, surv=TRUE)
-obs_guideline_Y_model_Y_SGLT2 <- survest(model, newdata=expand.grid(studydrug2="SGLT2i"), times=5)$surv
-obs_guideline_Y_model_Y_DPP4 <- survest(model, newdata=expand.grid(studydrug2="DPP4i/SU"), times=5)$surv         
-arr_guideline_Y_model_Y <- (obs_guideline_Y_model_Y_SGLT2-obs_guideline_Y_model_Y_DPP4)*100
-
-se_guideline_Y_model_Y_SGLT2 <- survest(model, newdata=expand.grid(studydrug2="SGLT2i"), times=5)$std.err
-se_guideline_Y_model_Y_DPP4 <- survest(model, newdata=expand.grid(studydrug2="DPP4i/SU"), times=5)$std.err
-se_guideline_Y_model_Y_ARR <- sqrt(se_guideline_Y_model_Y_SGLT2^2 + se_guideline_Y_model_Y_DPP4^2)
 
 options(datadist=NULL)
 
