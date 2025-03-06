@@ -288,28 +288,17 @@ slope <- slope_se <- brier <- brier_se <- rep(NA, n.imp)
 
 for (i in 1:n.imp) {
   print(paste("Imputation ", i))
-  data <- cohort %>%
-    filter(.imp == i) %>%
-    mutate(benefit_decile = ntile(ckdpc_50egfr_sglt2i_benefit, n.quantiles)) %>%
-    group_by(benefit_decile) %>%
-    summarise(median_predicted_benefit=median(ckdpc_50egfr_sglt2i_benefit, na.rm=T),
-              mean_predicted_benefit=mean(ckdpc_50egfr_sglt2i_benefit, na.rm=T),
-              mean_benefit=mean(survdiff_ckd_egfr50),
-              se_benefit=mean(se_survdiff_ckd_egfr50),
-              median_benefit=median(survdiff_ckd_egfr50),
-              lq_benefit=quantile(survdiff_ckd_egfr50, prob=c(.25)),
-              uq_benefit=quantile(survdiff_ckd_egfr50, prob=c(.75)),
-              upper_ci=mean_benefit + 1.96*se_benefit,
-              lower_ci=mean_benefit - 1.96*se_benefit)
   
-  x <- lm(mean_benefit ~ mean_predicted_benefit, data = data)
+  data <- cohort %>% filter(.imp == i)
+  
+  # calculate calibration slope
+  x <- lm(survdiff_ckd_egfr50 ~ ckdpc_50egfr_sglt2i_benefit, data = data)
   slope[i] <- coef(x)[2]
   slope_se[i] <- vcov(x)[2,2]
   rm(x)
   
-  # for brier score:
-  data <- cohort %>% filter(.imp == i)
   bootstrap_brier <- rep(NA, n.bootstrap)
+
   for (b in 1:n.bootstrap) {
     # Resample the combined data with replacement
     bootstrap_sample <- data %>% sample_frac(size = 1, replace = TRUE)
@@ -320,15 +309,15 @@ for (i in 1:n.imp) {
         squared_error = (ckdpc_50egfr_sglt2i_benefit - survdiff_ckd_egfr50)^2,
         weighted_error = overlap2 * squared_error
       )
-    
+
     # Compute weighted Brier score for this bootstrap sample
     bootstrap_brier[b] <- sum(bootstrap_sample$weighted_error, na.rm = TRUE) / sum(bootstrap_sample$overlap2, na.rm = TRUE)
     rm(bootstrap_sample)
     }
-  
+
   # Calculate mean Brier score
   brier[i] <- mean(bootstrap_brier)
-  
+
   # Calculate standard error (SE)
   brier_se[i] <- sd(bootstrap_brier)
   rm(data)
