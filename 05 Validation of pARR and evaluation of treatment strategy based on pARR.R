@@ -330,7 +330,7 @@ TV <- W + (1 + 1 / n.imp) * B  # Total variance
 # Confidence interval for pooled slope
 slope_lc <- slope_mean - 1.96 * sqrt(TV)
 slope_uc <- slope_mean + 1.96 * sqrt(TV)
-print(paste0("Calibration slope for mean pARR and observed ARR by decile: ", round(slope_mean, 3), ", 95% CI ", round(slope_lc, 3), "-", round(slope_uc,3)))
+print(paste0("Calibration slope for pARR vs counterfactual ARR: ", round(slope_mean, 3), ", 95% CI ", round(slope_lc, 3), "-", round(slope_uc,3)))
 
 #pool and print brier score
 brier_se_pooled <- sqrt(mean(brier_se^2) + (1+1/n.imp)*var(brier))

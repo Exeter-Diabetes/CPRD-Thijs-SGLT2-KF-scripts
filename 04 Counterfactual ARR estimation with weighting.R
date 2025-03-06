@@ -1,8 +1,8 @@
-# in this script we aim to derive the causal absolute risk differences between SGLT2i and DPP4i/SU.
+# in this script we aim to derive the counterfactual absolute risk differences between SGLT2i and DPP4i/SU.
 # these are essentially the observed absolute risk differences that we want to validate the predictions against.
 # in order to do this, we will fit a marginal structural model - a weighted cox model. 
 # we will then apply this marginal structural model to two counterfactual datasets - two copies of the dataset with treatment for all individuals set as "SGLT2i" and "DPP4i/SU" respectively.
-# the causal absolute risk differences will then be stored for use later.
+# the counterfactual absolute risk differences will then be stored for use later.
 # given the computational power required, the script is designed to minimise the use of working memory by only loading one dataset at a time with minimal columns.
 
 
@@ -60,7 +60,7 @@ setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/"
 save(cohort, file=paste0(today, "_data_centred_predictors.Rda"))
 save(cohort_5y, file=paste0(today, "_data_centred_predictors_5y.Rda"))
 
-############################2 FIT WEIGHTED COX MODEL AND ESTIMATE CAUSAL OBSERVED SURVIVAL################################################################
+############################2 FIT WEIGHTED COX MODEL AND ESTIMATE COUNTERFACTUAL OBSERVED SURVIVAL################################################################
 
 # clear R memory to ensure memory limit not exceeded
 rm(list = setdiff(ls(), c("n.imp", "covariates", "today")))
@@ -95,7 +95,7 @@ for (k in outcomes_msm) {
              rowno=row_number())
     print(paste0("Survival estimates for SGLT2i in imputation ", i, "  (outcome ", k, ")"))
     
-    # get causal (observed weighted) survival
+    # get counterfactual (observed weighted) survival
     observed_sglt2 <- survfit(model, newdata=as.data.frame(obs_SGLT2)) %>%
       tidy() %>%
       filter(time == if (k == "ckd_egfr50_5y") 5 else 3) %>%
@@ -147,7 +147,7 @@ for (k in outcomes_msm) {
     rm(list = setdiff(ls(), c("n.imp", "covariates", "k", "today", "outcomes_msm")))
   }
   
-  # after separately estimating causal survival probabilities in each imputation, we will now combine these in the main dataset
+  # after separately estimating counterfactual survival probabilities in each imputation, we will now combine these in the main dataset
   # create empty dataframes to append each imputed dataset to
   temp_sglt2 <- temp_dpp4su <- data.frame()
   
@@ -162,13 +162,13 @@ for (k in outcomes_msm) {
     rm(observed_dpp4su)
   }
   
-  # combine causal observed survival probabilities
+  # combine counterfactual observed survival probabilities
   benefits <- temp_sglt2 %>%
     select(group, .imp, estimate_sglt2, se_sglt2) %>%
     inner_join(temp_dpp4su, by=c("group", ".imp")) %>%
     # remove counterfactual studydrug annotations and replace with original study arm
     select(-studydrug2) %>%
-    # calculate causal observed absolute risk difference
+    # calculate counterfactual observed absolute risk difference
     mutate(survdiff=estimate_sglt2-estimate_dpp4su,
            se_survdiff=sqrt(se_sglt2^2 + se_dpp4su^2),
            studydrug2=studydrug_original) %>%
@@ -187,7 +187,7 @@ for (k in outcomes_msm) {
 
 rm(list = setdiff(ls(), c("n.imp", "covariates", "k", "today", "outcomes_msm")))
 
-### add causal observed absolute risk reductions to main dataset
+### add counterfactual observed absolute risk reductions to main dataset
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
 load(paste0(today, "_t2d_ckdpc_imputed_data_withweights.Rda"))
 
