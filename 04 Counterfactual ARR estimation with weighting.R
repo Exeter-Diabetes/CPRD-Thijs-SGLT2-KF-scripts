@@ -16,6 +16,10 @@ source("00 Setup.R")
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
 load(paste0(today, "_t2d_ckdpc_imputed_data_withweights.Rda"))
 
+cohort <- cohort %>% group_by(.imp, patid) %>% filter(
+  !duplicated(studydrug2)
+) %>% ungroup()
+
 cohort$studydrug2 <- as.factor(cohort$studydrug2)
 
 ## prep data:

@@ -274,22 +274,22 @@ temp <- temp %>% mutate(precholhdl=pretotalcholesterol/prehdl,
                                                              ifelse(dstartdate_dm_dur_all<11, 3L, 4L)))),
                         
                         earliest_bp_med=pmin(
-                          ifelse(is.na(predrug_earliest_ace_inhibitors),as.Date("2050-01-01"),predrug_earliest_ace_inhibitors),
-                          ifelse(is.na(predrug_earliest_arb),as.Date("2050-01-01"),predrug_earliest_arb),
-                          ifelse(is.na(predrug_earliest_beta_blockers),as.Date("2050-01-01"),predrug_earliest_beta_blockers),
-                          ifelse(is.na(predrug_earliest_calcium_channel_blockers),as.Date("2050-01-01"),predrug_earliest_calcium_channel_blockers),
-                          ifelse(is.na(predrug_earliest_thiazide_diuretics),as.Date("2050-01-01"),predrug_earliest_thiazide_diuretics),
+                          if_else(is.na(predrug_earliest_ace_inhibitors),as.Date("2050-01-01"),predrug_earliest_ace_inhibitors),
+                          if_else(is.na(predrug_earliest_arb),as.Date("2050-01-01"),predrug_earliest_arb),
+                          if_else(is.na(predrug_earliest_beta_blockers),as.Date("2050-01-01"),predrug_earliest_beta_blockers),
+                          if_else(is.na(predrug_earliest_calcium_channel_blockers),as.Date("2050-01-01"),predrug_earliest_calcium_channel_blockers),
+                          if_else(is.na(predrug_earliest_thiazide_diuretics),as.Date("2050-01-01"),predrug_earliest_thiazide_diuretics),
                           na.rm=TRUE
                         ) %>% as.Date(),
                         latest_bp_med=pmax(
-                          ifelse(is.na(predrug_latest_ace_inhibitors),as.Date("1900-01-01"),predrug_latest_ace_inhibitors),
-                          ifelse(is.na(predrug_latest_arb),as.Date("1900-01-01"),predrug_latest_arb),
-                          ifelse(is.na(predrug_latest_beta_blockers),as.Date("1900-01-01"),predrug_latest_beta_blockers),
-                          ifelse(is.na(predrug_latest_calcium_channel_blockers),as.Date("1900-01-01"),predrug_latest_calcium_channel_blockers),
-                          ifelse(is.na(predrug_latest_thiazide_diuretics),as.Date("1900-01-01"),predrug_latest_thiazide_diuretics),
+                          if_else(is.na(predrug_latest_ace_inhibitors),as.Date("1900-01-01"),predrug_latest_ace_inhibitors),
+                          if_else(is.na(predrug_latest_arb),as.Date("1900-01-01"),predrug_latest_arb),
+                          if_else(is.na(predrug_latest_beta_blockers),as.Date("1900-01-01"),predrug_latest_beta_blockers),
+                          if_else(is.na(predrug_latest_calcium_channel_blockers),as.Date("1900-01-01"),predrug_latest_calcium_channel_blockers),
+                          if_else(is.na(predrug_latest_thiazide_diuretics),as.Date("1900-01-01"),predrug_latest_thiazide_diuretics),
                           na.rm=TRUE
                         ) %>% as.Date(),
-                        bp_meds_qrisk2=ifelse(earliest_bp_med!=as.Date("2050-01-01") & latest_bp_med!=as.Date("1900-01-01") & difftime(dstartdate, latest_bp_med, units="days")<=28 & earliest_bp_med!=latest_bp_med, 1L, 0L),
+                        bp_meds_qrisk2=if_else(earliest_bp_med!=as.Date("2050-01-01") & latest_bp_med!=as.Date("1900-01-01") & difftime(dstartdate, latest_bp_med, units="days")<=28 & earliest_bp_med!=latest_bp_med, 1L, 0L),
                         
                         type1=0L,
                         type2=1L,
