@@ -120,8 +120,7 @@ contrast_spline <- contrast(final_model,
 contrast_spline_df <- as.data.frame(contrast_spline[c('ckdpc_50egfr_score','Contrast','Lower','Upper')])
 # plot
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Output/")
-tiff(paste0(today, "_HR_by_ckd_egfr50_risk.tiff"), width=10, height=3, units = "in", res=800) 
-ggplot(data=contrast_spline_df, aes(x=ckdpc_50egfr_score, y=exp(Contrast))) +
+p_spline <- ggplot(data=contrast_spline_df, aes(x=ckdpc_50egfr_score, y=exp(Contrast))) +
   geom_line(data=contrast_spline_df,aes(x=ckdpc_50egfr_score, y=exp(Contrast)), size=1) +
   xlab(expression(paste("Predicted 3-year risk of kidney disease progression"))) +
   ylab("Hazard ratio") +
@@ -156,6 +155,9 @@ ggplot(data=contrast_spline_df, aes(x=ckdpc_50egfr_score, y=exp(Contrast))) +
   scale_linetype_manual(values = c(hr = "twodash", hr_95 = "twodash"), labels = c(hr = "0.62", hr_95 = "95% CI 0.56-0.68"), name="Trial meta-analysis hazard ratio") +
   scale_size_manual(values = c(hr = 1, hr_95 = 0.5), labels = c(hr = "0.62", hr_95 = "95% CI 0.56-0.68"), name="Trial meta-analysis hazard ratio") +
   coord_cartesian(xlim = c(0.35, 4.5), ylim = c(0.25, 2.0), expand = F)
+
+tiff(paste0(today, "_HR_by_ckd_egfr50_risk.tiff"), width=10, height=3, units = "in", res=800) 
+print(p_spline)
 dev.off()
 
 options(datadist = NULL)
@@ -235,7 +237,7 @@ benefit_histogram <- benefit_histogram_noalb / benefit_histogram_microalb + plot
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Output/")
 tiff(paste0(today, "_predicted_benefit_histogram.tiff"), width=6, height=4, units = "in", res=800) 
-benefit_histogram
+print(benefit_histogram)
 dev.off()
 
 ##FIGURE 2B: calibration plot of predicted vs observed absolute risk reductions
@@ -280,7 +282,7 @@ p_benefit_bydeciles_median <- ggplot(data=bind_rows(empty_tick,obs_v_pred_for_pl
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Output/")
 tiff(paste0(today, "_predicted_benefit_calibration.tiff"), width=6, height=5.5, units = "in", res=800) 
-p_benefit_bydeciles_median
+print(p_benefit_bydeciles_median)
 dev.off()
 
 # calculate calibration slope and Brier score
@@ -515,7 +517,7 @@ ci_plot <- df_combined %>% ggplot(aes(x = time, y = smoothed_diff*100, color = s
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Output/")
 tiff(paste0(today, "_arr_by_treatment_recommendation.tiff"), width=7.5, height=6, units = "in", res=800)
-ci_plot
+print(ci_plot)
 dev.off()
 
 
@@ -612,7 +614,7 @@ bar_plot <- ggplot(arr_data, aes(x = stratum, y = ARR, color = stratum, fill = m
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Output/")
 tiff(paste0(today, "_arr_barplot_by_treatment_recommendation.tiff"), width=7.5, height=6, units = "in", res=800)
-bar_plot
+print(bar_plot)
 dev.off()
 
 
@@ -699,9 +701,8 @@ threshold_data <- dca_data$dca %>%
 # difference in true negative rate for pARR 0.65% and albuminuria 3mg/mmol per 100,000
 ((1-threshold_data$fp_rate[4]) - (1-threshold_data$fp_rate[3]))*100000
 
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Output/")
-tiff(paste0(today, "_decision_curve_analysis.tiff"), width=6, height=5, units = "in", res=800) 
-as_tibble(dca_data) %>%
+
+p_dca <- as_tibble(dca_data) %>%
   dplyr::filter(!is.na(net_benefit)) %>%
   ggplot(aes(x = threshold, y = net_benefit, color = label, linetype = label)) +
   stat_smooth(method = "loess", se = FALSE, formula = "y ~ x", 
@@ -745,6 +746,10 @@ as_tibble(dca_data) %>%
         axis.line.y.right = element_blank(),
         panel.grid = element_blank()) +
   coord_cartesian(xlim = c(0.0012,0.03), ylim = c(0,0.01))
+
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Output/")
+tiff(paste0(today, "_decision_curve_analysis.tiff"), width=6, height=5, units = "in", res=800) 
+print(p_dca)
 dev.off()
 
 ############################7 HR BY pARR THRESHOLD################################################################

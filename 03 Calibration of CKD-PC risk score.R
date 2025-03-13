@@ -198,7 +198,7 @@ p_uncal_bydeciles_dpp4isu <- ggplot(data=bind_rows(empty_tick,obs_v_pred), aes(x
 
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Output/")
 tiff(paste0(today, "_uncalibrated_risk_score_calibration.tiff"), width=6, height=5.5, units = "in", res=800) 
-p_uncal_bydeciles_dpp4isu
+print(p_uncal_bydeciles_dpp4isu)
 dev.off()
 
 ## C-stat

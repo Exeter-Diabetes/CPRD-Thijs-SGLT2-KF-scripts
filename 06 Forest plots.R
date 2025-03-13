@@ -284,11 +284,13 @@ layout <- c(
   area(t = 12, l = 15, b = 17, r = 19)
 )
 
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Output/")
-tiff(paste0(today, "_HR_by_drugclass.tiff"), width=18, height=5.5, units = "in", res=800) 
-p_left_1 + p_counts_1 + p_hr_1 + p_right_1 + 
+forest_plot1 <- p_left_1 + p_counts_1 + p_hr_1 + p_right_1 + 
   p_left_2 + p_counts_2 + p_hr_2 + p_right_2 + 
   p_left_3 + p_counts_3 + p_hr_3 + p_right_3 + plot_layout(design = layout)
+
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Output/")
+tiff(paste0(today, "_HR_by_drugclass.tiff"), width=18, height=5.5, units = "in", res=800) 
+print(forest_plot1)
 dev.off()
 ############################2 FOREST PLOT OF OVERALL HR BY ANALYSIS STRATEGY (SUPPLEMENTAL FIGURE)################################################################
 
@@ -459,11 +461,13 @@ layout <- c(
   
 )
 
+forest_plot2 <- p_left_all + p_hr_all + p_right_all + 
+  p_left_trial + p_hr_trial + p_right_trial + plot_layout(design = layout)
+
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Output/")
 tiff(paste0(today, "_HR_by_analysis_strategy.tiff"), width=15, height=4, units = "in", res=800) 
 # Final plot arrangement
-p_left_all + p_hr_all + p_right_all + 
-  p_left_trial + p_hr_trial + p_right_trial + plot_layout(design = layout)
+print(forest_plot2)
 dev.off()
 
 ############################3 FOREST PLOT OF HR BY ALBUMINURIA STATUS (FIGURE 1A)################################################################
@@ -682,12 +686,13 @@ layout <- c(
   area(t = 0, l = 7, b = 8, r = 8)
 )
 
+forest_plot3 <- p_counts_subgroup + p_left_subgroup + p_hr_subgroup + p_right_subgroup + 
+  p_counts_overall + p_left_overall + p_hr_overall + p_right_overall + plot_layout(design = layout)
 
 # Final plot arrangement
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Output/")
 tiff(paste0(today, "_HR_by_subgroup.tiff"), width=11, height=3.5, units = "in", res=800) 
-p_counts_subgroup + p_left_subgroup + p_hr_subgroup + p_right_subgroup + 
-  p_counts_overall + p_left_overall + p_hr_overall + p_right_overall + plot_layout(design = layout)
+print(forest_plot3)
 dev.off()
 
 ############################4 FOREST PLOT FOR HR OF SECONDARY OUTCOMES BY ALBUMINURIA STATUS (SUPPLEMENTAL FIGURE)################################################################
@@ -841,9 +846,11 @@ layout <- eval(str2lang(layout))
 
 plot_expression <- paste0(plot_expression, "plot_layout(design = layout)")
 
+forest_plot4 <- eval(str2lang(plot_expression))
+
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Output/")
 tiff(paste0(today, "_HR_secondary_outcomes_by_albuminuria.tiff"), width=18, height=5.5, units = "in", res=800) 
-eval(str2lang(plot_expression))
+print(forest_plot4)
 dev.off()
 
 ############################5 FOREST PLOT FOR HRs OF SECONDARY OUTCOMES BY pARR (SUPPLEMENTAL FIGURE)################################################################
@@ -1005,8 +1012,10 @@ layout <- eval(str2lang(layout))
 
 plot_expression <- paste0(plot_expression, "plot_layout(design = layout)")
 
+forest_plot5 <- eval(str2lang(plot_expression))
+
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/output/")
 tiff(paste0(today, "_HR_secondary_outcomes_by_parr.tiff"), width=18, height=5.5, units = "in", res=800) 
-eval(str2lang(plot_expression))
+print(forest_plot5)
 dev.off()
 
