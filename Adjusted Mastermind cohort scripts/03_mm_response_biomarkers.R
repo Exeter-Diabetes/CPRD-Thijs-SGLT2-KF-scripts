@@ -250,16 +250,24 @@ codes = codesets$getAllCodeSetVersion(v = "31/10/2021")
     select(patid, drugclass, dstartdate, preegfr, preegfrdate) %>%
     left_join(egfr_long, by="patid") %>%
     filter(datediff(date, preegfrdate)>0 & testvalue<=0.6*preegfr) %>%
-    group_by(patid, drugclass, dstartdate) %>%
+    group_by(patid, drugclass, dstartdate, preegfr) %>%
     summarise(egfr_40_decline_date=min(date, na.rm=TRUE)) %>%
+    # ensure decline is sustained >= 28 days
+    left_join(egfr_long, by="patid") %>%
+    filter(datediff(date, egfr_40_decline_date)>28 & testvalue<=0.6*preegfr) %>%
+    distinct(patid, drugclass, dstartdate, egfr_40_decline_date) %>%
     analysis$cached("response_biomarkers_egfr40", indexes=c("patid", "dstartdate", "drugclass"))
   
   egfr50 <- baseline_biomarkers %>%
     select(patid, drugclass, dstartdate, preegfr, preegfrdate) %>%
     left_join(egfr_long, by="patid") %>%
     filter(datediff(date, preegfrdate)>0 & testvalue<=0.5*preegfr) %>%
-    group_by(patid, drugclass, dstartdate) %>%
+    group_by(patid, drugclass, dstartdate, preegfr) %>%
     summarise(egfr_50_decline_date=min(date, na.rm=TRUE)) %>%
+    # ensure decline is sustained >28 days
+    left_join(egfr_long, by="patid") %>%
+    filter(datediff(date, egfr_50_decline_date)>28 & testvalue<=0.5*preegfr) %>%
+    distinct(patid, drugclass, dstartdate, egfr_50_decline_date) %>%
     analysis$cached("response_biomarkers_egfr50", indexes=c("patid", "dstartdate", "drugclass"))
 
 # add variable to check whether presence of albuminuria has been confirmed

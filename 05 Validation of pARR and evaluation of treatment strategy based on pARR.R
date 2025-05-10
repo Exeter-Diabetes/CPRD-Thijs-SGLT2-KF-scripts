@@ -122,7 +122,7 @@ contrast_spline_df <- as.data.frame(contrast_spline[c('ckdpc_50egfr_score','Cont
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Output/")
 p_spline <- ggplot(data=contrast_spline_df, aes(x=ckdpc_50egfr_score, y=exp(Contrast))) +
   geom_line(data=contrast_spline_df,aes(x=ckdpc_50egfr_score, y=exp(Contrast)), size=1) +
-  xlab(expression(paste("Predicted 3-year risk of kidney disease progression"))) +
+  xlab(expression(paste("Predicted 3-year risk of kidney disease progression (%)"))) +
   ylab("Hazard ratio") +
   scale_x_continuous(breaks = seq(0,4,.5)) +
   scale_y_log10(breaks = c(0.25, 0.50, 0.75, 1.0, 1.50, 2.0)) +
@@ -283,6 +283,101 @@ p_benefit_bydeciles_median <- ggplot(data=bind_rows(empty_tick,obs_v_pred_for_pl
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Output/")
 tiff(paste0(today, "_predicted_benefit_calibration.tiff"), width=6, height=5.5, units = "in", res=800) 
 print(p_benefit_bydeciles_median)
+dev.off()
+
+## calibration plots with SGLT2i vs SU only and SGLT2i vs DPP4i only
+
+obs_v_pred_for_plot2 <- cohort %>% filter(studydrug != "DPP4i") %>%
+  # group predicted benefit by decile
+  mutate(benefit_decile = ntile(ckdpc_50egfr_sglt2i_benefit, n.quantiles)) %>%
+  group_by(benefit_decile) %>%
+  # survdiff is the causal observed absolute risk reduction with SGLT2i
+  summarise(median_predicted_benefit=median(ckdpc_50egfr_sglt2i_benefit, na.rm=T),
+            mean_predicted_benefit=mean(ckdpc_50egfr_sglt2i_benefit, na.rm=T),
+            mean_benefit=mean(survdiff_ckd_egfr50),
+            se_benefit=mean(se_survdiff_ckd_egfr50),
+            median_benefit=median(survdiff_ckd_egfr50),
+            lq_benefit=quantile(survdiff_ckd_egfr50, prob=c(.25)),
+            uq_benefit=quantile(survdiff_ckd_egfr50, prob=c(.75)),
+            upper_ci=mean_benefit + 1.96*se_benefit,
+            lower_ci=mean_benefit - 1.96*se_benefit)
+
+
+empty_tick <- data.frame(matrix(NA, nrow = 1, ncol = length(obs_v_pred_for_plot2)))
+names(empty_tick) <- names(obs_v_pred_for_plot2)
+empty_tick <- empty_tick %>%
+  mutate(benefit_decile=0)
+
+## SGLT2i benefit predicted vs observed
+p_benefit_bydeciles_median2 <- ggplot(data=bind_rows(empty_tick,obs_v_pred_for_plot2), aes(x=median_predicted_benefit*100)) +
+  geom_errorbar(aes(ymax=uq_benefit*100,ymin=lq_benefit*100, color= "#E69F00"),width=0.1,size=1) +
+  geom_point(aes(y = median_benefit*100, color="#E69F00"), shape=18, size=3) +
+  geom_abline(intercept = 0, slope = 1, lty = 2) +
+  theme_bw() +
+  xlab("Model-predicted absolute risk reduction (%)") + ylab("Counterfactual absolute risk reduction (%)\nestimated from observed data")+
+  scale_colour_manual(values = "#E69F00") +
+  theme(panel.border=element_blank(), panel.grid.major=element_blank(),panel.grid.minor=element_blank(),
+        axis.line.x=element_line(colour = "black"), axis.line.y=element_line(colour="black"),
+        plot.title = element_text(size = rel(1.5), face = "bold")) + theme(plot.margin = margin()) +
+  theme(axis.text=element_text(size=rel(1.5)),
+        axis.title=element_text(size=rel(1.5)),
+        plot.title=element_text(hjust = 0.5),
+        plot.subtitle=element_text(hjust = 0.5,size=rel(1.2)),
+        legend.position = "none") +
+  coord_cartesian(xlim = c(0,1.5), ylim = c(-.1,1.56))
+
+
+
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Output/")
+tiff(paste0(today, "_predicted_benefit_calibration_SGLT2i_SU.tiff"), width=6, height=5.5, units = "in", res=800) 
+print(p_benefit_bydeciles_median2)
+dev.off()
+
+
+obs_v_pred_for_plot3 <- cohort %>% filter(studydrug != "SU") %>%
+  # group predicted benefit by decile
+  mutate(benefit_decile = ntile(ckdpc_50egfr_sglt2i_benefit, n.quantiles)) %>%
+  group_by(benefit_decile) %>%
+  # survdiff is the causal observed absolute risk reduction with SGLT2i
+  summarise(median_predicted_benefit=median(ckdpc_50egfr_sglt2i_benefit, na.rm=T),
+            mean_predicted_benefit=mean(ckdpc_50egfr_sglt2i_benefit, na.rm=T),
+            mean_benefit=mean(survdiff_ckd_egfr50),
+            se_benefit=mean(se_survdiff_ckd_egfr50),
+            median_benefit=median(survdiff_ckd_egfr50),
+            lq_benefit=quantile(survdiff_ckd_egfr50, prob=c(.25)),
+            uq_benefit=quantile(survdiff_ckd_egfr50, prob=c(.75)),
+            upper_ci=mean_benefit + 1.96*se_benefit,
+            lower_ci=mean_benefit - 1.96*se_benefit)
+
+
+empty_tick <- data.frame(matrix(NA, nrow = 1, ncol = length(obs_v_pred_for_plot3)))
+names(empty_tick) <- names(obs_v_pred_for_plot3)
+empty_tick <- empty_tick %>%
+  mutate(benefit_decile=0)
+
+## SGLT2i benefit predicted vs observed
+p_benefit_bydeciles_median3 <- ggplot(data=bind_rows(empty_tick,obs_v_pred_for_plot3), aes(x=median_predicted_benefit*100)) +
+  geom_errorbar(aes(ymax=uq_benefit*100,ymin=lq_benefit*100, color= "#E69F00"),width=0.1,size=1) +
+  geom_point(aes(y = median_benefit*100, color="#E69F00"), shape=18, size=3) +
+  geom_abline(intercept = 0, slope = 1, lty = 2) +
+  theme_bw() +
+  xlab("Model-predicted absolute risk reduction (%)") + ylab("Counterfactual absolute risk reduction (%)\nestimated from observed data")+
+  scale_colour_manual(values = "#E69F00") +
+  theme(panel.border=element_blank(), panel.grid.major=element_blank(),panel.grid.minor=element_blank(),
+        axis.line.x=element_line(colour = "black"), axis.line.y=element_line(colour="black"),
+        plot.title = element_text(size = rel(1.5), face = "bold")) + theme(plot.margin = margin()) +
+  theme(axis.text=element_text(size=rel(1.5)),
+        axis.title=element_text(size=rel(1.5)),
+        plot.title=element_text(hjust = 0.5),
+        plot.subtitle=element_text(hjust = 0.5,size=rel(1.2)),
+        legend.position = "none") +
+  coord_cartesian(xlim = c(0,1.5), ylim = c(-.1,1.56))
+
+
+
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Output/")
+tiff(paste0(today, "_predicted_benefit_calibration_SGLT2i_DPP4i.tiff"), width=6, height=5.5, units = "in", res=800) 
+print(p_benefit_bydeciles_median3)
 dev.off()
 
 # calculate calibration slope and Brier score
@@ -497,11 +592,11 @@ ci_plot <- df_combined %>% ggplot(aes(x = time, y = smoothed_diff*100, color = s
   # geom_ribbon(aes(ymin = smoothed_lower_ci*100, ymax = smoothed_upper_ci*100, fill = subgp_label), alpha = 0.2, color = NA) +
   labs(#title = "Kidney protection benefit by SGLT2i treatment recommendation",
     x = "Time (years)",
-    y = "Observed ARR in kidney disease progression") +
+    y = "Observed ARR in kidney disease progression (%)") +
   theme_bw(base_size = 16) +
   scale_color_manual(values = c("#D55E00", "#E69F00", "grey40", "grey15")) +
   scale_fill_manual(values = c("#D55E00", "#E69F00", "grey40", "grey15")) +
-  scale_y_continuous(labels = scales::percent_format(scale = 1)) +
+  scale_y_continuous() +
   theme(legend.position = c(0.44, 0.875), 
         legend.background = element_rect(fill = "white", color = "black"),
         legend.title = element_blank(),
@@ -584,11 +679,11 @@ bar_plot <- ggplot(arr_data, aes(x = stratum, y = ARR, color = stratum, fill = m
                    pattern_fill = "white", pattern_angle = 45, pattern_density = 0.6, pattern_spacing = 0.04, pattern_key_scale_factor = 0.6) +  
   labs(
     x = "",
-    y = "5-year observed absolute risk reduction\nin kidney disease progression"
+    y = "5-year observed absolute risk reduction (%)\nin kidney disease progression "
   ) +
   geom_errorbar(aes(ymin = lower_bound, ymax = upper_bound), width = 0.2, color = "black") +
   scale_x_discrete(labels = function(x) str_wrap(x, width = 20)) +
-  scale_y_continuous(labels = scales::percent_format(scale = 1), breaks = seq(0,6,1), limits = c(-0.055,5.75)) +
+  scale_y_continuous(breaks = seq(0,6,1), limits = c(-0.055,5.75)) +
   theme_bw(base_size = 16) +  # Adjust font size
   theme(
     axis.text.x = element_text(hjust = 1), 
@@ -709,8 +804,9 @@ p_dca <- as_tibble(dca_data) %>%
               span = 0.2, size = 1.25) +
   coord_cartesian(ylim = c(-0.00105984276971715, 0.0105984276971715
   )) +
-  scale_x_continuous(labels = scales::percent_format(accuracy = 1)) +
-  labs(x = "Risk tolerance\n(of 3-year absolute risk of kidney disease progression)", y = "Net utility", color = "") +
+  scale_x_continuous() +
+  # scale_x_continuous(labels = scales::percent_format(accuracy = 1)) +
+  labs(x = "Risk tolerance (%)\n(of 3-year absolute risk of kidney disease progression)", y = "Net utility", color = "") +
   theme_minimal() +
   scale_color_manual(
     values = c(

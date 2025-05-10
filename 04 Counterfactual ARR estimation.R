@@ -70,7 +70,7 @@ save(cohort_5y, file=paste0(today, "_data_centred_predictors_5y.Rda"))
 rm(list = setdiff(ls(), c("n.imp", "covariates", "today")))
 
 # if evaluating other risk scores, other relevant outcomes may be added
-outcomes_msm <- "ckd_egfr50"
+outcomes_msm <- c("ckd_egfr50", "dka", "side_effect")
 
 for (k in outcomes_msm) {
   

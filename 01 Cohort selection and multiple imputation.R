@@ -443,6 +443,10 @@ print(paste0("Number of subjects in study population ", q))
 
 # 5 tabulate and save imputed dataset for further analyses
 
+temp <- temp %>% group_by(.imp, patid) %>% filter(
+   !duplicated(studydrug)
+   ) %>% ungroup()
+
 # save imputed dataset so this can be used in the subsequent scripts
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
 save(temp, file=paste0(today, "_t2d_ckdpc_imputed_data.Rda"))
@@ -460,6 +464,16 @@ setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/output/")
 #my computer is set to continental settings, therefore I am using write.csv2 instead of write.csv
 
 write.csv2(tabforprint, file = paste0(today, "_baseline_table.csv"))
+
+# baseline table with DPP4i/SU split
+table <- CreateTableOne(vars = vars, strata = "studydrug", data = temp %>% filter(!.imp == 0) %>%  ## dataset at present contains separate drug episodes if a subject started a DPP4i and later a sulfonylurea
+                          group_by(.imp, patid) %>% filter(!duplicated(studydrug)) %>% ungroup(),  ## these "duplicate" episodes will be removed after we have done the drug-specific analyses
+                        factorVars = factors, test = F)
+
+tabforprint <- print(table, nonnormal = nonnormal, quote = FALSE, noSpaces = TRUE, printToggle = T)
+
+write.csv2(tabforprint, file = paste0(today, "_baseline_table_dpp4isu_split.csv"))
+
 
 # get baseline table by albuminuria status:
 vars <- c(vars, "studydrug2")

@@ -14,6 +14,8 @@ setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/"
 load(paste0(today, "_all_hrs.Rda"))
 load(paste0(today, "_all_SGLT2ivsDPP4iSU_hrs.Rda"))
 load(paste0(today, "_SGLT2ivsDPP4iSU_hrs.Rda"))
+load(paste0(today, "_all_SGLT2ivsDPP4iSU_hrs2.Rda"))
+load(paste0(today, "_SGLT2ivsDPP4iSU_hrs2.Rda"))
 load(paste0(today, "_subgroup_hrs.Rda"))
 load(paste0(today, "_subgroup_SGLT2ivsDPP4iSU_hrs.Rda"))
 load(paste0(today, "_subgroup_parr_hrs.Rda"))

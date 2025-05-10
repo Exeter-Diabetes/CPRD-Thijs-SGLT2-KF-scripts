@@ -46,7 +46,7 @@ for (i in 1:n.imp) {
   
   print(paste0("Calculating weights for imputed dataset number ", i))
   
-  imp.x <- temp[temp$.imp == i,]
+  imp.x <- temp[temp$.imp == i,] %>% as.data.frame()
   
   w.overlap <- SumStat(ps.formula=ps.formula, 
                        data = imp.x, 
@@ -130,7 +130,7 @@ legend("right",inset=c(-0.2, 0), title="",legend=dic0,col=c("#0072B2","#E69F00")
 }
 plot.hist.ps.2drugs(w.overlap2)
 
-summary(w.overlap, weighted.var = TRUE, metric = "ASD")
+summary(w.overlap2, weighted.var = TRUE, metric = "ASD")
 
 # save dataset with weights so this can be used in subsequent scripts
 cohort <- temp %>% filter(!.imp == 0)
@@ -545,6 +545,136 @@ for (k in outcomes) {
   
     rm(temp)
 }
+
+all_SGLT2ivsDPP4iSU_hrs2 <- SGLT2ivsDPP4iSU_hrs2 <- data.frame()
+
+# sensitivity analyses - keep 1 drug episode per patid only
+for (k in "ckd_egfr50") {
+  
+  # keep one observation per patid keeping the SGLT2i episode preferentially
+  temp <- cohort %>%
+    mutate(studydrug2 = factor(studydrug2, levels = c("SGLT2i", "DPP4i/SU"))) %>%
+    arrange(.imp, patid, studydrug2) %>%
+    distinct(.imp, patid, .keep_all = TRUE) %>%
+    ungroup() %>% 
+    mutate(studydrug2 = factor(studydrug2, levels = c("DPP4i/SU", "SGLT2i")))
+  
+  print(paste0("Calculating hazard ratios for outcome ", k))
+  
+  censvar_var=paste0(k, "_censvar")
+  censtime_var=paste0(k, "_censtime_yrs")
+  
+  # calculate number of subjects in each group
+  count <- temp[temp$.imp > 0,] %>%
+    group_by(studydrug2) %>%
+    summarise(count=round(n()/n.imp, 0)) %>% # the total number of subjects in the stacked imputed datasets has to be divided by the number of imputed datasets
+    pivot_wider(names_from=studydrug2,
+                names_glue="{studydrug2}_count",
+                values_from=count)
+  
+  # calculate median follow up time (years) per group
+  followup <- temp[temp$.imp > 0,] %>%
+    group_by(studydrug2) %>%
+    summarise(time=round(median(!!sym(censtime_var)), 2)) %>%
+    pivot_wider(names_from=studydrug2,
+                names_glue="{studydrug2}_followup",
+                values_from=time)
+  
+  # summarise number of events per group
+  events <- temp[temp$.imp > 0,] %>%
+    group_by(studydrug2) %>%
+    summarise(event_count=round(sum(!!sym(censvar_var))/n.imp, 0),
+              drug_count=round(n()/n.imp, 0)) %>%
+    mutate(events_perc=round(event_count*100/drug_count, 1),
+           events=paste0(event_count, " (", events_perc, "%)")) %>%
+    select(studydrug2, events) %>%
+    pivot_wider(names_from=studydrug2,
+                names_glue="{studydrug2}_events",
+                values_from=events)
+  
+  
+  # write formulas for adjusted and unadjusted analyses
+  f2 <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2"))
+  
+  f_adjusted2 <- as.formula(paste("Surv(", censtime_var, ", ", censvar_var, ") ~  studydrug2 + ", paste(covariates, collapse=" + ")))
+  
+  # create empty vectors to store the hazard ratios from every imputed dataset
+  # for the unadjusted survival models
+  COEFS.SGLT2i.unadj <- SE.SGLT2i.unadj <-
+    # for the adjusted survival models
+    COEFS.SGLT2i.adj <- SE.SGLT2i.adj <-
+    # for the overlap weighted survival models
+    COEFS.SGLT2i.ow <- SE.SGLT2i.ow <-
+    # for the inverse probability of treatment weighted survival models
+    COEFS.SGLT2i.iptw <- SE.SGLT2i.iptw <-
+    rep(NA,n.imp)
+  
+  for (i in 1:n.imp) {
+    print(paste0("Analyses in imputed dataset number ", i))
+    
+    #unadjusted analyses first
+    fit.unadj <- coxph(f2, temp[temp$.imp == i,])
+    
+    #store coefficients and standard errors from this model
+    COEFS.SGLT2i.unadj[i] <- fit.unadj$coefficients[1]
+    SE.SGLT2i.unadj[i] <- sqrt(fit.unadj$var[1,1])
+    
+    #adjusted analyses
+    fit.adj <- coxph(f_adjusted2, temp[temp$.imp == i,])
+    
+    COEFS.SGLT2i.adj[i] <- fit.adj$coefficients[1]
+    SE.SGLT2i.adj[i] <- sqrt(fit.adj$var[1,1])
+    
+    #overlap weighted analyses
+    fit.ow <- coxph(f_adjusted2, temp[temp$.imp ==i,], weights = overlap2)
+    
+    COEFS.SGLT2i.ow[i] <- fit.ow$coefficients[1]
+    SE.SGLT2i.ow[i] <- sqrt(fit.ow$var[1,1])
+    
+    #inverse probability of treatment weighted analyses
+    fit.iptw <- coxph(f_adjusted2, temp[temp$.imp ==i,], weights = IPTW2)
+    
+    COEFS.SGLT2i.iptw[i] <- fit.iptw$coefficients[1]
+    SE.SGLT2i.iptw[i] <- sqrt(fit.iptw$var[1,1])
+    
+    rm(fit.unadj)
+    rm(fit.adj)
+    rm(fit.ow)
+    rm(fit.iptw)
+  }
+  
+  # pool hazard ratios
+  unadjusted_SGLT2i <- pool.rubin.HR(COEFS.SGLT2i.unadj, SE.SGLT2i.unadj, n.imp)
+  adjusted_SGLT2i <- pool.rubin.HR(COEFS.SGLT2i.adj, SE.SGLT2i.adj, n.imp)
+  overlapweighted_SGLT2i <- pool.rubin.HR(COEFS.SGLT2i.ow, SE.SGLT2i.ow, n.imp)
+  iptw_SGLT2i <- pool.rubin.HR(COEFS.SGLT2i.iptw, SE.SGLT2i.iptw, n.imp)
+  
+  # save pooled HR and 95% confidence interval
+  unadjusted_SGLT2i_string <- paste0(sprintf("%.2f", round(unadjusted_SGLT2i[1], 2)), " (", sprintf("%.2f", round(unadjusted_SGLT2i[2], 2)), ", ", sprintf("%.2f", round(unadjusted_SGLT2i[3], 2)), ")")
+  adjusted_SGLT2i_string <- paste0(sprintf("%.2f", round(adjusted_SGLT2i[1], 2)), " (", sprintf("%.2f", round(adjusted_SGLT2i[2], 2)), ", ", sprintf("%.2f", round(adjusted_SGLT2i[3], 2)), ")")
+  overlapweighted_SGLT2i_string <- paste0(sprintf("%.2f", round(overlapweighted_SGLT2i[1], 2)), " (", sprintf("%.2f", round(overlapweighted_SGLT2i[2], 2)), ", ", sprintf("%.2f", round(overlapweighted_SGLT2i[3], 2)), ")")
+  iptw_SGLT2i_string <- paste0(sprintf("%.2f", round(iptw_SGLT2i[1], 2)), " (", sprintf("%.2f", round(iptw_SGLT2i[2], 2)), ", ", sprintf("%.2f", round(iptw_SGLT2i[3], 2)), ")")
+  
+  # combine in dataframe that we can tabulate
+  outcome_SGLT2ivsDPP4iSU_hr <- cbind(outcome=k, count[c(1:2)], followup[c(1:2)], events[c(1:2)],
+                                      unadjusted_SGLT2i_string, adjusted_SGLT2i_string, overlapweighted_SGLT2i_string, iptw_SGLT2i_string)
+  
+  SGLT2ivsDPP4iSU_hrs2 <- rbind(SGLT2ivsDPP4iSU_hrs2, outcome_SGLT2ivsDPP4iSU_hr)
+  
+  SGLT2ivsDPP4iSU_hr <- rbind(
+    cbind(outcome = k, contrast = "SGLT2i vs DPP4i/SU", analysis = "Unadjusted", 
+          HR = unadjusted_SGLT2i[1], LB = unadjusted_SGLT2i[2], UB = unadjusted_SGLT2i[3], string = unadjusted_SGLT2i_string),
+    cbind(outcome = k, contrast = "SGLT2i vs DPP4i/SU", analysis = "Adjusted", 
+          HR = adjusted_SGLT2i[1], LB = adjusted_SGLT2i[2], UB = adjusted_SGLT2i[3], string = adjusted_SGLT2i_string),
+    cbind(outcome = k, contrast = "SGLT2i vs DPP4i/SU", analysis = "Overlap-weighted", 
+          HR = overlapweighted_SGLT2i[1], LB = overlapweighted_SGLT2i[2], UB = overlapweighted_SGLT2i[3], string = overlapweighted_SGLT2i_string),
+    cbind(outcome = k, contrast = "SGLT2i vs DPP4i/SU", analysis = "IPTW", 
+          HR = iptw_SGLT2i[1], LB = iptw_SGLT2i[2], UB = iptw_SGLT2i[3], string = iptw_SGLT2i_string))
+  
+  all_SGLT2ivsDPP4iSU_hrs2 <- rbind(all_SGLT2ivsDPP4iSU_hrs2, SGLT2ivsDPP4iSU_hr)
+  
+  rm(temp)
+}
 ############################3 SUBGROUP ANALYSES################################################################
 
 
@@ -707,17 +837,23 @@ all_hrs$model <- factor(all_hrs$model, levels = unique(all_hrs$model))
 all_SGLT2ivsDPP4iSU_hrs$model <- paste0(all_SGLT2ivsDPP4iSU_hrs$string, " [", all_SGLT2ivsDPP4iSU_hrs$analysis, "]")
 all_SGLT2ivsDPP4iSU_hrs$model <- factor(all_SGLT2ivsDPP4iSU_hrs$model, levels = unique(all_SGLT2ivsDPP4iSU_hrs$model))
 
+all_SGLT2ivsDPP4iSU_hrs2$model <- paste0(all_SGLT2ivsDPP4iSU_hrs2$string, " [", all_SGLT2ivsDPP4iSU_hrs2$analysis, "]")
+all_SGLT2ivsDPP4iSU_hrs2$model <- factor(all_SGLT2ivsDPP4iSU_hrs2$model, levels = unique(all_SGLT2ivsDPP4iSU_hrs2$model))
+
 # have to coerce HR and CI to class numeric as they sometimes default to character
 class(all_hrs$HR) <- class(all_hrs$LB) <- class(all_hrs$UB) <-
   class(all_SGLT2ivsDPP4iSU_hrs$HR) <- class(all_SGLT2ivsDPP4iSU_hrs$LB) <- class(all_SGLT2ivsDPP4iSU_hrs$UB) <- 
+  class(all_SGLT2ivsDPP4iSU_hrs2$HR) <- class(all_SGLT2ivsDPP4iSU_hrs2$LB) <- class(all_SGLT2ivsDPP4iSU_hrs2$UB) <- 
   class(subgroup_hrs$HR) <- class(subgroup_hrs$LB) <- class(subgroup_hrs$UB) <- "numeric"
 
 # remove unadjusted HR as we do not want to plot these
 all_hrs <- all_hrs[!all_hrs$analysis == "Unadjusted",]
 all_SGLT2ivsDPP4iSU_hrs <- all_SGLT2ivsDPP4iSU_hrs[!all_SGLT2ivsDPP4iSU_hrs$analysis == "Unadjusted",]
+all_SGLT2ivsDPP4iSU_hrs2 <- all_SGLT2ivsDPP4iSU_hrs2[!all_SGLT2ivsDPP4iSU_hrs2$analysis == "Unadjusted",]
 
 #add event count and total count to hr dataframe
 all_SGLT2ivsDPP4iSU_hrs <- all_SGLT2ivsDPP4iSU_hrs %>% left_join(SGLT2ivsDPP4iSU_hrs %>% select(1:7))
+all_SGLT2ivsDPP4iSU_hrs2 <- all_SGLT2ivsDPP4iSU_hrs2 %>% left_join(SGLT2ivsDPP4iSU_hrs2 %>% select(1:7))
 subgroup_hrs <- subgroup_hrs %>% left_join(subgroup_SGLT2ivsDPP4iSU_hrs %>% select(-c(adjusted, unadjusted)), by = c("outcome", "contrast"))
 
 
@@ -745,6 +881,16 @@ all_SGLT2ivsDPP4iSU_hrs <- all_SGLT2ivsDPP4iSU_hrs %>%
     SGLT2i_nN = paste0(SGLT2i_events_number, "/", SGLT2i_count)
   )
 
+all_SGLT2ivsDPP4iSU_hrs2 <- all_SGLT2ivsDPP4iSU_hrs2 %>%
+  separate(`DPP4i/SU_events`, into = c("DPP4i/SU_events_number", "DPP4i/SU_events_percentage"), sep = " \\(", remove = FALSE) %>%
+  separate(SGLT2i_events, into = c("SGLT2i_events_number", "SGLT2i_events_percentage"), sep = " \\(", remove = FALSE) %>%
+  mutate(
+    `DPP4i/SU_events_percentage` = str_replace(`DPP4i/SU_events_percentage`, "\\)", ""),
+    SGLT2i_events_percentage = str_replace(SGLT2i_events_percentage, "\\)", ""),
+    `DPP4i/SU_nN` = paste0(`DPP4i/SU_events_number`, "/", `DPP4i/SU_count`),
+    SGLT2i_nN = paste0(SGLT2i_events_number, "/", SGLT2i_count)
+  )
+
 subgroup_hrs <- subgroup_hrs %>%
   separate(`DPP4i/SU_events`, into = c("DPP4i/SU_events_number", "DPP4i/SU_events_percentage"), sep = " \\(", remove = FALSE) %>%
   separate(SGLT2i_events, into = c("SGLT2i_events_number", "SGLT2i_events_percentage"), sep = " \\(", remove = FALSE) %>%
@@ -762,5 +908,7 @@ setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/"
 save(all_hrs, file=paste0(today, "_all_hrs.Rda"))
 save(all_SGLT2ivsDPP4iSU_hrs, file=paste0(today, "_all_SGLT2ivsDPP4iSU_hrs.Rda"))
 save(SGLT2ivsDPP4iSU_hrs, file=paste0(today, "_SGLT2ivsDPP4iSU_hrs.Rda"))
+save(all_SGLT2ivsDPP4iSU_hrs2, file=paste0(today, "_all_SGLT2ivsDPP4iSU_hrs2.Rda"))
+save(SGLT2ivsDPP4iSU_hrs2, file=paste0(today, "_SGLT2ivsDPP4iSU_hrs2.Rda"))
 save(subgroup_hrs, file=paste0(today, "_subgroup_hrs.Rda"))
 save(subgroup_SGLT2ivsDPP4iSU_hrs, file=paste0(today, "_subgroup_SGLT2ivsDPP4iSU_hrs.Rda"))

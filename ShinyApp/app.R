@@ -1,9 +1,6 @@
-
-
-
-
 library(shiny)
 library(tidyverse)
+library(shinyscroll)
 
 # Function to calculate pARR
 calculate_parr <- function(dataframe, age, sex, egfr, acr, sbp, bp_meds, hf, chd, af, smoking_status, diabetes_med, bmi, hba1c) {
@@ -121,6 +118,30 @@ ui <- fluidPage(
         margin-top: 0px;
         margin-bottom: 0px;
       }
+      .toggle-pictogram {
+      background: none;
+      border: none;
+      padding: 0;
+      color: #007BFF;
+      text-decoration: underline;
+      font-style: italic;
+      font-size: 16px;
+      display: block;
+      text-align: center;
+      margin: 20px auto;
+      }
+          .toggle-traffic-light {
+      background: none;
+      border: none;
+      padding: 0;
+      color: #007BFF;
+      text-decoration: underline;
+      font-style: italic;
+      font-size: 16px;
+      display: block;
+      text-align: center;
+      margin: 20px auto;
+    }
       .references-title {
         font-weight: bold;
       max-width: 700px; 
@@ -128,29 +149,50 @@ ui <- fluidPage(
       }
     "))
   ),
-  column(width = 12, align = "center", div(class="title", titlePanel("Predicted kidney protection benefit from SGLT2-inhibitors in people with type 2 diabetes"))),
+  column(width = 12, align = "center", div(class="title", titlePanel("Predicted kidney protection benefit with SGLT2-inhibitors in people with type 2 diabetes"))),
   column(width = 12, align = "center", div(class="beta-notice", 
                                            HTML("This calculator is in beta and is for research purposes only. Please leave any feedback <a href='https://forms.gle/ewYM9jmQfNb2fD2U8' target='_blank'>here</a>."))),
   column(width = 12, align = "center", div(class="explanation", uiOutput("dynamic_explanation"))),
-  column(width = 12, align = "center", div(class="subtitle", h4("3-year risk of kidney disease progression (≥50% decline in eGFR or kidney failure):"))),
-  column(width = 12, align="center",
-         div(style = "max-width: 700px; min-width: 650px", # these values set the min and max width for the elements inside
+
+  column(width = 12, align = "center", div(class="subtitle", h3(id = "result_title",
+                                                                style = "font-weight: bold;",
+                                                                       HTML("3-year risk of kidney disease progression<br>(≥50% decline in eGFR or kidney failure)")))),
+  
+  
+    column(width = 12, align = "center",
+         div(style = "max-width: 700px; min-width: 650px", 
              uiOutput("result_text"),  # Result displayed here
-             plotOutput("risk_plot", height = "120px"),  # Add the bar chart
-             uiOutput("traffic_light"),
+             
+             # Wrap plotOutput in a div to allow styling
+             div(plotOutput("risk_plot", height = "120px"), 
+                 style = "margin-bottom: 20px;"),  # Add margin-bottom to the plot
+             
+             # Add space below the pictogram
+             uiOutput("risk_pictogram", style = "margin-bottom: 10px;"),  # Add margin-bottom to the pictogram
+             
+             uiOutput("toggle_pictogram"),
+             # actionButton("toggle_pictogram", "Click here to show the risk of possible side effects", class = "toggle-pictogram"),
+             
+             uiOutput("harm_pictogram", style = "margin_bottom: 10px;"),
+             
+             uiOutput("toggle_traffic_light"),
+             
+             # Traffic light with less added space
+             uiOutput("traffic_light", style = "margin-bottom: 20px;")
          )
   ),
   fluidRow(
-    column(12, align = "center",
+    
+        column(12, align = "center",
            div(style = "max-width: 650px; display: flex; justify-content: space-between; text-align: center;",
                column(6, 
                       selectInput("age", "Age (years):",
                                   choices = as.list(seq(20, 80, 1)), selected = 50),
                       selectInput("hba1c", "HbA1c (mmol/mol):", 
                                   choices = as.list(c(seq(42, 96, 1), "≥97 (model will use 97 as input)")), selected = 58),
-                      selectInput("bmi", "BMI (kg/m2):", 
+                      selectInput("bmi", "BMI (kg/m²):", 
                                   choices = as.list(c(seq(20, 40, 1), "≥40 (model will use 40 as input)")), selected = 30),
-                      selectInput("egfr", "eGFR (ml/min per 1.73m2):", 
+                      selectInput("egfr", "eGFR (ml/min per 1.73m²):", 
                                   choices = as.list(c("<60", seq(60, 140, 1))), selected = 90),
                       selectInput(
                         inputId = "acr",
@@ -191,13 +233,16 @@ ui <- fluidPage(
   ),
   column(width = 12, align = "center",
          div(style = "text-align:center; margin-top:50px; max-width: 700px; min-width: 650px",
-             p("This prediction model is based on the CKD Prognosis Consortium risk score for ≥50% decline in eGFR or kidney failure over 3 years integrated with the relative treatment effect from SGLT2-inhibitor trial meta-analysis. The model was independently validated using UK routine general practice data of 141,500 participants with type 2 diabetes, preserved eGFR (≥60mL/min/1.73m2), normal or low-level albuminuria (<30mg/mmol), and without a history of atherosclerotic vascular disease or heart failure. In this population, a predicted benefit threshold of 0.65% (corresponding to an NNT 154) would prevent over 10% more kidney disease progression events than using an albuminuria threshold ≥3mg/mmol, while targeting a comparable proportion of the population."),
+             p("This prediction model is based on the CKD Prognosis Consortium risk score² for ≥50% decline in eGFR or kidney failure over 3 years integrated with the relative treatment effect from SGLT2-inhibitor trial meta-analysis¹. The model was independently validated using UK routine general practice data of 141,500 participants with type 2 diabetes, preserved eGFR (≥60mL/min/1.73m²), normal or low-level albuminuria (<30mg/mmol), and without a history of atherosclerotic vascular disease or heart failure³."),
              p(class = "references-title", "References:"),
-             p("Nuffield Department of Population Health Renal Studies Group, SGLT2 inhibitor Meta-Analysis Cardio-Renal Trialists' Consortium. Impact of diabetes on the effects of sodium glucose co-transporter-2 inhibitors on kidney outcomes: collaborative meta-analysis of large placebo-controlled trials. Lancet 2022; 400(10365): 1788-801."),
-             p("Grams ME, Brunskill NJ, Ballew SH, et al. Development and Validation of Prediction Models of Adverse Kidney Outcomes in the Population With and Without Diabetes. Diabetes Care 2022; 45(9): 2055-63.")
+             p("1. Nuffield Department of Population Health Renal Studies Group, SGLT2 inhibitor Meta-Analysis Cardio-Renal Trialists' Consortium. Impact of diabetes on the effects of sodium glucose co-transporter-2 inhibitors on kidney outcomes: collaborative meta-analysis of large placebo-controlled trials. Lancet 2022; 400(10365): 1788-801."),
+             p("2. Grams ME, Brunskill NJ, Ballew SH, et al. Development and Validation of Prediction Models of Adverse Kidney Outcomes in the Population With and Without Diabetes. Diabetes Care 2022; 45(9): 2055-63."),
+             p("3. Jansz TT, Young KG, Hopkins R, et al. Precision Medicine in Type 2 Diabetes: Targeting SGLT2-inhibitor Treatment for Kidney Protection. medRxiv 2024.09.01.24312905")
          )
   ),
-
+  
+  shinyscroll::use_shinyscroll(),
+  
 )
 
 # Server logic for the Shiny app
@@ -219,7 +264,7 @@ server <- function(input, output, session) {
   
   output$dynamic_explanation <- renderUI({
     acr_limit_value <- if (unit() == "SI") "<30mg/mmol" else "<265mg/g"
-    HTML(paste0("This calculator predicts kidney protection benefit from SGLT2-inhibitor treatment for people with type 2 diabetes, preserved eGFR (<60mL/min/1.73m2), normal or low-level albuminuria (uACR", acr_limit_value, "), and without a history of atherosclerotic vascular disease or heart failure."))
+    HTML(paste0("This calculator predicts kidney protection benefit with SGLT2-inhibitor treatment for people with type 2 diabetes, preserved eGFR (≥60mL/min/1.73m²), normal or low-level albuminuria (uACR", acr_limit_value, "), and without a history of atherosclerotic vascular disease or heart failure."))
   })
   
   # Dynamically update ACR choices based on the unit
@@ -248,7 +293,7 @@ server <- function(input, output, session) {
         0.6  # Corresponding value in mg/mmol
       } else if (input$acr == "≥265") {
         30
-    } else {
+      } else {
         as.numeric(input$acr) / 8.84  # Convert mg/g to mg/mmol
       }
     } else {
@@ -265,16 +310,16 @@ server <- function(input, output, session) {
       if (input$hba1c == "≥11 (model will use 11 as input)") {
         97
       } else 
-        {
-      (as.numeric(input$hba1c) - 2.15) * 10.929 # Convert % to mmol/mol
+      {
+        (as.numeric(input$hba1c) - 2.15) * 10.929 # Convert % to mmol/mol
       }
     } else 
-      {
+    {
       if (input$hba1c == "≥97 (model will use 97 as input)") {
         97
       } else 
-        {
-      as.numeric(input$hba1c)
+      {
+        as.numeric(input$hba1c)
       }
     }
     
@@ -288,6 +333,9 @@ server <- function(input, output, session) {
     bmi_value <- if (input$bmi == "≥40 (model will use 40 as input)") {
       40
     } else { as.numeric(input$bmi) }
+    
+    # scroll to 
+    shinyscroll::scroll("result_title")
     
     # Combine everything into a data.frame
     data.frame(
@@ -343,13 +391,14 @@ server <- function(input, output, session) {
       bmi = patient$bmi,
       hba1c = patient$hba1c
     )
+    
   })
   
   
   parr_threshold <- 0.65059
   
   output$result_text <- renderUI({
-
+    
     
     patient <- patient()
     if (input$predict == 0) {
@@ -362,10 +411,10 @@ server <- function(input, output, session) {
           "This patient has an indication for SGLT2-inhibitor treatment due to a history of atherosclerotic vascular disease or heart failure.")
     } else if (patient$acr >= 30) {
       div(class = "validation-message",
-          "This patient has an indication for SGLT2-inhibitor treatment due to significant albuminuria.")
+          "This patient has an indication for SGLT2-inhibitor treatment due to severe albuminuria.")
     } else if (patient$egfr < 60) {
       div(class = "validation-message",
-          "This patient has an indication for SGLT2-inhibitor treatment due to an eGFR <60mL/min/1.73m2.")
+          "This patient has an indication for SGLT2-inhibitor treatment due to an eGFR <60mL/min/1.73m².")
     } else {
       df <- result()
       if (is.null(df)) {
@@ -378,8 +427,8 @@ server <- function(input, output, session) {
         nnt <- ifelse(df$parr[1] > 0, round(1 / (df$parr[1]/100), 0), NA)
         
         
-        result_colour <- ifelse(parr < parr_threshold, "#FF5733", "#00C853") 
-        
+        # result_colour <- ifelse(parr < parr_threshold, "#FF5733", "#00C853") 
+
         div(
           div(style = "display: flex; justify-content: space-between; text-align: center;",
               div(class = "result-text", style = "width: 33%;",
@@ -394,15 +443,15 @@ server <- function(input, output, session) {
           ),
           div(style = "display: flex; justify-content: space-between; text-align: center; margin-top: 0px;",
               div(class = "result-text", style = "width: 33%;",
-                  span(style = "color: #0072B2; text-shadow: 1px 1px 2px black;",
+                  span(style = "color: grey25; text-shadow: 1px 1px 2px black;",
                        sprintf("%.1f%%", current_risk))
               ),
               div(class = "result-text", style = "width: 33%;",
-                  span(style = paste("color: ", result_colour, "; text-shadow: 1px 1px 2px black;"),
+                  span(style = paste("color: #0072B2; text-shadow: 1px 1px 2px black;"),
                        sprintf("%.1f%%", risk_with_treatment))
               ),
               div(class = "result-text", style = "width: 33%;",
-                  span(style = paste("color: ", result_colour, "; text-shadow: 1px 1px 2px black;"),
+                  span(style = paste("color: #E69F00; text-shadow: 1px 1px 2px black;"),
                        ifelse(!is.na(nnt), sprintf("%d", nnt), "N/A")),
               ),
           ),
@@ -430,7 +479,8 @@ server <- function(input, output, session) {
     treated_risk <- 100 * (1 - df$ckdpc_50egfr_survival_sglt2i[1])
     parr <- df$parr[1]
     
-    bar_colour <- ifelse(parr < parr_threshold, "#FF5733", "#00C853")
+    # bar_colour <- ifelse(parr < parr_threshold, "#FF5733", "#00C853")
+    bar_colour <- "#0072B2"
     
     # Create a data frame for the two bars
     plot_data <- data.frame(
@@ -438,7 +488,7 @@ server <- function(input, output, session) {
       xmax = c(treated_risk, current_risk),
       ymin = c(0.2, 0.45),  # 
       ymax = c(0.4, 0.65),  # 
-      fill = c(bar_colour, "#0072B2")  # Blue for untreated, yellow for treated
+      fill = c(bar_colour, "grey25")  # Blue for untreated, yellow for treated
     )
     
     # Generate the plot
@@ -478,12 +528,340 @@ server <- function(input, output, session) {
         panel.grid.minor.x = element_blank(),
         plot.margin = margin(10, 10, 10, 10)
       ) # +
-      
-      # Chart title
-      #labs(title = "3-year risk of kidney disease progression")
+    
+    # Chart title
+    #labs(title = "3-year risk of kidney disease progression")
   })
   
+  output$risk_pictogram <- renderUI({
+    patient <- patient()
+    if (input$predict == 0 #|| !patient$type2_dm 
+        || patient$hf || patient$chd || patient$egfr < 60 || patient$acr >= 30) {
+      return(NULL)
+    }
+    
+    if (is.null(result())) return()   
+    
+    # Extract the necessary values
+    df <- result()
+    current_risk <- df$ckdpc_50egfr_score[1]
+    risk_with_treatment <- df$ckdpc_50egfr_score[1] - df$parr[1]
+    
+    total <- 100
+    
+    no_event <- round(total - current_risk) # white
+    
+    prevented <- round(max(current_risk - risk_with_treatment, 0))    # yellow
+    still_event <- round(ifelse(prevented == 0, current_risk, risk_with_treatment))  # blue
+    no_event <- total - still_event - prevented                       # white
+    
+    
+    
+    # Create the circle divs
+    circles <- c(
+      rep("<div class='circle white'></div>", no_event),
+      rep("<div class='circle yellow'></div>", prevented),
+      rep("<div class='circle blue'></div>", still_event)
+      
+    )
+    
+    HTML(sprintf("
+<style>
+  .circle-grid {
+    display: grid;
+    grid-template-columns: repeat(10, 20px);
+    grid-gap: 4px;
+    width: max-content;
+    margin-top: 20px;
+    margin-bottom: 20px;
+  }
+  .circle {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%%;
+    border: 1px solid black;
+  }
+  .yellow {
+    background-color: #E69F00;
+  }
+  .blue {
+    background-color: #0072B2;
+  }
+  .white {
+    background-color: white;
+  }
+
+  .legend-wrapper {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+  }
+
+  .legend {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 10px;
+    margin-left: 40px;
+    font-size: 14px;
+    max-width: 400px;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    text-align: left;
+    gap: 10px;
+  }
+
+  .legend-item .circle {
+    flex-shrink: 0;
+    display: inline-block;
+  }
+</style>
+
+  <!-- Title for the circle diagram -->
+  <h3 style='text-align: center;font-weight: bold;'>Making a decision</h3>
+  <h4 style='text-align: center;font-style: italic;'>Predicted benefit</h3>
+
+<div class='legend-wrapper'>
+  <div class='circle-grid'>
+    %s
+  </div>
+  <div class='legend'>
+    <div><strong>If 100 people with this predicted risk take an SGLT2-inhibitor, over 3 years on average:</strong></div>
+    <div class='legend-item'>
+      <div class='circle white'></div>
+      <div>about %d will not get kidney failure or a halving of their kidney function, but would not even if they had not taken an SGLT2-inhibitor</div>
+    </div>
+    <div class='legend-item'>
+      <div class='circle yellow'></div>
+      <div>about %d will not get kidney failure or a halving of their kidney function, because they take an SGLT2-inhibitor</div>
+    </div>
+    <div class='legend-item'>
+      <div class='circle blue'></div>
+      <div>about %d will get kidney failure or a halving of their kidney function, even though they take an SGLT2-inhibitor</div>
+    </div>
+  </div>
+</div>
+", paste(circles, collapse = "\n"), no_event, prevented, still_event))
+    
+    
+    
+  })
+  
+  output$toggle_pictogram <- renderUI({
+    # Require result to be present and predict clicked
+    if (is.null(result()) || input$predict == 0) return(NULL)
+    
+    # Require patient to meet conditions
+    patient <- patient()
+    if (patient$hf || patient$chd || patient$egfr < 60 || patient$acr >= 30) return(NULL)
+    
+    # If all conditions pass, render the button
+    actionButton(
+      inputId = "toggle_pictogram",
+      label = "Possible side effects",
+      class = "toggle-pictogram"
+    )
+  })
+  
+  
+  
+  
+  
+  # Create toggle state
+  show_harm_pictogram <- reactiveVal("hide")
+  
+  # Toggle button logic
+  observeEvent(input$toggle_pictogram, {
+    if (show_harm_pictogram() == "hide") {
+      show_harm_pictogram("show")
+    } else {
+      show_harm_pictogram("hide")
+    }
+  })
+  
+  # Update the button label based on state
+  observe({
+    # Only update label if the button is visible
+    if (!is.null(result()) && input$predict != 0 && !(patient()$hf || patient()$chd || patient()$egfr < 60 || patient()$acr >= 30)) {
+      label <- if (show_harm_pictogram() == "hide") {
+        "Possible side effects"
+      } else {
+        "Possible side effects"
+      }
+      updateActionButton(session, "toggle_pictogram", label = label)
+    }
+  })
+  
+  # Render the harm pictogram
+  output$harm_pictogram <- renderUI({
+    if (show_harm_pictogram() == "hide") return(NULL)
+    
+    patient <- patient()
+    if (input$predict == 0 || patient$hf || patient$chd || patient$egfr < 60 || patient$acr >= 30) return(NULL)
+    if (is.null(result())) return(NULL)
+    
+    # Example values — replace with your actual logic
+    current_risk <- 0.7
+    risk_with_treatment <- 1.8
+    total <- 100
+    
+    added <- round(max(risk_with_treatment - current_risk, 0))
+    event_without_treatment <- round(current_risk)
+    no_event <- total - event_without_treatment - added
+    
+    circles <- c(
+      rep("<div class='circle white'></div>", no_event),
+      rep("<div class='circle yellow'></div>", added),
+      rep("<div class='circle blue'></div>", event_without_treatment)
+    )
+    
+    HTML(sprintf("
+  <style>
+    .circle-grid {
+      display: grid;
+      grid-template-columns: repeat(10, 20px);
+      grid-gap: 4px;
+      width: max-content;
+      margin: 20px auto;
+    }
+    .circle {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%%;
+      border: 1px solid black;
+    }
+    .yellow { background-color: #E69F00; }
+    .blue { background-color: #0072B2; }
+    .white { background-color: white; }
+
+    .legend-wrapper {
+      display: flex;
+      flex-direction: row;
+      align-items: flex-start;
+      justify-content: center;
+      gap: 40px;
+      max-width: 900px;
+      margin: auto;
+    }
+
+    .legend {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      font-size: 14px;
+      max-width: 400px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      text-align: left;
+      gap: 10px;
+    }
+
+    .legend-item .circle {
+      flex-shrink: 0;
+      display: inline-block;
+    }
+
+    .description {
+      font-size: 14px;
+      text-align: center;
+      margin-bottom: 00px;
+    }
+
+    .footnote {
+      font-size: 14px;
+      text-align: center;
+      margin-top: 00px;
+    }
+  </style>
+  
+  <div class='description'>
+    SGLT2-inhibitors can cause genital thrush, but some people get this from time to time whether they take an SGLT2-inhibitor or not. The information below is a summary of results from many large studies¹.
+  </div>
+
+  <div class='legend-wrapper'>
+    <div class='circle-grid'>
+      %s
+    </div>
+    <div class='legend'>
+      <div><strong>On average, for every 100 people who took an SGLT2-inhibitor over 3 years:</strong></div>
+      <div class='legend-item'>
+        <div class='circle white'></div>
+        <div>about %d did not get genital thrush</div>
+      </div>
+      <div class='legend-item'>
+        <div class='circle yellow'></div>
+        <div>about %d got genital thrush, because they took an SGLT2-inhibitor</div>
+      </div>
+      <div class='legend-item'>
+        <div class='circle blue'></div>
+        <div>about %d got genital thrush, but would have done if they had not taken an SGLT2-inhibitor</div>
+      </div>
+    </div>
+  </div>
+
+  <div class='footnote'>
+    More rarely, people can get diabetic keto-acidosis. This happens anyway in about 6 in 10,000 people (so 9,994 do not get this). If all 10,000 people took an SGLT2-inhibitor, an extra 9 might get diabetic keto-acidosis and 9,985 do not get diabetic keto-acidosis. Even more rarely, people can get a severe genital infection, called Fournier's gangrene. This might happen slightly more often in people taking an SGLT2-inhibitor, but this is extremely rare (about 1 in 10,000 people).
+  </div>
+  ", paste(circles, collapse = "\n"), no_event, added, event_without_treatment))
+  })
+  
+  output$toggle_pictogram <- renderUI({
+    # Require result to be present and predict clicked
+    if (is.null(result()) || input$predict == 0) return(NULL)
+    
+    # Require patient to meet conditions
+    patient <- patient()
+    if (patient$hf || patient$chd || patient$egfr < 60 || patient$acr >= 30) return(NULL)
+    
+    # If all conditions pass, render the button
+    actionButton(
+      inputId = "toggle_pictogram",
+      label = "Possible side effects",
+      class = "toggle-pictogram"
+    )
+  })
+  
+  
+  
+  
+  
+  # Create toggle state
+  show_traffic_light <- reactiveVal("hide")
+  
+  # Toggle button logic
+  observeEvent(input$toggle_traffic_light, {
+    if (show_traffic_light() == "hide") {
+      show_traffic_light("show")
+    } else {
+      show_traffic_light("hide")
+    }
+  })
+  
+  # Update the button label based on state
+  observe({
+    # Only update label if the button is visible
+    if (!is.null(result()) && input$predict != 0 && !(patient()$hf || patient()$chd || patient()$egfr < 60 || patient()$acr >= 30)) {
+      label <- if (show_traffic_light() == "hide") {
+        "Suggested treatment threshold"
+      } else {
+        "Suggested treatment threshold"
+      }
+      updateActionButton(session, "toggle_traffic_light", label = label)
+    }
+  })
+  
+  # Render the traffic light
+  
   output$traffic_light <- renderUI({
+    
+    if (show_traffic_light() == "hide") return(NULL)
+    
     if (input$predict > 0 && !is.null(result())) {
       
       df <- result()
@@ -496,134 +874,81 @@ server <- function(input, output, session) {
       
       # Render the traffic light and text
       div(
-        style = "display: flex; align-items: flex-start; margin-top: 40px; margin-bottom: 40px",  # Align top edges of elements
+        style = "display: flex; flex-direction: column; align-items: center; margin-top: 20px; margin-bottom: 40px;",  # Align elements vertically and center them
         
-        # Traffic Light
+        # # Title for the traffic light
+        # div(
+        #   style = "margin-bottom: 00px;",
+        #   h4(style = "font-style: italic;", "Suggested treatment threshold")  # Title text
+        # ),
+        
+        # Traffic Light and Text
         div(
-          style = "width: 90px; height: 120px; background-color: #333; border: 2px solid black; border-radius: 5px; padding: 10px; margin-right: 20px; position: relative;",
+          style = "display: flex; align-items: flex-start; width: 100%;",
           
-          # Top Light (Red or Grey)
-          div(style = sprintf("width: 30px; height: 30px; background-color: %s; border-radius: 50%%; position: absolute; top: 15px; left: 50%%; transform: translateX(-50%%);",
-                              ifelse(!is_above_threshold, "#808080", "#FF5733")),
-              
+          # Traffic Light
+          div(
+            style = "width: 90px; height: 120px; background-color: #333; border: 2px solid black; border-radius: 5px; padding: 10px; margin-right: 20px; position: relative;",
+            
+            # Top Light (Red or Grey)
+            div(style = sprintf("width: 30px; height: 30px; background-color: %s; border-radius: 50%%; position: absolute; top: 15px; left: 50%%; transform: translateX(-50%%);",
+                                ifelse(!is_above_threshold, "#808080", "#FF5733")),
+                
+            ),
+            
+            # Bottom Light (Green or Grey)
+            div(style = sprintf("width: 30px; height: 30px; background-color: %s; border-radius: 50%%; position: absolute; bottom: 15px; left: 50%%; transform: translateX(-50%%);",
+                                ifelse(!is_above_threshold, "#00C853", "#808080")),
+                
+            )
           ),
           
-          # Bottom Light (Green or Grey)
-          div(style = sprintf("width: 30px; height: 30px; background-color: %s; border-radius: 50%%; position: absolute; bottom: 15px; left: 50%%; transform: translateX(-50%%);",
-                              ifelse(!is_above_threshold, "#00C853", "#808080")),
-              
+          # Text and Arrows
+          div(
+            style = "display: flex; flex-direction: column; justify-content: space-between; height: 120px;",
+            
+            # Text aligned with Red Light (if below threshold)
+            if (is_above_threshold) {
+              div(style = "display: flex; align-items: center; margin-bottom: 25px;",
+                  div(style = "font-size: 20px; font-weight: bold; margin-right: 5px; color: black;", "→"),  # Unicode arrow
+                  div(style = "font-size: 14px;", HTML("SGLT2-inhibitor treatment not suggested for kidney protection in this patient.<br>This patient's predicted benefit is below the suggested threshold (NNT of 154 or less), a threshold that would target the same number of patients as a ≥3mg/mmol albuminuria threshold (currently recommended in NICE, KDIGO, ADA, and EASD guidelines), but could prevent over 10% more kidney disease progression events over 3 years³. For context, the NNT seen in kidney outcome trials is 30¹."))
+              )
+            },
+            
+            # Spacer to align Green Light text
+            div(style = "flex-grow: 1;"),
+            
+            # Text aligned with Green Light (if above threshold)
+            if (!is_above_threshold) {
+              div(style = "display: flex; align-items: center; margin-top: 25px;",
+                  div(style = "font-size: 20px; font-weight: bold;margin-right: 5px; color: black;", "→"),  # Unicode arrow
+                  div(style = "font-size: 14px;", HTML("SGLT2-inhibitor treatment suggested for kidney protection in this patient.<br>This patient's predicted benefit is above the suggested threshold (NNT of 154 or less), a threshold that would target the same number of patients as a ≥3mg/mmol albuminuria threshold (currently recommended in NICE, KDIGO, ADA, and EASD guidelines), but could prevent over 10% more kidney disease progression events over 3 years³. For context, the NNT seen in kidney outcome trials was about 30¹."))
+              )
+            }
           )
-        ),
-        
-        # Text and Arrows
-        div(
-          style = "display: flex; flex-direction: column; justify-content: space-between; height: 120px;",
-          
-          # Text aligned with Red Light (if below threshold)
-          if (is_above_threshold) {
-            div(style = "display: flex; align-items: center; margin-bottom: 15px;",
-                div(style = "font-size: 20px; font-weight: bold; margin-right: 5px; color: black;", "→"),  # Unicode arrow
-                div(style = "font-size: 14px;", "SGLT2-inhibitor treatment not suggested for kidney protection in this patient. This patient's predicted benefit is below the threshold of 0.65%. Targeting treatment using this threshold would result in the same number of individuals treated, but over 10% more kidney disease progression events prevented over 3 years than when using a ≥3mg/mmol albuminuria threshold (currently recommended in NICE, KDIGO, ADA, and EASD guidelines).")
-            )
-          },
-          
-          # Spacer to align Green Light text
-          div(style = "flex-grow: 1;"),
-          
-          # Text aligned with Green Light (if above threshold)
-          if (!is_above_threshold) {
-            div(style = "display: flex; align-items: center; margin-top: 15px;",
-                div(style = "font-size: 20px; font-weight: bold;margin-right: 5px; color: black;", "→"),  # Unicode arrow
-                div(style = "font-size: 14px;", "Consider SGLT2-inhibitor treatment for kidney protection in this patient. This patient's predicted benefit is above the threshold of 0.65%. Targeting treatment using this threshold would result in the same number of individuals treated, but over 10% more kidney disease progression events prevented over 3 years than when using a ≥3mg/mmol albuminuria threshold (currently recommended in NICE, KDIGO, ADA, and EASD guidelines).")
-            )
-          }
         )
       )
-    
-  
-    # 
-    #   
-    # div(style = "display: flex; align-items: flex-start; margin-top: 40px; margin-bottom: 40px; ",
-    #     
-    #     div(
-    #       style = "width: 90px; height: 120px; background-color: #333; border: 2px solid black; border-radius: 5px; padding: 10px; margin-right: 20px; position: relative;",
-    #       
-    #       # Red Light
-    #       div(style = "width: 30px; height: 30px; background-color: %s; border-radius: 50%; position: absolute; top: 15px; left: 50%; transform: translateX(-50%);",
-    #           ifelse(!is_above_threshold, "#808080", "#FF5733")),
-    #       
-    #       # Green Light
-    #       div(style = "width: 30px; height: 30px; background-color: %s; border-radius: 50%; position: absolute; bottom: 15px; left: 50%; transform: translateX(-50%);",
-    #           ifelse(!is_above_threshold, "#00C853", "#808080")),
-    #     ),
-    #     
-    # 
-    #     
-    #     # Text and Arrows
-    #     div(
-    #       style = "display: flex; flex-direction: column; justify-content: space-between; height: 120px;",
-    #       
-    #       # Text aligned with Red Light
-    #       div(style = "display: flex; align-items: center; margin-top: 15px;",
-    #           div(style = "font-size: 20px; font-weight: bold; margin-right: 5px; color: black;", "→"),
-    #           div(style = "font-size: 14px;", "SGLT2-inhibitor treatment not suggested for kidney protection. This indicates a predicted benefit below the threshold (0.65%) where a comparable proportion of the population would be treated as currently recommended by NICE and international guidelines (KDIGO/ADA/EASD).")
-    #       ),
-    #       
-    #       # Spacer to align Green Light text
-    #       div(style = "flex-grow: 1;"),
-    #       
-    #       # Text aligned with Green Light
-    #       div(style = "display: flex; align-items: center; margin-top: 15px;",
-    #           div(style = "font-size: 20px; font-weight: bold; margin-right: 5px; color: black;", "→"),
-    #           div(style = "font-size: 14px;", "Consider SGLT2-inhibitor treatment for kidney protection. This indicates a predicted benefit above the threshold (0.65%) where a comparable proportion of the population would be treated as currently recommended by NICE and international guidelines (KDIGO/ADA/EASD).")
-    #       )
-    #     )
-    # )
-        
-    #     # Text aligned with the lights
-    #     div(
-    #       style = "display: flex; flex-direction: column; justify-content: space-between; height: 120px;",
-    #       
-    #       # Text aligned with Red Light
-    #       div(style = "margin-top: 15px; font-size: 14px;", "SGLT2-inhibitor treatment not suggested for kidney protection."),
-    #       
-    #       # Spacer to align Green Light text
-    #       div(style = "flex-grow: 1;"),
-    #       
-    #       # Text aligned with Green Light
-    #       div(style = "margin-top: 15px; font-size: 14px;", "Consider SGLT2-inhibitor treatment for kidney protection. This indicates a predicted benefit above the threshold (0.65%) where a comparable proportion of the population would be treated as currently recommended by NICE and international guidelines (KDIGO/ADA/EASD).")
-    #     )
-    # )
-        
-    #     # Traffic Light
-    #     div(style = "width: 90px; height: 100px; background-color: #333; border: 2px solid black; border-radius: 10px; display: flex; flex-direction: column; justify-content: space-around; align-items: center; margin-right: 0px;",
-    #         div(style = "width: 40px; height: 40px; background-color: #FF5733; border: 0.5px solid black; border-radius: 50%;"),
-    #         div(style = "width: 40px; height: 40px; background-color: #00C853; border: 0.5px solid black; border-radius: 50%;")
-    #     ),
-    #     
-    #     # Explanatory Text
-    #     div(
-    #       style = "display: flex; flex-direction: column; justify-content: space-between; height: 120px;",
-    #       div(style = "color: red; font-weight: bold;", " SGLT2-inhibitor treatment not suggested for kidney protection."),
-    #       div(style = "color: green; font-weight: bold;", " Consider SGLT2-inhibitor treatment for kidney protection. This indicates a predicted benefit above the threshold (0.65%) where a comparable proportion of the population would be treated as currently recommended by NICE and international guidelines (KDIGO/ADA/EASD).")
-    #     )
-    # )
-    #     
-        
-        # div(style = "flex-grow: 1; margin-left: 00px; font-size: 14px; color: black;",
-        #     
-        #     tags$ul(
-        #       tags$li(tags$b("Red Light:"), " SGLT2-inhibitor treatment not suggested for kidney protection."),
-        #       tags$li(tags$b("Green Light:"), " Consider SGLT2-inhibitor treatment for kidney protection. This indicates a predicted benefit above the threshold (0.65%) where a comparable proportion of the population would be treated as currently recommended by NICE and international guidelines (KDIGO/ADA/EASD).")
-        #     )
-        # )
-        # )
-  
-  } else {
+    } else {
       NULL  # Do not display anything
     }
   })
-
+  
+  
+  output$toggle_traffic_light <- renderUI({
+    # Require result to be present and predict clicked
+    if (is.null(result()) || input$predict == 0) return(NULL)
+    
+    # Require patient to meet conditions
+    patient <- patient()
+    if (patient$hf || patient$chd || patient$egfr < 60 || patient$acr >= 30) return(NULL)
+    
+    # If all conditions pass, render the button
+    actionButton(
+      inputId = "toggle_traffic_light",
+      label = "Suggested treatment threshold",
+      class = "toggle-traffic-light"
+    )
+  })
   
 }
 
