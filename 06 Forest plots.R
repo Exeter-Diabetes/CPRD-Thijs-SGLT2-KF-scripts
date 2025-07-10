@@ -21,6 +21,35 @@ load(paste0(today, "_subgroup_SGLT2ivsDPP4iSU_hrs.Rda"))
 load(paste0(today, "_subgroup_parr_hrs.Rda"))
 load(paste0(today, "_subgroup_parr_SGLT2ivsDPP4iSU_hrs.Rda"))
 
+
+# add comma to separate large numbers in events/subjects
+all_SGLT2ivsDPP4iSU_hrs <- all_SGLT2ivsDPP4iSU_hrs %>% mutate(
+  `DPP4i/SU_nN` = paste0(format(as.numeric(`DPP4i/SU_events_number`), big.mark = ",", scientific = F), "/", format(`DPP4i/SU_count`, big.mark = ",", scientific = F)),
+  SGLT2i_nN = paste0(format(as.numeric(SGLT2i_events_number), big.mark = ",", scientific = F), "/", format(SGLT2i_count, big.mark = ",", scientific = F))
+)
+
+all_SGLT2ivsDPP4iSU_hrs2 <- all_SGLT2ivsDPP4iSU_hrs2 %>% mutate(
+  `DPP4i/SU_nN` = paste0(format(as.numeric(`DPP4i/SU_events_number`), big.mark = ",", scientific = F), "/", format(`DPP4i/SU_count`, big.mark = ",", scientific = F)),
+  SGLT2i_nN = paste0(format(as.numeric(SGLT2i_events_number), big.mark = ",", scientific = F), "/", format(SGLT2i_count, big.mark = ",", scientific = F))
+)
+
+subgroup_hrs <- subgroup_hrs %>% mutate(
+  `DPP4i/SU_nN` = paste0(format(as.numeric(`DPP4i/SU_events_number`), big.mark = ",", scientific = F), "/", format(`DPP4i/SU_count`, big.mark = ",", scientific = F)),
+  SGLT2i_nN = paste0(format(as.numeric(SGLT2i_events_number), big.mark = ",", scientific = F), "/", format(SGLT2i_count, big.mark = ",", scientific = F))
+)
+
+subgroup_parr_hrs <- subgroup_parr_hrs %>% mutate(
+  `DPP4i/SU_nN` = paste0(format(as.numeric(`DPP4i/SU_events_number`), big.mark = ",", scientific = F), "/", format(`DPP4i/SU_count`, big.mark = ",", scientific = F)),
+  SGLT2i_nN = paste0(format(as.numeric(SGLT2i_events_number), big.mark = ",", scientific = F), "/", format(SGLT2i_count, big.mark = ",", scientific = F))
+)
+
+all_hrs <- all_hrs %>% mutate(
+  DPP4i_nN = paste0(format(as.numeric(DPP4i_events_number), big.mark = ",", scientific = F), "/", format(DPP4i_count, big.mark = ",", scientific = F)),
+  SU_nN = paste0(format(as.numeric(SU_events_number), big.mark = ",", scientific = F), "/", format(SU_count, big.mark = ",", scientific = F)),
+  SGLT2i_nN = paste0(format(as.numeric(SGLT2i_events_number), big.mark = ",", scientific = F), "/", format(SGLT2i_count, big.mark = ",", scientific = F))
+)
+
+
 ############################1 FOREST PLOT FOR HR BY DRUG CLASS (SUPPLEMENTAL FIGURE)################################################################
 
 # create labels
@@ -767,9 +796,9 @@ for (m in rev(unique(secondary$outcome))) {
     secondary %>%
     filter(outcome == m) %>%
     ggplot(aes(y = factor(contrast, levels = rev(unique(contrast))))) + 
-    scale_x_continuous(trans = "log10", breaks = c(0.5, 0.75, 1.0, 1.5, 2.25, 3.25)) +
+    scale_x_continuous(trans = "log10", breaks = c(0.4, 0.75, 1.0, 1.5, 2.25, 3.25)) +
     coord_cartesian(ylim=c(1,length(unique(labels_plot6[labels_plot6$outcome == m,]$contrast)) + 1), 
-                    xlim=c(0.5, 3.25)) +
+                    xlim=c(0.4, 3.25)) +
     theme_classic() +
     geom_point(aes(x=HR), shape=15, size=3) +
     geom_linerange(aes(xmin=LB, xmax=UB)) +
@@ -860,10 +889,11 @@ dev.off()
 secondary2 <- subgroup_parr_hrs %>% 
   filter(analysis=="Overlap-weighted") %>%
   filter(!outcome %in% c("ckd_egfr50", "death")) %>%
-  mutate(parr_status = case_when(
-    contrast == "pARR below threshold" ~ "pARR <0.65%",
-    contrast == "pARR above threshold" ~ "pARR ≥0.65%"
-  ))
+  mutate(parr_status = contrast)
+  # mutate(parr_status = case_when(
+  #   contrast == "pARR below threshold" ~ "pARR <0.65%",
+  #   contrast == "pARR above threshold" ~ "pARR ≥0.65%"
+  # ))
 
 # Prepare labels for each outcome by pARR status
 labels_plot6 <- secondary2
@@ -933,9 +963,9 @@ for (m in rev(unique(secondary2$outcome))) {
     secondary2 %>%
     filter(outcome == m) %>%
     ggplot(aes(y = factor(contrast, levels = rev(unique(contrast))))) + 
-    scale_x_continuous(trans = "log10", breaks = c(0.5, 0.75, 1.0, 1.5, 2.25, 3.25)) +
+    scale_x_continuous(trans = "log10", breaks = c(0.4, 0.75, 1.0, 1.5, 2.25, 3.25)) +
     coord_cartesian(ylim=c(1,length(unique(labels_plot6[labels_plot6$outcome == m,]$contrast)) + 1), 
-                    xlim=c(0.5, 3.25)) +
+                    xlim=c(0.4, 3.25)) +
     theme_classic() +
     geom_point(aes(x=HR), shape=15, size=3) +
     geom_linerange(aes(xmin=LB, xmax=UB)) +
