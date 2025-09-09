@@ -57,7 +57,7 @@ labels <- data.frame(matrix("", nrow = 1, ncol = length(all_hrs)))
 names(labels) <- names(all_hrs)
 labels <- labels %>% mutate(contrast = "Overall (by analytic approach)", 
                             analysis = "Overall (by analytic approach)",
-                            string = "Hazard Ratio (95% CI)",
+                            string = "HR (95% CI)",
                             SU_nN = "Events/subjects (SU)",
                             DPP4i_nN = "Events/subjects (DPP4i)",
                             SGLT2i_nN = "Events/subjects (SGLT2i)")
@@ -126,7 +126,18 @@ p_left_1 <-
     aes(x = 1, label = analysis),
     hjust = 0,
     fontface = ifelse(labels_plot[labels_plot$outcome == "ckd_egfr50_pp" & labels_plot$contrast == "SGLT2i vs SU",]$
-                        analysis == "Overall (by analytic approach)", "bold", "plain")
+                        analysis == "Overall (by analytic approach)", 
+                      "plain",
+                      #"bold", 
+                      "plain")
+  ) +
+  geom_segment(
+    data = labels_plot %>%
+      filter(outcome == "ckd_egfr50_pp") %>%
+      filter(contrast == "SGLT2i vs SU") %>%
+      slice_max(order_by = analysis),
+    aes(x = 1, xend = 3.75, y = 4 - 0.35, yend = 4 - 0.35),
+    color = "black", size = 0.5
   ) +
   theme_void() +
   coord_cartesian(xlim = c(0, 4))
@@ -140,7 +151,18 @@ p_right_1 <-
     aes(x = 0, label = string),
     hjust = 0,
     fontface = ifelse(labels_plot[labels_plot$outcome == "ckd_egfr50" & labels_plot$contrast == "SGLT2i vs SU",]$
-                        string == "Hazard Ratio (95% CI)", "bold", "plain")) +
+                        string == "HR (95% CI)", 
+                      "plain",
+                      #"bold", 
+                      "plain")) +
+  geom_segment(
+    data = labels_plot %>%
+      filter(outcome == "ckd_egfr50_pp") %>%
+      filter(contrast == "SGLT2i vs SU") %>%
+      slice_max(order_by = analysis),
+    aes(x = 0, xend = 0.85, y = 4 - 0.35, yend = 4 - 0.35),
+    color = "black", size = 0.5
+  ) +
   theme_void() +
   coord_cartesian(xlim = c(0, 4))
 
@@ -148,8 +170,22 @@ p_counts_1 <- labels_plot %>% filter(outcome=="ckd_egfr50_pp") %>%
   filter(contrast == "SGLT2i vs SU") %>%
   ggplot(aes(y = factor(string, levels = rev(unique(string))))) + 
   geom_text(aes(x = 1, label = SGLT2i_nN), hjust = 1, 
-            fontface = ifelse(labels_plot[labels_plot$outcome == "ckd_egfr50_pp" & labels_plot$contrast == "SGLT2i vs SU",]$SGLT2i_nN == labels$SGLT2i_nN, "bold", "plain")) +
-  geom_text(aes(x = 4, label = `SU_nN`), hjust = 1, fontface = ifelse(labels_plot[labels_plot$outcome == "ckd_egfr50_pp" & labels_plot$contrast == "SGLT2i vs SU",]$SU_nN == labels$SU_nN, "bold", "plain")) +
+            fontface = ifelse(labels_plot[labels_plot$outcome == "ckd_egfr50_pp" & labels_plot$contrast == "SGLT2i vs SU",]$SGLT2i_nN == labels$SGLT2i_nN, 
+                              "plain",
+                              #"bold", 
+                              "plain")) +
+  geom_text(aes(x = 4, label = `SU_nN`), hjust = 1, fontface = ifelse(labels_plot[labels_plot$outcome == "ckd_egfr50_pp" & labels_plot$contrast == "SGLT2i vs SU",]$SU_nN == labels$SU_nN, 
+                                                                      "plain",
+                                                                      #"bold", 
+                                                                      "plain")) +
+  geom_segment(
+    data = labels_plot %>%
+      filter(outcome == "ckd_egfr50_pp") %>%
+      filter(contrast == "SGLT2i vs SU") %>%
+      slice_max(order_by = analysis),
+    aes(x = -1.9, xend = 4, y = 4 - 0.35, yend = 4 - 0.35),
+    color = "black", size = 0.5
+  ) +
   theme_void() +
   coord_cartesian(xlim = c(-2, 5))
 
@@ -198,7 +234,18 @@ p_left_2 <-
     aes(x = 1, label = analysis),
     hjust = 0,
     fontface = ifelse(labels_plot[labels_plot$outcome == "ckd_egfr50" & labels_plot$contrast == "SGLT2i vs DPP4i",]$
-                        analysis == "Overall (by analytic approach)", "bold", "plain")
+                        analysis == "Overall (by analytic approach)", 
+                      "plain",
+                      #"bold", 
+                      "plain")
+  ) +
+  geom_segment(
+    data = labels_plot %>%
+      filter(outcome == "ckd_egfr50_pp") %>%
+      filter(contrast == "SGLT2i vs DPP4i") %>%
+      slice_max(order_by = analysis),
+    aes(x = 1, xend = 3.75, y = 4 - 0.35, yend = 4 - 0.35),
+    color = "black", size = 0.5
   ) +
   theme_void() +
   coord_cartesian(xlim = c(0, 4))
@@ -213,7 +260,15 @@ p_right_2 <-
     aes(x = 0, label = string),
     hjust = 0,
     colour = ifelse(labels_plot[labels_plot$outcome == "ckd_egfr50" & labels_plot$contrast == "SGLT2i vs DPP4i",]$
-                      string == "Hazard Ratio (95% CI)", "white", "black")) +
+                      string == "HR (95% CI)", "black", "black")) +
+  geom_segment(
+    data = labels_plot %>%
+      filter(outcome == "ckd_egfr50_pp") %>%
+      filter(contrast == "SGLT2i vs DPP4i") %>%
+      slice_max(order_by = analysis),
+    aes(x = 0, xend = 0.85, y = 4 - 0.35, yend = 4 - 0.35),
+    color = "black", size = 0.5
+  ) +
   theme_void() +
   coord_cartesian(xlim = c(0, 4))
 
@@ -221,8 +276,22 @@ p_counts_2 <- labels_plot %>% filter(outcome=="ckd_egfr50_pp") %>%
   filter(contrast == "SGLT2i vs DPP4i") %>%
   ggplot(aes(y = factor(string, levels = rev(unique(string))))) + 
   geom_text(aes(x = 1, label = SGLT2i_nN), hjust = 1, 
-            fontface = ifelse(labels_plot[labels_plot$outcome == "ckd_egfr50_pp" & labels_plot$contrast == "SGLT2i vs DPP4i",]$SGLT2i_nN == labels$SGLT2i_nN, "bold", "plain")) +
-  geom_text(aes(x = 4, label = `DPP4i_nN`), hjust = 1, fontface = ifelse(labels_plot[labels_plot$outcome == "ckd_egfr50_pp" & labels_plot$contrast == "SGLT2i vs DPP4i",]$DPP4i_nN == labels$DPP4i_nN, "bold", "plain")) +
+            fontface = ifelse(labels_plot[labels_plot$outcome == "ckd_egfr50_pp" & labels_plot$contrast == "SGLT2i vs DPP4i",]$SGLT2i_nN == labels$SGLT2i_nN, 
+                              "plain",
+                              #"bold", 
+                              "plain")) +
+  geom_text(aes(x = 4, label = `DPP4i_nN`), hjust = 1, fontface = ifelse(labels_plot[labels_plot$outcome == "ckd_egfr50_pp" & labels_plot$contrast == "SGLT2i vs DPP4i",]$DPP4i_nN == labels$DPP4i_nN,
+                                                                         "plain",
+                                                                         #"bold", 
+                                                                         "plain")) +
+  geom_segment(
+    data = labels_plot %>%
+      filter(outcome == "ckd_egfr50_pp") %>%
+      filter(contrast == "SGLT2i vs DPP4i") %>%
+      slice_max(order_by = analysis),
+    aes(x = -1.9, xend = 4, y = 4 - 0.35, yend = 4 - 0.35),
+    color = "black", size = 0.5
+  ) +
   theme_void() +
   coord_cartesian(xlim = c(-2, 5))
 
@@ -246,7 +315,7 @@ p_hr_3 <-
   annotate("text", x = 1.25,
            y = length(unique(all_hrs[all_hrs$outcome == "ckd_egfr50_pp" & !all_hrs$analysis == "Meta-analysis of RCTs",]$analysis)) + 1, 
            label = "Favours SU") +
-  labs(x="Hazard Ratio", y="") +
+  labs(x="HR", y="") +
   theme(axis.line.y = element_blank(),
         axis.ticks.y= element_blank(),
         axis.text.y= element_blank(),
@@ -272,7 +341,18 @@ p_left_3 <-
     aes(x = 1, label = analysis),
     hjust = 0,
     fontface = ifelse(labels_plot[labels_plot$outcome == "ckd_egfr50_pp" & labels_plot$contrast == "DPP4i vs SU",]$
-                        analysis == "Overall (by analytic approach)", "bold", "plain")
+                        analysis == "Overall (by analytic approach)", 
+                      "plain",
+                      #"bold", 
+                      "plain")
+  ) +
+  geom_segment(
+    data = labels_plot %>%
+      filter(outcome == "ckd_egfr50_pp") %>%
+      filter(contrast == "DPP4i vs SU") %>%
+      slice_max(order_by = analysis),
+    aes(x = 1, xend = 3.75, y = 4 - 0.35, yend = 4 - 0.35),
+    color = "black", size = 0.5
   ) +
   theme_void() +
   coord_cartesian(xlim = c(0, 4))
@@ -287,7 +367,15 @@ p_right_3 <-
     aes(x = 0, label = string),
     hjust = 0,
     colour = ifelse(labels_plot[labels_plot$outcome == "ckd_egfr50" & labels_plot$contrast == "DPP4i vs SU",]$
-                      string == "Hazard Ratio (95% CI)", "white", "black")) +
+                      string == "HR (95% CI)", "black", "black")) + 
+  geom_segment(
+    data = labels_plot %>%
+      filter(outcome == "ckd_egfr50_pp") %>%
+      filter(contrast == "DPP4i vs SU") %>%
+      slice_max(order_by = analysis),
+    aes(x = 0, xend = 0.85, y = 4 - 0.35, yend = 4 - 0.35),
+    color = "black", size = 0.5
+  ) +
   theme_void() +
   coord_cartesian(xlim = c(0, 4))
 
@@ -295,8 +383,22 @@ p_counts_3 <- labels_plot %>% filter(outcome=="ckd_egfr50_pp") %>%
   filter(contrast == "DPP4i vs SU") %>%
   ggplot(aes(y = factor(string, levels = rev(unique(string))))) + 
   geom_text(aes(x = 1, label = DPP4i_nN), hjust = 1, 
-            fontface = ifelse(labels_plot[labels_plot$outcome == "ckd_egfr50_pp" & labels_plot$contrast == "DPP4i vs SU",]$DPP4i_nN == labels$DPP4i_nN, "bold", "plain")) +
-  geom_text(aes(x = 4, label = `SU_nN`), hjust = 1, fontface = ifelse(labels_plot[labels_plot$outcome == "ckd_egfr50_pp" & labels_plot$contrast == "DPP4i vs SU",]$SU_nN == labels$SU_nN, "bold", "plain")) +
+            fontface = ifelse(labels_plot[labels_plot$outcome == "ckd_egfr50_pp" & labels_plot$contrast == "DPP4i vs SU",]$DPP4i_nN == labels$DPP4i_nN, 
+                              "plain",
+                              #"bold", 
+                              "plain")) +
+  geom_text(aes(x = 4, label = `SU_nN`), hjust = 1, fontface = ifelse(labels_plot[labels_plot$outcome == "ckd_egfr50_pp" & labels_plot$contrast == "DPP4i vs SU",]$SU_nN == labels$SU_nN, 
+                                                                      "plain",
+                                                                      #"bold", 
+                                                                      "plain")) +
+  geom_segment(
+    data = labels_plot %>%
+      filter(outcome == "ckd_egfr50_pp") %>%
+      filter(contrast == "DPP4i vs SU") %>%
+      slice_max(order_by = analysis),
+    aes(x = -1.9, xend = 4, y = 4 - 0.35, yend = 4 - 0.35),
+    color = "black", size = 0.5
+  ) +
   theme_void() +
   coord_cartesian(xlim = c(-2, 5))
 
@@ -338,7 +440,7 @@ labels1 <- data.frame(matrix("", nrow = 1, ncol = length(trial_hr)))
 names(labels1) <- names(trial_hr)
 labels1 <- labels1 %>% mutate(contrast = "Meta-analysis of RCTs", 
                               analysis = "Meta-analysis of RCTs",
-                              string = "Hazard Ratio (95% CI)")
+                              string = "HR (95% CI)")
 labels_plot <- trial_hr
 
 for (k in unique(trial_hr$contrast)) {
@@ -357,7 +459,7 @@ labels2 <- data.frame(matrix("", nrow = 1, ncol = length(all_SGLT2ivsDPP4iSU_hrs
 names(labels2) <- names(all_SGLT2ivsDPP4iSU_hrs)
 labels2 <- labels2 %>% mutate(contrast = "Study cohort (by analysis approach)", 
                               analysis = "Study cohort (by analysis approach)",
-                              string = "Hazard Ratio (95% CI)",
+                              string = "HR (95% CI)",
 )
 
 
@@ -389,7 +491,7 @@ p_hr_all <-
   geom_point(aes(x=HR), shape=15, size=3) +
   geom_linerange(aes(xmin=LB, xmax=UB)) +
   geom_vline(xintercept = 1, linetype="dashed") +
-  labs(x="Hazard Ratio", y="") +
+  labs(x="HR", y="") +
   theme(axis.line.y = element_blank(),
         axis.ticks.y= element_blank(),
         axis.text.y= element_blank(),
@@ -405,7 +507,16 @@ p_left_all <-
     aes(x = 1, label = analysis),
     hjust = 0,
     fontface = ifelse(labels_plot2[labels_plot2$outcome == "ckd_egfr50",]$
-                        analysis == labels2$analysis, "bold", "plain")
+                        analysis == labels2$analysis,
+                      "plain",
+                      #"bold", 
+                      "plain")) +
+  geom_segment(
+    data = labels_plot2 %>%
+      filter(outcome == "ckd_egfr50") %>%
+      slice_max(order_by = analysis),
+    aes(x = 1, xend = 3.58, y = 4 - 0.18, yend = 4 - 0.18),
+    color = "black", size = 0.5
   ) +
   theme_void() +
   coord_cartesian(xlim = c(0, 4))
@@ -462,7 +573,16 @@ p_left_trial <-
     aes(x = 1, label = analysis),
     hjust = 0,
     fontface = ifelse(labels_plot[labels_plot$outcome == "ckd_egfr50",]$
-                        analysis == labels1$analysis, "bold", "plain")
+                        analysis == labels1$analysis, 
+                      "plain",
+                      #"bold", 
+                      "plain")) +
+  geom_segment(
+    data = labels_plot %>%
+      filter(outcome == "ckd_egfr50") %>%
+      slice_max(order_by = analysis),
+    aes(x = 1, xend = 2.65, y = 2 - 0.15, yend = 2 - 0.15),
+    color = "black", size = 0.5
   ) +
   theme_void() +
   coord_cartesian(xlim = c(0, 4))
@@ -476,7 +596,16 @@ p_right_trial <-
     aes(x = 0, label = string),
     hjust = 0,
     fontface = ifelse(labels_plot[labels_plot$outcome == "ckd_egfr50",]$
-                        string == labels1$string, "bold", "plain")
+                        string == labels1$string, 
+                      "plain",
+                      #"bold", 
+                      "plain")) +
+  geom_segment(
+    data = labels_plot %>%
+      filter(outcome == "ckd_egfr50") %>%
+      slice_max(order_by = string),
+    aes(x = 0, xend = 0.75, y = 2 - 0.15, yend = 2 - 0.15),
+    color = "black", size = 0.5
   ) +
   theme_void() +
   coord_cartesian(xlim = c(0, 4))
@@ -519,7 +648,7 @@ labels5 <- data.frame(matrix("", nrow = 1, ncol = length(overall)))
 names(labels5) <- names(overall)
 labels5 <- labels5 %>% mutate(contrast = " All subjects", 
                               analysis = " ", 
-                              string = "Hazard Ratio (95% CI)",
+                              string = "HR (95% CI)",
                               SGLT2i_nN = "Events/subjects (SGLT2i)",
                               `DPP4i/SU_nN` = "(DPP4i/SU)")
 
@@ -532,18 +661,36 @@ for (m in unique(overall$outcome)) {
 # have to coerce HR and CI to class numeric as they sometimes default to character
 class(subgroup_hrs$HR) <- class(subgroup_hrs$LB) <- class(subgroup_hrs$UB) <- "numeric"
 
+p_label <- bquote("By albuminuria status ("*italic(p)*" = "*.(sprintf("%.2f", p_value_interaction))*" for trend)")
+
 labels3 <- data.frame(matrix("", nrow = 1, ncol = length(subgroup_hrs)))
 names(labels3) <- names(subgroup_hrs)
-labels3 <- labels3 %>% mutate(contrast = paste0("By albuminuria status (p = ", sprintf("%.2f", round(p_value_interaction,2)), " for trend)"), 
+labels3 <- labels3 %>% mutate(contrast = list(p_label),
+  #contrast = paste0("By albuminuria status (p = ", sprintf("%.2f", round(p_value_interaction,2)), " for trend)"), 
                               analysis = "By albuminuria status", 
-                              string = "Hazard Ratio (95% CI)",
+                              string = "HR (95% CI)",
                               SGLT2i_nN = "Events/subjects",
                               `DPP4i/SU_nN` = "")
 
-labels_plot3 <- subgroup_hrs %>% filter(analysis == "Overlap-weighted") %>%
-  mutate(contrast = case_when(
-  contrast == "uACR <3mg/mmol" ~ "Albuminuria <3mg/mmol",
-  contrast == "uACR 3-30mg/mmol" ~ "Albuminuria 3-30mg/mmol"))
+labels_plot3 <- subgroup_hrs %>%
+  filter(analysis == "Overlap-weighted") %>%
+  mutate(
+    contrast = case_when(
+      contrast == "uACR <3mg/mmol"    ~ "uACR <3 mg/mmol",
+      contrast == "uACR 3-30mg/mmol" ~ "uACR 3-30 mg/mmol",
+      TRUE ~ contrast
+    ),
+    # turn plain text into expressions
+    contrast = ifelse(
+      contrast == "uACR <3 mg/mmol",   "plain('uACR <3 mg/mmol')",
+      ifelse(
+        contrast == "uACR 3-30 mg/mmol", "plain('uACR 3-30 mg/mmol')",
+        # this is the special row for the interaction p-value
+        paste0("italic('p') == ", sprintf('%.2f', round(p_value_interaction, 2)))
+      )
+    )
+  )
+
 
 for (k in unique(subgroup_hrs$outcome)) {
   labels_temp <- labels3
@@ -552,8 +699,8 @@ for (k in unique(subgroup_hrs$outcome)) {
 }
 
 labels_plot3$contrast <- factor(labels_plot3$contrast, levels = c(labels3$contrast,
-                                                                  "Albuminuria <3mg/mmol", 
-                                                                  "Albuminuria 3-30mg/mmol"))
+                                                                  "plain('uACR <3 mg/mmol')", 
+                                                                  "plain('uACR 3-30 mg/mmol')"))
 
 # plot by risk group
 p_counts_subgroup <- labels_plot3 %>% filter(outcome=="ckd_egfr50") %>%
@@ -584,7 +731,7 @@ p_hr_subgroup <-
   annotate("text", x = 1.25,
            y = length(unique(subgroup_hrs[subgroup_hrs$outcome == "ckd_egfr50",]$contrast)) + 1, 
            label = "") +
-  labs(x="Hazard ratio", y="") + 
+  labs(x="HR", y="") + 
   geom_point(aes(x = ifelse(UB > 2, 2.2, NA),
                  y=1.01), 
              shape = 62, size = 5, color = "black") + # add symbol to indicate CI extends beyond axis limits
@@ -604,7 +751,17 @@ p_left_subgroup <-
     aes(x = 1, label = contrast),
     hjust = 0,
     fontface = ifelse(labels_plot3[labels_plot3$outcome == "ckd_egfr50",]$
-                        contrast == labels3$contrast, "bold", "plain")
+                        contrast == labels3$contrast, 
+                       "plain",
+                      # "bold", 
+                      "plain"), parse = T
+  ) +
+  geom_segment(
+    data = labels_plot3 %>%
+      filter(outcome == "ckd_egfr50") %>%
+      slice_max(order_by = contrast),
+    aes(x = 1, xend = 5.65, y = 3 - 0.15, yend = 3 - 0.15),
+    color = "black", size = 0.5
   ) +
   theme_void(base_size = 14) +
   coord_cartesian(xlim = c(0, 4), clip = "off")
@@ -618,7 +775,7 @@ p_right_subgroup <-
   geom_text(
     aes(x = 0, label = string),
     hjust = 0,
-    colour = ifelse(labels_plot3[labels_plot3$outcome == "ckd_egfr50",]$string == "Hazard Ratio (95% CI)", "white", "black")) +
+    colour = ifelse(labels_plot3[labels_plot3$outcome == "ckd_egfr50",]$string == "HR (95% CI)", "white", "black")) +
   theme_void(base_size = 14) +
   coord_cartesian(xlim = c(0, 4))
 
@@ -627,9 +784,31 @@ p_right_subgroup <-
 p_counts_overall <- labels_plot5 %>% filter(outcome=="ckd_egfr50") %>%
   ggplot(aes(y = factor(contrast, levels = rev(unique(contrast))))) + 
   geom_text(aes(x = 1, label = SGLT2i_nN), hjust = 1, 
-            fontface = ifelse(labels_plot5[labels_plot5$outcome == "ckd_egfr50",]$SGLT2i_nN == labels5$SGLT2i_nN, "bold", "plain")) +
+            fontface = ifelse(labels_plot5[labels_plot5$outcome == "ckd_egfr50",]$SGLT2i_nN == labels5$SGLT2i_nN, 
+                              "plain",
+                              #"bold", 
+                              "plain")) +
   geom_text(aes(x = 3, label = `DPP4i/SU_nN`), hjust = 1, 
-            fontface = ifelse(labels_plot5[labels_plot5$outcome == "ckd_egfr50",]$`DPP4i/SU_nN` == labels5$`DPP4i/SU_nN`, "bold", "plain")) +
+            fontface = ifelse(labels_plot5[labels_plot5$outcome == "ckd_egfr50",]$`DPP4i/SU_nN` == labels5$`DPP4i/SU_nN`, 
+                              "plain",
+                              #"bold", 
+                              "plain")) +
+  geom_segment(
+    data = labels_plot5 %>%
+      filter(outcome == "ckd_egfr50") %>%
+      slice_max(order_by = contrast),
+    aes(x = -1.5, xend = 1, y = 2 - 0.15, yend = 2 - 0.15),
+    color = "black", size = 0.5
+  ) +
+  
+  geom_segment(
+    data = labels_plot5 %>%
+      filter(outcome == "ckd_egfr50") %>%
+      slice_max(order_by = contrast),
+    aes(x = 1.85, xend = 3, y = 2 - 0.15, yend = 2 - 0.15),
+    color = "black", size = 0.5
+  ) +
+
   theme_void(base_size = 14) +
   coord_cartesian(xlim = c(-2, 5), clip="off")
 
@@ -656,7 +835,7 @@ p_hr_overall <-
   annotate("text", x = 1.5,
            y = length(unique(overall[overall$outcome == "ckd_egfr50",]$contrast)) + 1, 
            label = "Favours\nDPP4i/SU") +
-  labs(x="Hazard Ratio", y="") +
+  labs(x="HR", y="") +
   theme(axis.line.y = element_blank(),
         axis.ticks.y= element_blank(),
         axis.text.y= element_blank(),
@@ -688,7 +867,17 @@ p_right_overall <-
   geom_text(
     aes(x = 0, label = string),
     hjust = 0,
-    fontface = ifelse(labels_plot5[labels_plot5$outcome == "ckd_egfr50",]$string == "Hazard Ratio (95% CI)", "bold", "plain")) +
+    fontface = ifelse(labels_plot5[labels_plot5$outcome == "ckd_egfr50",]$string == "HR (95% CI)", 
+                      "plain",
+                      #"bold", 
+                      "plain")) +
+  geom_segment(
+    data = labels_plot5 %>%
+      filter(outcome == "ckd_egfr50") %>%
+      slice_max(order_by = contrast),
+    aes(x = 0, xend = 1.5, y = 2 - 0.15, yend = 2 - 0.15),
+    color = "black", size = 0.5
+  ) +
   theme_void(base_size = 14) +
   coord_cartesian(xlim = c(0, 4))
 
@@ -732,8 +921,8 @@ secondary <- subgroup_hrs %>%
   filter(analysis=="Overlap-weighted") %>%
   filter(!outcome %in% c("ckd_egfr50", "death")) %>%
   mutate(albuminuria_status = case_when(
-    contrast == "uACR <3mg/mmol" ~ "Albuminuria <3mg/mmol",
-    contrast == "uACR 3-30mg/mmol" ~ "Albuminuria 3-30mg/mmol"
+    contrast == "uACR <3mg/mmol" ~ "uACR <3 mg/mmol",
+    contrast == "uACR 3-30mg/mmol" ~ "uACR 3-30 mg/mmol"
   ))
 
 # Prepare labels for each outcome by albuminuria status
@@ -742,7 +931,7 @@ labels_plot6 <- secondary
 labels6 <- data.frame(matrix("", nrow = 1, ncol = length(labels_plot6)))
 names(labels6) <- names(labels_plot6)
 labels6 <- labels6 %>% mutate(analysis = "Overall",
-                              string = "Hazard Ratio (95% CI)",
+                              string = "HR (95% CI)",
                               SGLT2i_nN = "Events/subjects (SGLT2i)",
                               `DPP4i/SU_nN` = "(DPP4i/SU)")
  
@@ -757,7 +946,7 @@ labels_plot6 <- labels_plot6 %>%
     outcome_label = case_when(
       outcome == "ckd_egfr40" ~ "40% eGFR decline / ESKD",
       outcome == "ckd_egfr50_5y" ~ "50% eGFR decline / ESKD (5 years)",
-      outcome == "macroalb" ~ "Progression to albuminuria ≥30mg/mmol",
+      outcome == "macroalb" ~ "Progression to uACR ≥30 mg/mmol",
       outcome == "dka" ~ "Diabetic keto-acidosis",
       outcome == "amputation" ~ "Amputation",
       outcome == "side_effect" ~ "Mycotic genital infection"
@@ -783,12 +972,19 @@ for (m in rev(unique(secondary$outcome))) {
               colour = ifelse(!m==unique(secondary$outcome)[1] & labels_plot6[labels_plot6$outcome == m,]$SGLT2i_nN == labels6$SGLT2i_nN,
                               "white", "black"),
               fontface = ifelse(m==unique(secondary$outcome)[1] & labels_plot6[labels_plot6$outcome == m,]$SGLT2i_nN == labels6$SGLT2i_nN,
-                                "bold", "plain")) +
+                                "plain", "plain")) +
     geom_text(aes(x = 3, label = `DPP4i/SU_nN`), hjust = 1, 
               colour = ifelse(!m==unique(secondary$outcome)[1] & labels_plot6[labels_plot6$outcome == m,]$`DPP4i/SU_nN` == labels6$`DPP4i/SU_nN`,
                               "white", "black"),
               fontface = ifelse(m==unique(secondary$outcome)[1] & labels_plot6[labels_plot6$outcome == m,]$`DPP4i/SU_nN` == labels6$`DPP4i/SU_nN`,
-                                "bold", "plain")) +
+                                "plain", "plain")) +
+    geom_segment(
+      data = labels_plot6 %>%
+        filter(outcome == m) %>%
+        slice_max(order_by = contrast),
+      aes(x = -1.55, xend = 3, y = ifelse(m==unique(secondary$outcome)[1], 3 - 0.45, 3), yend = ifelse(m==unique(secondary$outcome)[1], 3 - 0.45, 3)),
+      color = ifelse(m==unique(secondary$outcome)[1], "black", "white"), size = 0.5
+    ) +
     theme_void() +
     coord_cartesian(xlim = c(-2, 5))
   
@@ -809,7 +1005,7 @@ for (m in rev(unique(secondary$outcome))) {
     annotate("text", x = 1.5,
              y = length(unique(secondary[secondary$outcome == m,]$contrast)) + 2, 
              label = ifelse(m==unique(secondary$outcome)[1], "Favours DPP4i/SU", "")) +
-    labs(x=ifelse(m==unique(secondary$outcome)[nlevels(as.factor(secondary$outcome))], "Hazard ratio", ""), y="") +
+    labs(x=ifelse(m==unique(secondary$outcome)[nlevels(as.factor(secondary$outcome))], "HR", ""), y="") +
     theme(axis.line.y = element_blank(),
           axis.ticks.y= element_blank(),
           axis.text.y= element_blank(),
@@ -828,11 +1024,18 @@ for (m in rev(unique(secondary$outcome))) {
       aes(x = 1, label = contrast),
       hjust = 0,
       fontface = ifelse(labels_plot6[labels_plot6$outcome == m,]$
-                          contrast == paste0(" ", labels_plot6[labels_plot6$outcome == m,]$outcome_label), "bold", "plain"),
+                          contrast == paste0(" ", labels_plot6[labels_plot6$outcome == m,]$outcome_label), "plain", "plain"),
       colour = ifelse(m==unique(secondary$outcome)[1] & labels_plot6[labels_plot6$outcome == m,]$
                         contrast == "Outcome" | !labels_plot6[labels_plot6$outcome == m,]$
                         contrast == "Outcome", "black", "white")
     ) +
+  geom_segment(
+    data = labels_plot6 %>%
+      filter(outcome == m) %>%
+      slice_max(order_by = contrast),
+    aes(x = 1, xend = 3.2, y = ifelse(m==unique(secondary$outcome)[1], 3 - 0.45, 3 - 0.05), yend = ifelse(m==unique(secondary$outcome)[1], 3 - 0.45, 3 - 0.05)),
+    color = "black", size = 0.5
+  ) +
     theme_void() +
     coord_cartesian(xlim = c(0, 4))
   
@@ -843,9 +1046,16 @@ for (m in rev(unique(secondary$outcome))) {
     geom_text(
       aes(x = 0, label = string),
       hjust = 0,
-      fontface = ifelse(labels_plot6[labels_plot6$outcome == m,]$string == "Hazard Ratio (95% CI)", "bold", "plain"),
-      colour = ifelse(labels_plot6[labels_plot6$outcome == m,]$string == "Hazard Ratio (95% CI)" & !m==unique(secondary$outcome)[1], 
+      fontface = ifelse(labels_plot6[labels_plot6$outcome == m,]$string == "HR (95% CI)", "plain", "plain"),
+      colour = ifelse(labels_plot6[labels_plot6$outcome == m,]$string == "HR (95% CI)" & !m==unique(secondary$outcome)[1], 
                       "white", "black")) +
+  geom_segment(
+    data = labels_plot6 %>%
+      filter(outcome == m) %>%
+      slice_max(order_by = string),
+    aes(x = 0, xend = 0.88, y = 3 - 0.45, yend = 3 - 0.45),
+    colour = ifelse(m==unique(secondary$outcome)[1], "black", "white"), size = 0.5
+  ) +
     theme_void() +
     coord_cartesian(xlim = c(0, 4))
   
@@ -901,7 +1111,7 @@ labels_plot6 <- secondary2
 labels6 <- data.frame(matrix("", nrow = 1, ncol = length(labels_plot6)))
 names(labels6) <- names(labels_plot6)
 labels6 <- labels6 %>% mutate(analysis = "Overall",
-                              string = "Hazard Ratio (95% CI)",
+                              string = "HR (95% CI)",
                               SGLT2i_nN = "Events/subjects (SGLT2i)",
                               `DPP4i/SU_nN` = "(DPP4i/SU)")
 
@@ -916,7 +1126,7 @@ labels_plot6 <- labels_plot6 %>%
     outcome_label = case_when(
       outcome == "ckd_egfr40" ~ "40% eGFR decline / ESKD",
       outcome == "ckd_egfr50_5y" ~ "50% eGFR decline / ESKD (5 years)",
-      outcome == "macroalb" ~ "Progression to albuminuria ≥30mg/mmol",
+      outcome == "macroalb" ~ "Progression to uACR ≥30 mg/mmol",
       outcome == "dka" ~ "Diabetic keto-acidosis",
       outcome == "amputation" ~ "Amputation",
       outcome == "side_effect" ~ "Mycotic genital infection"
@@ -928,7 +1138,7 @@ labels_plot6 <- labels_plot6 %>%
     contrast = ifelse(analysis == "Overall", paste0(" ", outcome_label), parr_status),
     contrast = factor(contrast, levels = c(" 40% eGFR decline / ESKD",
                                            " 50% eGFR decline / ESKD (5 years)",
-                                           " Progression to albuminuria ≥30mg/mmol",
+                                           " Progression to uACR ≥30 mg/mmol",
                                            " Diabetic keto-acidosis",
                                            " Amputation",
                                            " Mycotic genital infection",
@@ -950,12 +1160,19 @@ for (m in rev(unique(secondary2$outcome))) {
               colour = ifelse(!m==unique(secondary2$outcome)[1] & labels_plot6[labels_plot6$outcome == m,]$SGLT2i_nN == labels6$SGLT2i_nN,
                               "white", "black"),
               fontface = ifelse(m==unique(secondary2$outcome)[1] & labels_plot6[labels_plot6$outcome == m,]$SGLT2i_nN == labels6$SGLT2i_nN,
-                                "bold", "plain")) +
+                                "plain", "plain")) +
     geom_text(aes(x = 3, label = `DPP4i/SU_nN`), hjust = 1, 
               colour = ifelse(!m==unique(secondary2$outcome)[1] & labels_plot6[labels_plot6$outcome == m,]$`DPP4i/SU_nN` == labels6$`DPP4i/SU_nN`,
                               "white", "black"),
               fontface = ifelse(m==unique(secondary2$outcome)[1] & labels_plot6[labels_plot6$outcome == m,]$`DPP4i/SU_nN` == labels6$`DPP4i/SU_nN`,
-                                "bold", "plain")) +
+                                "plain", "plain")) +
+    geom_segment(
+      data = labels_plot6 %>%
+        filter(outcome == m) %>%
+        slice_max(order_by = contrast),
+      aes(x = -1.55, xend = 3, y = ifelse(m==unique(secondary$outcome)[1], 3 - 0.45, 3), yend = ifelse(m==unique(secondary$outcome)[1], 3 - 0.45, 3)),
+      color = ifelse(m==unique(secondary$outcome)[1], "black", "white"), size = 0.5
+    ) +
     theme_void() +
     coord_cartesian(xlim = c(-2, 5))
   
@@ -976,7 +1193,7 @@ for (m in rev(unique(secondary2$outcome))) {
     annotate("text", x = 1.5,
              y = length(unique(secondary2[secondary2$outcome == m,]$contrast)) + 2, 
              label = ifelse(m==unique(secondary2$outcome)[1], "Favours DPP4i/SU", "")) +
-    labs(x=ifelse(m==unique(secondary2$outcome)[nlevels(as.factor(secondary2$outcome))], "Hazard ratio", ""), y="") +
+    labs(x=ifelse(m==unique(secondary2$outcome)[nlevels(as.factor(secondary2$outcome))], "HR", ""), y="") +
     theme(axis.line.y = element_blank(),
           axis.ticks.y= element_blank(),
           axis.text.y= element_blank(),
@@ -995,10 +1212,17 @@ for (m in rev(unique(secondary2$outcome))) {
       aes(x = 1, label = contrast),
       hjust = 0,
       fontface = ifelse(labels_plot6[labels_plot6$outcome == m,]$
-                          contrast == paste0(" ", labels_plot6[labels_plot6$outcome == m,]$outcome_label), "bold", "plain"),
+                          contrast == paste0(" ", labels_plot6[labels_plot6$outcome == m,]$outcome_label), "plain", "plain"),
       colour = ifelse(m==unique(secondary2$outcome)[1] & labels_plot6[labels_plot6$outcome == m,]$
                         contrast == "Outcome" | !labels_plot6[labels_plot6$outcome == m,]$
                         contrast == "Outcome", "black", "white")
+    ) +
+    geom_segment(
+      data = labels_plot6 %>%
+        filter(outcome == m) %>%
+        slice_max(order_by = contrast),
+      aes(x = 1, xend = 3.2, y = ifelse(m==unique(secondary$outcome)[1], 3 - 0.45, 3 - 0.05), yend = ifelse(m==unique(secondary$outcome)[1], 3 - 0.45, 3 - 0.05)),
+      color = "black", size = 0.5
     ) +
     theme_void() +
     coord_cartesian(xlim = c(0, 4))
@@ -1010,9 +1234,16 @@ for (m in rev(unique(secondary2$outcome))) {
     geom_text(
       aes(x = 0, label = string),
       hjust = 0,
-      fontface = ifelse(labels_plot6[labels_plot6$outcome == m,]$string == "Hazard Ratio (95% CI)", "bold", "plain"),
-      colour = ifelse(labels_plot6[labels_plot6$outcome == m,]$string == "Hazard Ratio (95% CI)" & !m==unique(secondary2$outcome)[1], 
+      fontface = ifelse(labels_plot6[labels_plot6$outcome == m,]$string == "HR (95% CI)", "plain", "plain"),
+      colour = ifelse(labels_plot6[labels_plot6$outcome == m,]$string == "HR (95% CI)" & !m==unique(secondary2$outcome)[1], 
                       "white", "black")) +
+    geom_segment(
+      data = labels_plot6 %>%
+        filter(outcome == m) %>%
+        slice_max(order_by = string),
+      aes(x = 0, xend = 0.88, y = 3 - 0.45, yend = 3 - 0.45),
+      colour = ifelse(m==unique(secondary$outcome)[1], "black", "white"), size = 0.5
+    ) +
     theme_void() +
     coord_cartesian(xlim = c(0, 4))
   

@@ -504,3 +504,99 @@ for (k in outcomes) {
   rm(censvar_var)
   rm(censtime_var)
 }
+
+
+## get weighted baseline table
+#write functions to summarise weighted table:
+cont <- function(x, var_name) {
+  if (var_name %in% c("uacr", "dstartdate_dm_dur_all")) {
+    # For specific variables, calculate Median (IQR)
+    with(stats.apply.rounding(stats.default(x)), 
+         c("Median (IQR)" = sprintf("%s (%s-%s)", 
+                                    round_pad(as.numeric(MEDIAN), 1), 
+                                    round_pad(as.numeric(Q1), 1), 
+                                    round_pad(as.numeric(Q3), 1))))
+  } else {
+    # For other continuous variables, calculate Mean (SD)
+    with(stats.apply.rounding(stats.default(x)), 
+         c("Mean (SD)" = sprintf("%s (%s)", 
+                                 round_pad(as.numeric(MEAN), 1), 
+                                 round_pad(as.numeric(SD), 1))))
+  }
+}
+missing <- function(x, ...) {
+  with(stats.apply.rounding(stats.default(x)), c("Missing"=sprintf("%s", prettyNum(NMISS, big.mark=","))))
+}
+
+
+rndr <- function(x, name, ...) {
+  if (is.logical(x)) {
+    y <- render.default(x, name, ...)
+    y[2]
+  } else if (is.numeric(x)) {
+    cont(x, name)  # pass both x and variable name to your cont() function
+  } else {
+    render.default(x, name, ...)
+  }
+}
+
+
+strat <- function (label, n, ...) {
+  sprintf("<span class='stratlabel'>%s</span>", 
+          label, prettyNum(n, big.mark=","))
+}
+
+cat <- function(x, ...) {
+  vals <- stats.default(x)  # get raw stats without rounding
+  c("", sapply(vals, function(y) {
+    # assume y$PCT is numeric; convert if necessary
+    sprintf("%.4f%%", as.numeric(y$PCT))
+  }))
+}
+
+gc()
+
+setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
+
+library(readr)
+
+# Define your full list of covariates
+covariates_list <- c("dstartdate_age", "malesex", "ethnicity_5cat", "imd2015_10", 
+                     "prebmi", "presbp", "predbp", "pretotalcholesterol", "prehdl", 
+                     "preldl", "pretriglyceride", "prehba1c", "preegfr", "uacr", 
+                     "albuminuria", "dstartdate_dm_dur_all", 
+                     "smoking_status", "predrug_hypertension", "predrug_af", "predrug_dka", 
+                     "genital_infection", "hosp_admission_prev_year", "initiation_year", 
+                     "ncurrtx", "statin", "INS", "ACEi_or_ARB")
+
+# Create chunks of 5 covariates
+covariates_chunks <- split(covariates_list, ceiling(seq_along(covariates_list) / 4))
+
+# Define full set of known columns in correct order
+all_colnames <- c("studydrug2", covariates_list)
+
+for (covariates_chunk in covariates_chunks) {
+  
+  columns_to_load <- c("studydrug2", covariates_chunk)
+  
+  load(paste0(today, "_weighted_imputed_data_for_table.Rda"))
+  
+  # Read just the needed columns
+  data_chunk <- weighted_cohort %>% select(all_of(columns_to_load))
+  
+  rm(weighted_cohort)
+  gc()
+  
+  # Build formula for table1
+  formula <- as.formula(paste("~ ", paste(covariates_chunk, collapse = " + "), "| studydrug2"))
+  
+  # Run the table1 function on the selected chunk
+  table1(formula, data=data_chunk, overall=F, render=rndr, render.categorical=cat, render.continuous=cont, render.strat=strat)
+  
+  # Optionally, save the output if needed
+  
+  # Clear the data from memory and run garbage collection to free memory
+  rm(data_chunk)
+  gc()
+  
+}
