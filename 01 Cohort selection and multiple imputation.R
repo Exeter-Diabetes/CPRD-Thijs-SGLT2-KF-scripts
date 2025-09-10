@@ -8,7 +8,7 @@
 # 5 baseline table and store dataset for further analyses
 
 ########################0 SETUP####################################################################
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/scripts/CPRD-Thijs-SGLT2-KF-scripts/")
+setwd("~/CPRD/2023/scripts/CPRD-Thijs-SGLT2-KF-scripts/")
 source("00 Setup.R")
 ########################1 COHORT SELECTION####################################################################
 
