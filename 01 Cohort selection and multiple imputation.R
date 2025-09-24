@@ -16,7 +16,7 @@ source("00 Setup.R")
 
 ## A Cohort selection (see cohort_definition_kf function for details)
 
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Raw data/")
+setwd("/slade/CPRD_data/Thijs/SGLT2/Raw data/")
 load(paste0(today, "_t2d_1stinstance_a.Rda"))
 load(paste0(today, "_t2d_1stinstance_b.Rda"))
 load(paste0(today, "_t2d_all_drug_periods.Rda"))
@@ -448,7 +448,7 @@ temp <- temp %>% group_by(.imp, patid) %>% filter(
    ) %>% ungroup()
 
 # save imputed dataset so this can be used in the subsequent scripts
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
+setwd("/slade/CPRD_data/Thijs/SGLT2/Processed data/")
 save(temp, file=paste0(today, "_t2d_ckdpc_imputed_data.Rda"))
 
 
@@ -556,7 +556,7 @@ cat <- function(x, ...) {
 
 gc()
 
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
+setwd("/slade/CPRD_data/Thijs/SGLT2/Processed data/")
 
 library(readr)
 
