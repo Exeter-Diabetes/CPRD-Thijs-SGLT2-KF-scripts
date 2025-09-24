@@ -13,7 +13,7 @@ setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/scripts/CPRD-Thi
 source("00 Setup.R")
 
 ############################1 PREPARE DATASET################################################################
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
+setwd("/slade/CPRD_data/Thijs/SGLT2/Processed data/")
 load(paste0(today, "_t2d_ckdpc_imputed_data_withweights.Rda"))
 
 cohort <- cohort %>% group_by(.imp, patid) %>% filter(
@@ -60,7 +60,7 @@ cohort <- cohort %>%
          all_of(covariates)) %>% 
   centre_and_reference(covariates)
 
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
+setwd("/slade/CPRD_data/Thijs/SGLT2/Processed data/")
 save(cohort, file=paste0(today, "_data_centred_predictors.Rda"))
 save(cohort_5y, file=paste0(today, "_data_centred_predictors_5y.Rda"))
 
@@ -76,7 +76,7 @@ for (k in outcomes_msm) {
   
   for (i in 1:n.imp) {
     # load minimal dataset
-    setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
+    setwd("/slade/CPRD_data/Thijs/SGLT2/Processed data/")
     load(paste0(today, "_data_centred_predictors.Rda"))
     
     cohort <- cohort %>% filter(.imp == i)
@@ -108,7 +108,7 @@ for (k in outcomes_msm) {
       mutate(group=as.numeric(group)) %>%
       inner_join(obs_SGLT2, by=c("group"="rowno"))
     
-    setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
+    setwd("/slade/CPRD_data/Thijs/SGLT2/Processed data/")
     # save results
     save(observed_sglt2, file=paste0(today, "_adjusted_surv_",k,"_SGLT2i_imp.", i, ".Rda"))
     
@@ -119,7 +119,7 @@ for (k in outcomes_msm) {
   # repeat for DPP4i/SU:
   
   for (i in 1:n.imp) {
-    setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
+    setwd("/slade/CPRD_data/Thijs/SGLT2/Processed data/")
     load(paste0(today, "_data_centred_predictors.Rda"))
     
     cohort <- cohort %>% filter(.imp == i)
@@ -145,7 +145,7 @@ for (k in outcomes_msm) {
       mutate(group=as.numeric(group)) %>%
       inner_join(obs_DPP4SU, by=c("group"="rowno"))
     
-    setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
+    setwd("/slade/CPRD_data/Thijs/SGLT2/Processed data/")
     save(observed_dpp4su, file=paste0(today, "_adjusted_surv_",k,"_DPP4iSU_imp.", i, ".Rda"))
     
     rm(list = setdiff(ls(), c("n.imp", "covariates", "k", "today", "outcomes_msm")))
@@ -157,7 +157,7 @@ for (k in outcomes_msm) {
   
   #for every outcome, join estimates from each imputation in one dataframe
   for (i in 1:n.imp) {
-    setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
+    setwd("/slade/CPRD_data/Thijs/SGLT2/Processed data/")
     load(paste0(today, "_adjusted_surv_",k,"_SGLT2i_imp.", i, ".Rda"))
     load(paste0(today, "_adjusted_surv_",k,"_DPP4iSU_imp.", i, ".Rda"))
     temp_sglt2 <- temp_sglt2 %>% rbind(observed_sglt2)
@@ -184,7 +184,7 @@ for (k in outcomes_msm) {
     contains("survdiff")
   )
   
-  setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
+  setwd("/slade/CPRD_data/Thijs/SGLT2/Processed data/")
   save(benefits, file=paste0(today, "_adjusted_surv_",k,".Rda"))
   rm(benefits)
 }
@@ -192,12 +192,12 @@ for (k in outcomes_msm) {
 rm(list = setdiff(ls(), c("n.imp", "covariates", "k", "today", "outcomes_msm")))
 
 ### add counterfactual observed absolute risk reductions to main dataset
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
+setwd("/slade/CPRD_data/Thijs/SGLT2/Processed data/")
 load(paste0(today, "_t2d_ckdpc_imputed_data_withweights.Rda"))
 
 for (k in outcomes_msm) {
   
-  setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
+  setwd("/slade/CPRD_data/Thijs/SGLT2/Processed data/")
   load(paste0(today, "_adjusted_surv_", k, ".Rda"))
   cohort <- cohort %>% left_join(benefits %>%
                                    select(.imp, patid, studydrug2, contains("survdiff")), 
@@ -209,7 +209,7 @@ cohort$studydrug2 <- as.factor(cohort$studydrug2)
 
 # save dataset
 
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
+setwd("/slade/CPRD_data/Thijs/SGLT2/Processed data/")
 save(cohort, file=paste0(today, "_t2d_ckdpc_data_with_adjsurv.Rda"))
 
 
