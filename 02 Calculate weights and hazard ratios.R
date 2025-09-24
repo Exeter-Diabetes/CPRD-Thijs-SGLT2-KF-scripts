@@ -21,7 +21,7 @@
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/scripts/CPRD-Thijs-SGLT2-KF-scripts/")
 source("00 Setup.R")
 
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
+setwd("/slade/CPRD_data/Thijs/SGLT2/Processed data/")
 load(paste0(today, "_t2d_ckdpc_imputed_data.Rda"))
 
 ############################1 CALCULATE WEIGHTS################################################################
@@ -136,7 +136,7 @@ summary(w.overlap2, weighted.var = TRUE, metric = "ASD")
 cohort <- temp %>% filter(!.imp == 0)
 rm(temp)
 
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
+setwd("/slade/CPRD_data/Thijs/SGLT2/Processed data/")
 save(cohort, file=paste0(today, "_t2d_ckdpc_imputed_data_withweights.Rda"))
 #load(paste0(today, "_t2d_ckdpc_imputed_data_withweights.Rda"))
 ############################2 CALCULATE HAZARD RATIOS################################################################
@@ -903,7 +903,7 @@ subgroup_hrs <- subgroup_hrs %>%
 
 
 # save all_hrs table and SGLT2i vs DPP4i/su table
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
+setwd("/slade/CPRD_data/Thijs/SGLT2/Processed data/")
 
 save(all_hrs, file=paste0(today, "_all_hrs.Rda"))
 save(all_SGLT2ivsDPP4iSU_hrs, file=paste0(today, "_all_SGLT2ivsDPP4iSU_hrs.Rda"))
