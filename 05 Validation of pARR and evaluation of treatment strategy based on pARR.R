@@ -7,7 +7,7 @@
 setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/scripts/CPRD-Thijs-SGLT2-KF-scripts/")
 source("00 Setup.R")
 
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
+setwd("/slade/CPRD_data/Thijs/SGLT2/Processed data/")
 load(paste0(today, "_t2d_ckdpc_data_with_adjsurv.Rda"))
 
 
@@ -1073,7 +1073,7 @@ subgroup_parr_hrs <- subgroup_parr_hrs %>%
 
 
 # save all_hrs table and SGLT2i vs DPP4i/su table
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
+setwd("/slade/CPRD_data/Thijs/SGLT2/Processed data/")
 save(subgroup_parr_hrs, file=paste0(today, "_subgroup_parr_hrs.Rda"))
 save(subgroup_parr_SGLT2ivsDPP4iSU_hrs, file=paste0(today, "_subgroup_parr_SGLT2ivsDPP4iSU_hrs.Rda"))
 
