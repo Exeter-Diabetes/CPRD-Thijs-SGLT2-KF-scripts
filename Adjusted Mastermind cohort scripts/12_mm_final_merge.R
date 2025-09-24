@@ -12,7 +12,7 @@
 # Also extract all T2D drug start and stop dates for T2Ds so that you can see if people later initiate SGLT2is/GLP1s etc.
 
 ############################################################################################
-setwd("/slade/CPRD_data/Thijs SGLT2/Raw data/")
+setwd("/slade/CPRD_data/Thijs/SGLT2/Raw data/")
 # Setup
 library(tidyverse)
 library(aurum)
