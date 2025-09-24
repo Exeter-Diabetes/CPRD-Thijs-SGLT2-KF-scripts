@@ -16,7 +16,7 @@ setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/scripts/CPRD-Thi
 source("00 Setup.R")
 
 # load data
-setwd("C:/Users/tj358/OneDrive - University of Exeter/CPRD/2023/Processed data/")
+setwd("/slade/CPRD_data/Thijs/SGLT2/Processed data/")
 load(paste0(today, "_t2d_ckdpc_imputed_data_withweights.Rda"))
 
 cols <- cols[names(cols) %in% cohort$studydrug2]
